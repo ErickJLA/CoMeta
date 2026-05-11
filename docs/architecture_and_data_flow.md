@@ -86,7 +86,7 @@ BUILT_IN_DATASETS = {
 
 ### 2.2 Column mapping & validation
 
-After loading, the user is presented with a column-mapping interface routed by `_initiate_mapping_interface(df)` → `_render_column_mapping(df, data_type)` to one of three branches:
+After loading, three of the four ingestion pathways present a column-mapping interface routed by `_initiate_mapping_interface(df)` → `_render_column_mapping(df, data_type)` to one of three branches:
 
 * `_render_raw_mapping(df)` — continuous raw means/SDs/Ns, governed by the synonym table `RAW_COLUMN_SPECS` (keys: `id, xe, sde, ne, xc, sdc, nc`).
 * `_render_binary_mapping(df)` — 2×2 tables, governed by `BINARY_COLUMN_SPECS` (keys: `id, events_e, nonevents_e, events_c, nonevents_c`).
@@ -94,32 +94,45 @@ After loading, the user is presented with a column-mapping interface routed by `
 
 Optional geographic columns (`GEO_COLUMN_SPECS`: latitude, longitude, country) are mapped through `_build_geo_mapping_widgets(df)` and validated with `_validate_geo_data(df, geo_map)`.
 
-Each mapping renderer performs two layers of validation before committing:
+Validation is split across two ingest-time and one renderer-time check:
 
-1. **`_check_duplicate_columns(df, source_label)`** — rejects DataFrames with duplicate column names.
-2. **`_validate_and_coerce_mapped_numerics(df, col_map, data_type)`** — coerces numerics using the strict whitelist `_NUMERIC_REQUIRED` and the soft whitelist `_NUMERIC_SOFT`, falling back to `_coerce_numeric_columns(df)` for downstream usability.
+1. **`_check_duplicate_columns(df, source_label)`** — invoked at *ingestion* time inside `_safe_read_csv(content_bytes)` (Cell 2, line 311) and inside `on_process_file_clicked` for Excel uploads (line 787). It rejects DataFrames with duplicate column names before they ever reach the mapping UI.
+2. **`_validate_and_coerce_mapped_numerics(df, col_map, data_type)`** — invoked inside each renderer (`_render_binary_mapping` line 946, `_render_raw_mapping` line 1047, `_render_precalc_mapping` line 1161). Coerces numerics using the strict whitelist `_NUMERIC_REQUIRED` and the soft whitelist `_NUMERIC_SOFT`.
+3. **`_coerce_numeric_columns(df)`** — invoked at *ingestion* time inside `on_load_sheet_clicked` (line 699) so that Google Sheets values (which arrive as strings) are typed before reaching the mapping UI.
 
-On success the renderer writes the renamed, type-coerced frame to `ANALYSIS_CONFIG['clean_dataframe']` and calls `mark_stale(ALL_DOWNSTREAM, "Step 2: ... Mapping Changed")`.
+On successful mapping the renderer assigns the renamed, type-coerced frame to the **module-level global** `raw_data_standardized` (Cell 2, lines 943 / 1044 / 1158) and sets `DATA_TYPE_SELECTED` to `'raw'` or `'pre_calculated'`. The final commit into `ANALYSIS_CONFIG['clean_dataframe']` happens one cell later, in Cell 3 (line 43), which copies `raw_data_standardized` into the global config dictionary. The two ingestion shortcuts behave differently:
+
+* **Built-in examples** (`on_load_example_clicked`) bypass `_initiate_mapping_interface` entirely — the data columns are already canonical — and write *both* `raw_data_standardized` *and* `ANALYSIS_CONFIG['clean_dataframe']` directly (Cell 2, lines 1426–1437).
+* **JSON session restore** (`_on_repro_upload`) hydrates `ANALYSIS_CONFIG['clean_dataframe']` inside `load_reproducibility_config(content)` from the embedded CSV string (§ 5.1), again bypassing the mapping UI.
+
+In every case, after a successful path, the renderer (or the bypass shortcut) calls `mark_stale(ALL_DOWNSTREAM, "Step 2: … Mapping Changed")` to invalidate downstream module banners.
 
 ```mermaid
 flowchart TD
-    A["User opens Cell 2"]:::u --> B{"Data source"}
-    B -->|FileUpload| C["on_process_file_clicked"]
-    B -->|Google Sheets| D["on_load_sheet_clicked"]
-    B -->|JSON session| E["_on_repro_upload"]
-    B -->|Built-in| F["on_load_example_clicked"]
-    C --> G["_initiate_mapping_interface"]
-    D --> G
-    F --> G
-    G --> H{"Data type"}
+    A["User opens Cell 2"]:::u --> B{"Ingestion source"}
+    B -->|FileUpload<br/>on_process_file_clicked| C1["_safe_read_csv<br/>(+ _check_duplicate_columns)"]
+    B -->|Google Sheets<br/>on_load_sheet_clicked| D1["gspread fetch<br/>+ _coerce_numeric_columns"]
+    B -->|Built-in example<br/>on_load_example_clicked| F1["BUILT_IN_DATASETS lookup"]
+    B -->|JSON session<br/>_on_repro_upload| E1["load_reproducibility_config<br/>(embedded CSV → DataFrame)"]
+
+    C1 --> G["_initiate_mapping_interface"]
+    D1 --> G
+    G --> H["_render_column_mapping(df, data_type)"]
     H -->|raw_continuous| I["_render_raw_mapping"]
     H -->|raw_binary| J["_render_binary_mapping"]
     H -->|pre_calculated| K["_render_precalc_mapping"]
     I --> V["_validate_and_coerce_mapped_numerics"]
     J --> V
     K --> V
-    V --> W["ANALYSIS_CONFIG['clean_dataframe']"]:::s
-    E --> W
+    V --> RD["raw_data_standardized<br/>(module-level global)"]:::s
+    F1 --> RD
+    F1 --> CD["ANALYSIS_CONFIG['clean_dataframe']<br/>(direct write)"]:::s
+    E1 --> CD
+    RD -.->|"copied in Cell 3<br/>(line 43)"| CD
+    V --> MS["mark_stale(ALL_DOWNSTREAM)"]
+    F1 --> MS
+    E1 --> MS
+
     classDef u fill:#dbeafe,stroke:#1d4ed8
     classDef s fill:#bbf7d0,stroke:#15803d
 ```
