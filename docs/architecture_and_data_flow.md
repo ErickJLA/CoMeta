@@ -344,12 +344,6 @@ flowchart TD
     UI --> CFG["ANALYSIS_CONFIG['effect_size_type']<br/>+ 'es_config'<br/>+ mark_stale(ALL_DOWNSTREAM)"]
 ```
 
-#### 3.3.5 Manuscript-ready description of the recommendation engine
-
-> CoMeta operationalises effect-size selection through a transparent, two-stage rule-based engine that interrogates the user-supplied dataframe prior to any inferential modelling. The first stage is a deterministic *topology router* that classifies the dataset on the basis of column membership and value-domain integrity. Datasets containing the four binary-count columns (`events_e`, `nonevents_e`, `events_c`, `nonevents_c`), whose entries are non-negative integers and which lack continuous standard-deviation columns, are routed unambiguously to the log odds ratio (lnOR) with high confidence. Datasets simultaneously exposing binary counts and continuous (mean/SD) descriptors are flagged as topologically ambiguous and default to Hedges' *g* with low confidence, prompting explicit user disambiguation. All other datasets, which expose only the continuous treatment and control means (`xe`, `xc`), are forwarded to the second stage.
->
-> The second stage is a weighted, additive scoring procedure that arbitrates between the log response ratio (lnRR) and the small-sample-corrected standardised mean difference (Hedges' *g*). Each of six diagnostic rules (R1–R6) interrogates a distinct mathematical or distributional property of the dataframe and contributes an integer increment to two competing accumulators, `score_lnRR` and `score_hedges_g`. **R1 — Sign domain (hard constraint).** Because logarithmic transformations are undefined on the negative reals, the presence of any negative entry in `xe` or `xc` adds ten points to `score_hedges_g`; conversely, a strictly positive domain credits lnRR two points. **R2 — Normalisation toward unity.** Recognising that fold-change data frequently encode controls at 1.0, the algorithm credits lnRR five points when more than 50 % of control means are exactly unity, three points when more than 30 % fall within the interval [0.95, 1.05], and one point when the grand control mean lies within (0.8, 1.2). **R3 — Across-study scale heterogeneity.** The ratio of treatment- and control-arm ranges, `max_range / (min_range + 10⁻⁴)`, captures variability in measurement scale across primary studies: ratios exceeding 100 and 10 add three and two points respectively to lnRR (ratios standardise scale differences multiplicatively), while ratios beneath the lower threshold add one point to Hedges' *g* in recognition of the comparability of standardised mean differences under homogeneous scales. **R4 — Zero values.** Because `log(0)` is undefined, any zero in `xe` or `xc` adds two points to `score_hedges_g`. **R5 — Standard-deviation coverage.** Hedges' *g* requires per-row SDs; if more than 80 % of observations carry valid `sde` and `sdc`, Hedges' *g* gains one point, whereas coverage below 20 % issues a warning indicating that neither metric can be applied without prior imputation (see § 3.2). **R6 — Distributional shape.** The maximum skewness of `xe` and `xc` is compared against canonical thresholds: values exceeding 1.5 credit lnRR two points on the grounds that pronounced right-skewness is symptomatic of multiplicative biological processes, whereas approximately symmetric distributions (|skew| < 0.5) credit Hedges' *g* one point as consistent with the parametric assumptions underlying standardised mean differences. Ties between the accumulators are resolved by a context-sensitive tie-breaker: in the absence of zeros and negative values, the algorithm increments `score_lnRR` by one in deference to the interpretive clarity of percent-change reporting in ecological synthesis; otherwise, `score_hedges_g` is credited one point as the mathematically safer choice. The metric attaining the higher total score is designated the recommended effect size, and the absolute score gap is mapped to a categorical confidence label (`|Δ| ≥ 5` → *High*; `|Δ| ≥ 3` → *Moderate*; otherwise → *Low*). To preserve methodological transparency, every triggered rule, its assigned weight, and a natural-language rationale are surfaced to the user in a "Decision Logic" tab and persisted alongside the chosen metric in `ANALYSIS_CONFIG`, rendering the recommendation fully auditable, reproducible, and — should the analyst's substantive judgement diverge from the algorithm's verdict — straightforward to override.
-
 ### 3.4 Exact VCV construction (Cell 6 — `build_vcv_matrices`)
 
 Cell 6 contains the closed-form Variance–Covariance constructor, declared in the source as:
@@ -372,6 +366,80 @@ The builder produces one block per `id`. Each study's block is initialised as a 
 | `lnRR` | `sdc² / (nc · xc²)` |
 | `log_or` | `1/c_c + 1/d_c` (shared control events / non-events) |
 | `log_rr` | `1/c_c − 1/n_c` (shared control events / total) |
+
+#### 3.4.1 Anatomy of a study block
+
+For a study *s* with `k = len(study_grp)` effect sizes, the algorithm proceeds in three deterministic steps (Cell 6, lines 74–177):
+
+1. **Block initialisation.** The diagonal is seeded with the per-row sampling variances drawn from the already-computed effect-size variance column (`var_col_name`, which resolves to `var_lnRR` for response-ratio workflows):
+   ```python
+   vcv = np.diag(study_grp[var_col_name].values.astype(float))
+   ```
+   This guarantees that — in the absence of any shared-control structure — the block degenerates to the classical independent-sampling variances.
+2. **Shared-cluster enumeration.** The builder groups rows by the `shared_group_id` tag set in Cell 4 (§ 3.1). Singletons (`len(positions) < 2`) are skipped because they generate no off-diagonal entries; only clusters of two or more co-dependent rows trigger covariance insertion. The within-study row indices are recovered via `positions = [indices.index(idx) for idx in shared_rows.index]`, allowing the algorithm to address the local *(i, j)* entries of `vcv` without confusing them with the global dataframe index.
+3. **Symmetric covariance insertion.** For every ordered pair *(i, j)* with `i ≠ j` inside the cluster, the appropriate Gleser–Olkin / Lajeunesse closed-form covariance is computed and assigned. Diagonal entries are left untouched (they already carry the per-row variances), preserving the standard sampling variance whilst introducing the dependence structure off-diagonal:
+   ```python
+   for i in positions:
+       for j in positions:
+           if i != j:
+               vcv[i, j] = cov
+   ```
+
+Because the off-diagonal entry is assigned symmetrically across both *(i, j)* and *(j, i)*, the resulting block is exactly symmetric by construction and does not require post-hoc symmetrisation. Rows outside any shared-control cluster preserve their zero off-diagonal entries, yielding a *partially block-diagonal* matrix in which dependence is restricted to genuinely co-dependent observations.
+
+#### 3.4.2 The lnRR off-diagonal: derivation and implementation
+
+For the log response ratio, CoMeta uses the closed-form shared-control covariance derived in **Lajeunesse (2011)** (see Appendix B). For two effect sizes *i* and *j* within the same study that share a common control arm of size `nc`, control mean `xc`, and control standard deviation `sdc`, the covariance between their lnRR estimates is
+
+$$
+\operatorname{Cov}\!\bigl(\ln \mathrm{RR}_i,\, \ln \mathrm{RR}_j\bigr) \;=\; \frac{s_C^{2}}{n_C \, \bar X_C^{2}}
+$$
+
+This identity follows directly from the delta-method linearisation of lnRR around the control mean. Recall that for treatment mean `xe` and control mean `xc`,
+$$
+\ln \mathrm{RR} \;=\; \ln \bar X_E - \ln \bar X_C, \qquad
+\operatorname{Var}(\ln \mathrm{RR}) \;=\; \frac{s_E^{2}}{n_E \bar X_E^{2}} + \frac{s_C^{2}}{n_C \bar X_C^{2}}.
+$$
+
+The first term is *idiosyncratic* to each treatment arm and is therefore independent across effect sizes *i* and *j* — even when those effect sizes are nested within the same study. The second term, however, is **identical** for every effect size that draws on the same control mean. Substituting two effect sizes that share `(xc, sdc, nc)` into the delta-method variance and retaining only the *common* terms yields the covariance formula above. In other words, the off-diagonal entry for a pair of lnRR effect sizes that share a control arm is exactly the *control-arm contribution* to their individual sampling variances — the part of the variance that would otherwise be double-counted if the effect sizes were naïvely treated as independent.
+
+The implementation faithfully translates this derivation (Cell 6, lines 99–106):
+
+```python
+# ── lnRR ─────────────────────────────────────────────
+if effect_type == 'lnRR' and xc_col in shared_rows.columns:
+    xc = float(shared_rows.iloc[0][xc_col])
+    sdc_column = 'sdc_imputed' if 'sdc_imputed' in shared_rows.columns else sdc_col
+    sdc = float(shared_rows.iloc[0][sdc_column]) if sdc_column in shared_rows.columns else 0.0
+
+    cov = (sdc ** 2) / (nc * xc ** 2) if xc != 0 else 0.0
+
+    for i in positions:
+        for j in positions:
+            if i != j:
+                vcv[i, j] = cov
+```
+
+Several engineering choices in this snippet are worth flagging for methodologists auditing the implementation:
+
+- **Imputation-aware SD.** Rather than reading `sdc` directly, the routine preferentially reads `sdc_imputed` whenever that column has been generated by the SD-handling pipeline (§ 3.2). This guarantees that — if a row's control SD was imputed via `median_cv`, `custom_cv`, or `nearest`-neighbour — the *imputed* value, not the original `NaN`, is propagated into the covariance term. The substitution is intentional: a missing or zero `sdc` would otherwise drive the off-diagonal entry to zero and would silently dissolve the very dependence structure CoMeta is attempting to model.
+- **Single representative row.** Because every member of the shared-control cluster is, by definition of `shared_group_id`, expected to carry identical `(xc, sdc, nc)` triples, the implementation reads these values from the first row of the cluster (`shared_rows.iloc[0]`). The shared-control detector in Cell 4 (§ 3.1) constructs the `shared_group_id` precisely so that this invariant holds — the cluster key is built by hashing `nc / xc / sdc` to six decimal places.
+- **Zero-mean guard.** If `xc == 0` the divisor would diverge; the routine returns `cov = 0.0` in that boundary case. Such rows should already have been removed or offset in Cell 6's `lnRR` pre-processing block (which adds a scale-adjusted offset to any zero `xe`/`xc` and removes negatives), so this branch is a defence-in-depth guard rather than an expected code path.
+- **Constant covariance across the cluster.** The covariance `(sdc²)/(nc · xc²)` is computed once and assigned to every off-diagonal pair in the cluster. This is the correct behaviour: under shared controls, *all* pairs of effect sizes share the same control-arm uncertainty, so the off-diagonal block is uniform with magnitude exactly equal to the squared standard error of `ln(xc)`.
+
+#### 3.4.3 Interpretation and downstream consumption
+
+The resulting block has a particularly transparent interpretation. For a study contributing `k` effect sizes that all share a common control,
+
+$$
+V_s^{\text{lnRR}} \;=\;
+\underbrace{\operatorname{diag}\!\bigl(v_1, v_2, \dots, v_k\bigr)}_{\text{independent treatment-arm contributions}}
+\;+\;
+\underbrace{c \cdot \mathbf{1}\mathbf{1}^{\!\top} \;-\; c \cdot \mathbf{I}_k}_{\text{shared-control contribution (off-diagonal only)}},
+\qquad c \;=\; \tfrac{s_C^{2}}{n_C \, \bar X_C^{2}},
+$$
+
+where `v_i = sde_i²/(ne_i · xe_i²) + c` is the marginal variance already on the diagonal (computed earlier in Cell 6's lnRR branch) and the second term injects the cluster-uniform off-diagonal *c* without touching the diagonal. This block is then keyed by `study_id` into the `vcv_matrices` dictionary and consumed downstream by `ThreeLevelEngine.fit` and `_run_three_level_reml_regression_v2` (§ 4.2–4.3), where it is folded into the per-study covariance Σᵢ = `V_i + σ²·I_k + τ²·1·1ᵀ`. Because the lnRR block already carries a rank-one shared-control structure on the off-diagonal, the matrix path of the REML optimiser (Cholesky branch, § 4.2) — rather than the Sherman–Morrison fast path — is what actually executes for studies with shared controls; this is exactly the regime the analytic Gleser–Olkin / Lajeunesse derivation was developed to license.
 
 The output is a dictionary keyed by `study_id`:
 
