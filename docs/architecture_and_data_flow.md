@@ -27,6 +27,7 @@ This document is organised as a top-down traversal of the CoMeta pipeline, from 
 | [4.3](#43-three-level-meta-regression-and-cr2-cluster-robust-variance-cell-1) | Three-level meta-regression and CR2 | `_run_three_level_reml_regression_v2` Plan A → B → C fallback strategy and the `_compute_robust_var_betas` three-phase CR2 implementation with per-coefficient Satterthwaite degrees of freedom. |
 | [4.4](#44-library-stack) | Library stack | The exhaustive NumPy / SciPy / `patsy` / pandas dependency map, plus the `check_and_lockdown()` environment-protection mechanism. |
 | [4.5](#45-fallback-mechanisms) | Fallback mechanisms | The six graceful-degradation pathways (topological pre-check, boundary collapse, optimiser failure, regression Plan A→B→C, CR2 numerical failure, τ² estimator fallback) and the ten channels through which they are surfaced to the user. |
+| [4.6](#46-publication-bias-diagnostics-cells-1619) | Publication-bias diagnostics | Egger's regression, Duval–Tweedie trim-and-fill (Cell 16), and PET-PEESE (Cell 18) — all fitted through the same three-level REML core — plus the funnel / trim-and-fill plots (Cells 17, 19). |
 | [5](#5-session-serialization--reporting) | **Session Serialization & Reporting** | How a CoMeta session is captured as a JSON file and round-tripped back into a fresh runtime, and how the publication-text generators read the result objects to produce manuscript-ready Materials & Methods and Results prose. |
 | [5.1](#51-json-serialization-cell-1-lines-26292768) | JSON serialization | `make_json_safe`, `export_config_for_reproducibility` with the `RESULT_KEYS` skip-list, the optimiser-defaults block, and `load_reproducibility_config`. |
 | [5.2](#52-automated-materials--methods--results-generator) | Materials & Methods / Results generator | Dynamic citation database, conditional disclosures (SD imputation, Knapp–Hartung), Cohen/Higgins effect-size and heterogeneity interpretation bins, and the three-branch model-selection narrative. |
@@ -1027,6 +1028,137 @@ flowchart LR
     F --> CH6["warnings.warn console<br/>(τ² fallback only)"]
     F --> CH7["💾 Excel Protocol & Settings<br/>best_model / model_choice"]
     classDef n fill:#fef3c7,stroke:#ca8a04
+```
+
+---
+
+### 4.6 Publication-bias diagnostics (Cells 16–19)
+
+Four cells implement three independent publication-bias methodologies — *Egger's regression test* and *Duval–Tweedie trim-and-fill* (Cell 16), *PET-PEESE* (Cell 18) — plus two visualisation cells (Cell 17, Cell 19). All three statistical methodologies fit their working regression through the **same three-level REML core** documented in § 4.2–4.3, i.e. small-study effects are detected and corrected *inside the nested-clustering covariance structure* rather than on an aggregated two-level reduction. The corresponding result keys persisted to `ANALYSIS_CONFIG` are `funnel_results` (Egger), `trimfill_results` (T&F), `pet_peese_results` (PET-PEESE), and the shared `bias_text` for the publication-text fragment.
+
+| Cell | Module | What it owns |
+|---|---|---|
+| 16 | `PublicationBiasModel` / `View` / `Controller` | Egger's regression + Duval–Tweedie trim-and-fill (full MVC; ~1,080 lines) |
+| 17 | `generate_tf_plot` | Trim-and-Fill plot, reads `trimfill_results` |
+| 18 | `PETPEESEDataManager` / `PETPEESEEngine` / `PETPEESEController` (+ 6 result dataclasses) | PET-PEESE with conditional decision rule (full MVC; ~1,600 lines) |
+| 19 | `generate_funnel_plot` | Classical funnel plot, reads `overall_results` and `funnel_results` |
+
+#### 4.6.1 Egger's regression test (Cell 16, lines 69–172)
+
+`PublicationBiasModel.run_eggers_test` (line 69) regresses the effect on its standard error using the three-level REML core, then reports a t-test on the intercept. The heavy lifting is in `_run_robust_eggers_test` (line 119), which assembles `y_all` / `v_all` / `X_all` from the global dataframe — with `X_i = sm.add_constant(group[se_col].values, prepend=True)` giving the design `[1, SE]` per study — and minimises `_neg_log_lik_reml_reg` (the shared REML negative log-likelihood from Cell 1) over the two variance components `(σ², τ²)`:
+
+```python
+start_points = [[0.1, 0.1], [1.0, 0.1], [5.0, 0.1]]            # three deterministic restarts
+res = minimize(neg_log_lik_reml_reg, x0=start, args=(...),
+               method='L-BFGS-B',
+               bounds=[(1e-8, None), (1e-8, None)],
+               options={'ftol': 1e-10})
+# best of three followed by Nelder-Mead polish
+final_res = minimize(neg_log_lik_reml_reg, x0=best_res.x, args=(...),
+                     method='Nelder-Mead', options={'xatol': 1e-10, 'fatol': 1e-10})
+estimates = _get_three_level_regression_estimates_v2(final_res.x, ...)
+```
+
+The reported t-statistic and p-value are then computed from the **intercept** of the regression (lines 85–90):
+
+```python
+intercept = estimates['betas'][0]
+se_intercept = estimates['se_betas'][0]
+t_stat = intercept / se_intercept
+p_value = 2 * (1 - t.cdf(abs(t_stat), df))
+```
+
+**Methodological note.** The canonical *modified* Egger formulation (Sterne & Egger 2005) regresses effect on SE and uses the *slope* of `Effect ~ SE` as the asymmetry test; the intercept is the bias-corrected estimate at the limit `SE → 0`. The current code branch instead reports a t-test on the intercept and feeds that p-value into `get_combined_assessment` as `egger_bias = egger_p < 0.10` (line 371). A maintainer auditing for canonical Egger behaviour may wish to verify whether the intent is to test the slope (`slope_val / se_betas[1]`) — the slope is in fact already computed and saved as `funnel_results['beta_slope']` (line 106), it is just not the quantity used for the bias verdict.
+
+The output dictionary is written to *two* keys: `egger_results` (private to the Model) and `ANALYSIS_CONFIG['funnel_results']` (consumed downstream by Cell 19's funnel plot and by the export pipeline).
+
+#### 4.6.2 Duval–Tweedie trim-and-fill (Cell 16, lines 182–361)
+
+`PublicationBiasModel.run_trimfill_analysis(estimator='L0', side='auto', max_iter=100)` implements the L₀ estimator of Duval & Tweedie (2000), upgraded with three CoMeta-specific extensions: random-effects centering inside the trim loop, the *full 3-level REML* engine for the final bias-corrected pooled estimate, and synthetic study IDs that keep imputed observations from inflating σ². The algorithm proceeds in three phases.
+
+**Phase 1 — Skew direction.** If `side == 'auto'`, a fixed-effect-weighted third-moment test selects the asymmetry side (line 199–203):
+$$
+\hat{\mu}_{FE} = \frac{\sum w_i y_i}{\sum w_i}, \quad
+\text{skew} = \sum w_i (y_i - \hat{\mu}_{FE})^3, \quad
+\text{side} = \begin{cases} \text{left} & \text{if skew} > 0 \\ \text{right} & \text{otherwise} \end{cases}
+$$
+with `w_i = 1/v_i`.
+
+**Phase 2 — Iterative trimming with RE centering.** Studies are sorted by effect size. On each iteration of the L₀ loop, the current trimmed sample is re-pooled using a *random-effects* estimator with a DerSimonian–Laird-like τ² update (lines 219–229), not a fixed-effect mean as in the classical formulation:
+
+$$
+\hat{\mu}_{FE} = \frac{\sum w_i y_i}{\sum w_i}, \quad
+Q = \sum w_i (y_i - \hat{\mu}_{FE})^2, \quad
+\hat{\tau}^2 = \max\!\left(0,\, \frac{Q - df}{C}\right), \quad
+C = \sum w_i - \frac{\sum w_i^2}{\sum w_i}, \quad
+\hat{\mu}_{RE} = \frac{\sum (v_i + \hat{\tau}^2)^{-1} y_i}{\sum (v_i + \hat{\tau}^2)^{-1}}.
+$$
+
+Residuals are formed against `μ_RE`, sign-flipped if `side == 'right'`, ranked by absolute value, and the L₀ statistic is computed from the sum of positive-ranked positions:
+
+```python
+Sn = sum of ranks where signed_res > 0
+k0_new = max(0, round((4·Sn - n·(n + 1)) / (2·n - 1)))
+k0_new = min(k0_new, n - 2)                       # cap at n-2 to keep ≥2 observations
+```
+
+Iteration terminates when `k0_new == k0` (fixed point) or `max_iter = 100` is exceeded.
+
+**Phase 3 — Filling and 3-level re-pooling.** If `k0 > 0`, the `k0` most extreme observations on the asymmetric side are mirror-imaged across the converged `μ_RE` (line 260): `y_filled = 2·μ_RE − y_excess`, with `v_filled = v_excess`. The combined dataset (original + filled) is then re-pooled through the **full 3-level REML engine** with an intercept-only design matrix (lines 271–330), giving SE and CI that respect the nested clustering. Imputed observations receive synthetic study IDs `Imputed_TF_{i}` so that each appears as its own singleton cluster — preventing them from inflating the within-study variance component σ². A final fallback uses the FE-style `SE = 1/√Σ w_i` (line 312–317) only if the REML optimiser fails entirely.
+
+The output dictionary records `k0`, `side`, both original and filled pooled estimates with SE/CI, and the arrays `yi_filled` / `vi_filled` / `yi_combined` / `vi_combined` for plotting; it is saved to `ANALYSIS_CONFIG['trimfill_results']`.
+
+**Combined assessment.** `get_combined_assessment` (line 363) coerces the two diagnostics into a tri-state verdict — `HIGH RISK` (both flag bias: `egger_p < 0.10` *and* `k0 > 0`), `MODERATE RISK` (one flags bias), `LOW RISK` (neither) — which is rendered as a coloured banner in the Publication tab.
+
+#### 4.6.3 PET-PEESE (Cell 18, full MVC)
+
+Cell 18 is a complete MVC module dedicated to a single statistical workflow with a built-in **conditional decision rule**. Five result dataclasses (`PETResult`, `PEESEResult`, `NaiveEstimate`, `PETPEESEDecision`, `PETPEESEResult`, lines 38–98) carry the structured output; the engine pipeline is composed of three sub-engines.
+
+**Data preparation** (`PETPEESEDataManager.prepare_data`, line 199). Forces the presence of both `SE` and `Var` columns (deriving each from the other if missing), drops missing values, requires `Var > 0` and `SE > 0`, and demands at least three observations after cleaning.
+
+**PET regression** (`PETEngine.run_pet_regression`, line 388): three-level REML regression `Effect ~ SE` via `_run_three_level_reml_regression_v2(df, moderator_col='SE', ...)`. Returns the `estimates` dictionary unchanged from the shared regression routine; `_extract_pet_result` then unpacks `betas[0]`, `betas[1]`, `se_betas[0]`, `se_betas[1]`, `ci_lower[0]`, `ci_upper[0]`, and `p_values[1]` into a `PETResult`.
+
+**PEESE regression** (`PEESEEngine.run_peese_regression`, line 443): same wrapper but with `moderator_col='Var'`. The structural assumption that distinguishes the two models is the *shape* of the funnel under bias — PET is linear in SE, PEESE is linear in variance — and consequently the two intercepts disagree on how the bias-corrected estimate scales with precision.
+
+**Decision rule** (`PETPEESEDecisionMaker.make_decision`, line 491, static method). The canonical Stanley–Doucouliagos (2014) two-step rule:
+
+```python
+bias_detected = pet_slope_p < p_threshold        # default p_threshold = 0.10
+if bias_detected:
+    recommended_model = "PEESE"                  # use PEESE intercept + SE + CI
+else:
+    recommended_model = "PET"                    # use PET intercept + SE + CI
+```
+
+Unlike § 4.6.1, this branch correctly tests the **slope** of `Effect ~ SE` against the threshold — i.e. the canonical asymmetry diagnostic — and feeds it into a deterministic model-selection branch. The threshold defaults to `0.10` (not `0.05`) because PET-PEESE was originally calibrated against meta-analyses where the typical asymmetry signal is weak; the threshold is exposed on `PETPEESEConfig.p_threshold` for users who want a stricter cutoff.
+
+**Orchestration** (`PETPEESEEngine.run_analysis`, line 583). The five-step workflow is: prepare data → PET regression → PEESE regression → apply decision rule → fetch naive estimate (from `ANALYSIS_CONFIG['overall_results']`) → assemble a `PETPEESEResult` dataclass. Optional `progress_callback` updates a UI progress widget at each step. The result is saved to `ANALYSIS_CONFIG['pet_peese_results']` and persisted with its own publication-text fragment via `PETPEESEPublicationTextGenerator` (line 1024) — only the *Overall* and *PET-PEESE* modules currently maintain dedicated publication-text generators; all others reuse the global helpers from Cell 7.
+
+#### 4.6.4 Funnel and trim-and-fill plots (Cells 17, 19)
+
+Both visualisation cells are stateless: they read pre-computed results from `ANALYSIS_CONFIG` and render `matplotlib` / `plotly` figures inside `widgets.Output`s.
+
+**Cell 19 — classical funnel plot** (`generate_funnel_plot`, line 121). Plots effect (x-axis) against SE (y-axis, *inverted* so precision increases upward), centred on the pooled effect from `overall_results` (`mu_robust` if available, else `mu` / `pooled_effect_random`). Three pseudo-confidence contours are drawn as triangular envelopes around the pooled effect at widths `c · SE` for `c ∈ {1.645, 1.96, 2.58}` (90 / 95 / 99 %). The Egger's overlay reads `ANALYSIS_CONFIG['funnel_results']['p_value']` and displays it as a corner annotation.
+
+**Cell 17 — trim-and-fill plot** (`generate_tf_plot`, line 620). Extends the funnel plot to mark imputed studies (`yi_filled`, `vi_filled`) with a distinct marker and centres the 95% pseudo-confidence region on the **bias-adjusted** pooled effect (`tf_res['pooled_filled']`) rather than the original. Reads `ANALYSIS_CONFIG['trimfill_results']`. Auto-detects the SE axis range from the combined `vi_combined` array.
+
+#### Module wiring
+
+Both Cell 16 and Cell 18 register their own staleness banners (`'pub_bias'` and `'pet_peese'` respectively, see § 1.2 and the `ALL_DOWNSTREAM` registry on Cell 1 line 145). The Excel exporter dispatches on `report_type='publication_bias'` (Cell 1, `export_analysis_report` line 2507) to ship the protocol metadata, Egger / Trim-Fill / PET-PEESE summaries, and the publication-text fragment to a single workbook. The shared `ANALYSIS_CONFIG['bias_text']` key is used by Cell 16; Cell 18 instead persists its own text under `'pet_peese_text'` because it owns a dedicated publication-text generator.
+
+```mermaid
+flowchart LR
+    DF["analysis_data + overall_results<br/>(from §3–§4.2)"]:::n --> EG["Cell 16<br/>run_eggers_test<br/>3-level REML on Effect ~ SE<br/>(intercept t-test)"]
+    DF --> TF["Cell 16<br/>run_trimfill_analysis<br/>L₀ trim + DL-RE centering<br/>+ 3-level re-pool of filled set"]
+    DF --> PP["Cell 18<br/>PETPEESEEngine.run_analysis<br/>PET (Effect~SE) + PEESE (Effect~Var)<br/>+ slope-p decision rule"]
+    EG --> AC1["ANALYSIS_CONFIG<br/>funnel_results"]:::g
+    TF --> AC2["ANALYSIS_CONFIG<br/>trimfill_results"]:::g
+    PP --> AC3["ANALYSIS_CONFIG<br/>pet_peese_results"]:::g
+    AC1 --> V19["Cell 19<br/>generate_funnel_plot"]
+    AC2 --> V17["Cell 17<br/>generate_tf_plot"]
+    AC1 & AC2 --> CA["get_combined_assessment<br/>HIGH / MODERATE / LOW RISK"]
+    classDef n fill:#dbeafe,stroke:#1d4ed8
+    classDef g fill:#bbf7d0,stroke:#15803d
 ```
 
 ---
