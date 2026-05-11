@@ -794,10 +794,10 @@ G_inv_sqrt = (eigvecs * val_inv_sqrt) @ eigvecs.T   # Moore–Penrose G^{-1/2}
 A_i        = L_i @ G_inv_sqrt @ L_i.T               # A_j = Rᵀ G^{-1/2} R
 ```
 
-Two design choices distinguish this implementation from the older symmetric `D_i = (I − H + (I − H)ᵀ)/2` formulation:
+Two implementation details are worth flagging explicitly, since both follow `clubSandwich::vcovCR` rather than a textbook derivation:
 
-1. **`R = chol(Φ)ᵀ` is included on both sides of `G`.** With `Φ = L Lᵀ` (NumPy returns lower-triangular `L`), `R = Lᵀ` and `Rᵀ = L`, so the line `G_i = L_i.T @ IH_i @ Phi_i @ L_i` realises `G_j = R (I − H_j) Φ_j Rᵀ`. The resulting `A_j = Rᵀ G_j^{−1/2} R` is the limiting form Bell & McCaffrey derive, and matches `clubSandwich::matrix_power(G, −1/2)` bracketed by `chol(Φ)`.
-2. **The pseudo-inverse-square-root uses an *absolute* tolerance `PINV_TOL = 1e-12`** (eigenvalues at or below `1e-12` map to zero, rather than to `1/√tol`), which is what clubSandwich's `matrix_power` does. This gives a Moore–Penrose pseudoinverse on the cluster's range space — the limiting behaviour required when a cluster is absorbed by the design (`h_jj → 1`), as happens for singleton clusters that uniquely carry a categorical moderator level. The older relative `tol = max(1e-10, 1e-6·max|λ|)` form is *not* used here.
+1. **The Cholesky factor of `Φ_j` brackets `G` on both sides.** With `Φ = L Lᵀ` (NumPy returns lower-triangular `L`), `R = Lᵀ` and `Rᵀ = L`, so the line `G_i = L_i.T @ IH_i @ Phi_i @ L_i` realises `G_j = R (I − H_j) Φ_j Rᵀ`. The resulting `A_j = Rᵀ G_j^{−1/2} R` is the Bell–McCaffrey limiting form, and matches `clubSandwich::matrix_power(G, −1/2)` bracketed by `chol(Φ)`.
+2. **The pseudo-inverse-square-root uses an *absolute* tolerance `PINV_TOL = 1e-12`** — eigenvalues at or below `1e-12` map to zero, rather than to `1/√tol` — which is what clubSandwich's `matrix_power` does. The absolute floor is required for the pseudoinverse limit to be well-defined: it gives a Moore–Penrose pseudoinverse on the cluster's range space, which is the limiting behaviour needed when a cluster is absorbed by the design (`h_jj → 1`), as happens for singleton clusters that uniquely carry a categorical moderator level. A relative tolerance of the form `tol = max(1e-10, 1e-6·max|λ|)` would not preserve this limit.
 
 The cluster score and meat are then accumulated in their standard sandwich form, but evaluated through the cached `XW_i = X_jᵀ W_j` (avoiding a re-inversion of `Φ_j`):
 
@@ -832,7 +832,7 @@ $$
 from which the Satterthwaite DF for coefficient *i* is
 
 $$
-\hat{\nu}_i \;=\; \frac{\operatorname{tr}(P_i)^{2}}{\sum_{j,j'} P_i[j, j']^{2}}.
+\hat{\nu}_i \;=\; \frac{\mathrm{tr}(P_i)^{2}}{\sum_{j,j'} P_i[j, j']^{2}}.
 $$
 
 Both quantities are computed in closed form from `Gram`, `diag(Gram)` (= `|H_{j,i}|²`), and `G_norms[:, i]`:
