@@ -585,6 +585,88 @@ The engine is built exclusively on **NumPy / SciPy / pandas**:
 | `ipywidgets` | UI layer |
 | `xlsxwriter`, `gspread` | Export & Google Sheets ingestion |
 
+#### 4.4.1 Environment lockdown and protection against dependency drift
+
+Because CoMeta is distributed as a single notebook executed on whichever Colab runtime happens to be assigned to the user, the numerical results of any analysis are vulnerable to **environment decay** — the silent drift in third-party package versions that occurs as Google rolls forward its base image, as PyPI publishes new releases, or as a user runs the notebook on a personal machine with a heterogeneous Python environment. A change in any of the numerical or statistical dependencies (e.g., a SciPy optimiser default, a NumPy broadcasting semantics, a pandas grouping behaviour) could in principle alter the third decimal place of a pooled estimate without raising any exception. To eliminate this risk, the very first executable construct in Cell 1 is a deterministic version-pinning routine, `check_and_lockdown()`, which is invoked unconditionally **before** any analytical import is performed.
+
+The routine consults a single source of truth — the module-level dictionary `REQUIRED_PACKAGES` — which enumerates the *exact* (`==`) versions of every library the manuscript was validated against:
+
+```python
+REQUIRED_PACKAGES = {
+    "numpy":       "2.0.2",
+    "pandas":      "2.2.2",
+    "scipy":       "1.16.3",
+    "matplotlib":  "3.10.0",
+    "seaborn":     "0.13.2",
+    "ipywidgets":  "7.7.1",
+    "gspread":     "6.2.1",
+    "google-auth": "2.47.0",
+    "patsy":       "1.0.2",
+    "statsmodels": "0.14.6",
+    "plotly":      "5.24.1",
+    "tqdm":        "4.67.3",
+    "xlsxwriter":  "3.2.9",
+    "rpy2":        "3.5.17",
+}
+```
+
+`check_and_lockdown()` iterates over this registry, queries the *currently installed* version through `importlib.metadata.version(pkg)`, and accumulates a `to_install` list of `pkg==ver` specifiers for any package whose installed version disagrees with the pinned version (including the case where the package is entirely absent — caught via `importlib.metadata.PackageNotFoundError`):
+
+```python
+def check_and_lockdown():
+    to_install = []
+    for pkg, ver in REQUIRED_PACKAGES.items():
+        try:
+            current = importlib.metadata.version(pkg)
+            if current != ver:
+                to_install.append(f"{pkg}=={ver}")
+        except importlib.metadata.PackageNotFoundError:
+            to_install.append(f"{pkg}=={ver}")
+
+    if to_install:
+        if globals().get('IS_COLAB', False):
+            os.system(f"pip install -q {' '.join(to_install)}")
+            clear_output()
+        else:
+            print("⚠️ LOCAL ENVIRONMENT WARNING:")
+            print(f"For exact reproducibility, Co-Meta recommends specific package versions.")
+            print(f"Mismatched packages: {', '.join(to_install)}")
+            print("Continuing with current local versions. ...")
+```
+
+The routine's behaviour bifurcates on the **runtime detection flag** `IS_COLAB`, which is set at the top of Cell 1 by attempting `import google.colab` inside a `try` block and is `True` if and only if the notebook is executing on Google Colaboratory:
+
+| Runtime | Action taken when versions drift |
+|---|---|
+| **Colab** (`IS_COLAB = True`) | Issues a single, batched `pip install -q pkg1==ver1 pkg2==ver2 …` shell command via `os.system`, then calls `clear_output()` to suppress installer chatter. The notebook continues execution with the canonical versions transparently restored. Because `pip install` is idempotent and `-q` (quiet) suppresses progress bars, this is essentially invisible to the analyst on a *cold* runtime — and a no-op on a *warm* runtime that already matches. |
+| **Local / non-Colab** | Refuses to mutate the user's environment (which may be a shared system Python, a project venv, or a conda environment that the user manages explicitly). Instead, it prints an explicit `⚠️ LOCAL ENVIRONMENT WARNING`, enumerates the mismatched packages so the user can resolve them in a dedicated virtual environment, and allows execution to proceed. This design preserves user agency on local workstations while flagging — but never silently masking — any potential numerical divergence. |
+
+Three architectural properties make this mechanism a hard guarantee rather than a best-effort hint:
+
+1. **Pre-import enforcement.** The call `check_and_lockdown()` is the *first* thing Cell 1 executes after the runtime-detection block (line 59 of Cell 1), and *every* subsequent `import numpy`, `import scipy`, `import pandas`, etc. happens **after** the lockdown has run. On a cold Colab runtime where a version drift has occurred, the locked-down packages are reinstalled *before* the analytical stack is imported, so the importers always see the canonical versions. Reversing this order — importing first and lockdown second — would have been silently broken, because Python caches imported modules in `sys.modules` and a subsequent `pip install` would not affect already-imported objects.
+2. **Single source of truth.** All version pins live in one dictionary, which is also referenced by `export_config_for_reproducibility(analysis_config)` indirectly through the `_reproducibility` block (`co_met_version: '8.0'`) and explicitly in the `Protocol & Settings` worksheet of every exported Excel report. An auditor reading either the JSON session file or the Excel audit trail can therefore confirm — without inspecting the notebook source — exactly which numerical stack produced the numbers.
+3. **Deterministic equality, not version-range satisfaction.** The check uses strict string equality (`current != ver`), not `packaging.version.parse` range comparison. This is deliberate: even a *patch-level* drift (e.g. `scipy 1.16.3 → 1.16.4`) is treated as a mismatch and triggers a reinstall. CoMeta does not accept the conventional "any compatible version" semantics of `>=` pinning, because numerical reproducibility under floating-point arithmetic cannot be guaranteed across micro-versions of optimisers and linear-algebra back-ends.
+
+The net result is that a user who clones the repository, opens the notebook in Colab, and runs the cells *years* after publication still receives the same `REML` log-likelihoods, the same Satterthwaite degrees of freedom, and the same `brentq` profile-CI bounds as the original manuscript — provided the pinned versions remain installable from PyPI. The lockdown therefore complements the JSON session round-trip (§ 5.1) as a second line of defence for reproducibility: the JSON layer guarantees that the *inputs* (data, settings, widget choices) are byte-identical across sessions, while `check_and_lockdown()` guarantees that the *machinery* operating on those inputs is byte-identical as well.
+
+```mermaid
+flowchart TD
+    A["Cell 1 begins execution"] --> B{"Detect runtime<br/>(try: import google.colab)"}
+    B -->|Success| C["IS_COLAB = True"]
+    B -->|ImportError| D["IS_COLAB = False"]
+    C --> E["check_and_lockdown()"]
+    D --> E
+    E --> F["Iterate REQUIRED_PACKAGES<br/>compare to importlib.metadata.version"]
+    F --> G{"Any mismatch<br/>or missing?"}
+    G -->|No| OK["✓ Environment already canonical"]
+    G -->|Yes + Colab| H["os.system('pip install -q pkg==ver ...')<br/>clear_output()"]
+    G -->|Yes + Local| W["⚠ Print warning,<br/>do not mutate environment"]
+    H --> I["Import numpy/scipy/pandas/... (now canonical)"]
+    W --> I
+    OK --> I
+    I --> J["Subsequent analytical cells run<br/>against pinned numerical stack"]
+```
+
 ### 4.5 Fallback mechanisms
 
 Convergence and feasibility failures cascade gracefully:
