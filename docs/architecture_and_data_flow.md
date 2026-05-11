@@ -36,22 +36,92 @@ Widgets do **not** hold persistent state. Each `*Controller` calls `data_manager
 
 ### 1.2 Staleness propagation
 
-Because the notebook is sequential but the user may re-run any upstream cell, every module registers an `ipywidgets.HTML` *stale banner* via `register_banner(module_id, banner_widget)` (Cell 1, lines 117–119). When upstream choices change, the affected cell calls:
+Because the notebook is sequential but the user may re-run any upstream cell, every analytical module registers an `ipywidgets.HTML` *stale banner* via `register_banner(module_id, banner_widget)` (Cell 1, line 117). Three primitives live in Cell 1 (lines 115–143) and constitute the entire mechanism:
 
 ```python
-mark_stale(ALL_DOWNSTREAM, "Step 5: Effect Size Metric Changed")
+STALE_BANNERS = {}
+
+def register_banner(module_id: str, banner_widget: widgets.HTML):
+    STALE_BANNERS[module_id] = banner_widget
+
+def mark_stale(module_ids: list, trigger_source: str):
+    html_content = "<div ...>⚠️ Stale Results Detected ... Upstream settings for <b>{trigger_source}</b> ...</div>"
+    for mod_id in module_ids:
+        if mod_id in STALE_BANNERS:        # ← silent no-op for unregistered modules
+            STALE_BANNERS[mod_id].value = html_content
+
+def clear_stale(module_id: str):
+    if module_id in STALE_BANNERS:
+        STALE_BANNERS[module_id].value = ""
+
+ALL_DOWNSTREAM = ['overall', 'subgroup', 'regression', 'spline',
+                  'pub_bias', 'pet_peese', 'loo', 'cumulative', 'plots']
 ```
 
-`ALL_DOWNSTREAM = ['overall', 'subgroup', 'regression', 'spline', 'pub_bias', 'pet_peese', 'loo', 'cumulative', 'plots']` (Cell 1, line 146). The banner displays a yellow warning until the user re-runs the module, at which point the controller calls `clear_stale('overall')` (Cell 7, line 2622). This implements lazy invalidation in the absence of a reactive runtime.
+(`ALL_DOWNSTREAM` is declared at Cell 1, line 145.)
+
+#### Who actually registers a banner
+
+Although `ALL_DOWNSTREAM` lists nine module identifiers, only **four** modules currently instantiate a banner via `self.stale_banner = widgets.HTML(value="")` and call `register_banner`:
+
+| `module_id` | Banner registered in | Line |
+|---|---|---|
+| `'overall'` | `OverallResultsView.__init__` (Cell 7) | 2065 |
+| `'subgroup'` | `SubgroupResultsView.__init__` (Cell 9) | 2858 |
+| `'regression'` | `RegressionResultsView.__init__` (Cell 12) | 1594 |
+| `'spline'` | `SplineMetaRegressionController.__init__` (Cell 14) | 587 (guarded by `if 'register_banner' in globals():`) |
+
+The remaining five identifiers (`pub_bias`, `pet_peese`, `loo`, `cumulative`, `plots`) are *declared* downstream targets but their owning cells do not (yet) register banners. The `if mod_id in STALE_BANNERS` guard inside `mark_stale` and `clear_stale` makes calls on un-registered IDs a deliberate silent no-op rather than an error — which is what allows callers to broadcast to the entire `ALL_DOWNSTREAM` list without first checking which modules the user has executed.
+
+#### Who triggers staleness, and at what scope
+
+Every call site of `mark_stale` is a *user-action observer* — a widget callback or a controller `on_click` handler. The staleness graph is therefore not "everything downstream from data" but a directed DAG in which each cell broadcasts to precisely the consumers it can invalidate. Audited call sites:
+
+| Trigger cell | Call | Scope |
+|---|---|---|
+| Cell 2 — `_render_binary_mapping` (l. 965) | `mark_stale(ALL_DOWNSTREAM, "Step 2: Binary Data Mapping Changed")` | full |
+| Cell 2 — `_render_raw_mapping` (l. 1064) | `mark_stale(ALL_DOWNSTREAM, "Step 2: Raw Data Mapping Changed")` | full |
+| Cell 2 — `_render_precalc_mapping` (l. 1191) | `mark_stale(ALL_DOWNSTREAM, "Step 2: Pre-calculated Data Mapping Changed")` | full |
+| Cell 3 — global filter handler (l. 171) | `mark_stale(ALL_DOWNSTREAM, "Step 3: Global Filters Changed")` | full |
+| Cell 4 — cleaning handler (l. 662 and l. 839) | `mark_stale(ALL_DOWNSTREAM, "Step 4: Data Cleaning / SD Handling Changed")` | full |
+| Cell 5 — `on_proceed` (l. 445) | `mark_stale(ALL_DOWNSTREAM, "Step 5: Effect Size Metric Changed")` | full |
+| Cell 7 — `OverallController` after re-run (l. 2623) | `mark_stale(['subgroup','regression','spline','pub_bias','pet_peese','loo','cumulative','plots'], "Overall Meta-Analysis Re-run")` | all-except-self |
+| Cell 8 — subgroup configuration handler (l. 504) | `mark_stale(['subgroup', 'plots'], "Step 8: Subgroup Configuration Changed")` | targeted |
+| Cell 9 — `SubgroupController` after re-run (l. 3424) | `mark_stale(['plots'], "Subgroup Analysis Re-run")` | targeted |
+| Cell 12 — `RegressionController` after re-run (l. 2147) | `mark_stale(['plots', 'spline'], "Meta-Regression Re-run")` | targeted |
+
+Two propagation patterns are visible. **Data-preparation cells (2–5)** broadcast to the full `ALL_DOWNSTREAM` list, because a change to ingestion, filtering, cleaning, or the effect-size metric invalidates *every* downstream result. **Analytical modules (7, 9, 12)** clear their *own* banner with `clear_stale(self_id)` and then immediately call `mark_stale(...)` on the modules they themselves feed — implementing a *cascade* in which re-running the overall analysis stales the subgroup banner, re-running the subgroup analysis stales the plot banners, and so on.
+
+#### Lazy invalidation, not reactive recompute
+
+The banner displays a yellow `⚠️ Stale Results Detected` warning that names the trigger source (e.g. *"Upstream settings for **Step 5: Effect Size Metric Changed** have been modified"*) and instructs the user to press the module's **Run** button. The banner persists until the controller's run handler completes successfully and calls `clear_stale(self_id)` (e.g. Cell 7, line 2622 for `'overall'`; Cell 9 l. 3423; Cell 12 l. 2146). Because the notebook environment lacks a reactive runtime, this constitutes a **lazy invalidation** strategy: results are not auto-recomputed when their inputs change, but the user is never allowed to confuse a stale result with a current one.
 
 ```mermaid
-flowchart LR
-    W["Widget change<br/>e.g. τ² method"]:::w --> M["mark_stale(ALL_DOWNSTREAM)"]:::s
-    M --> B1["overall banner"]
-    M --> B2["subgroup banner"]
-    M --> B3["regression banner"]
-    M --> B4["..."]
-    B1 -->|user re-runs| C["clear_stale('overall')"]:::c
+flowchart TD
+    subgraph DATA["Data-preparation cells (broadcast to all)"]
+        C2["Cell 2 — mapping"]:::w
+        C3["Cell 3 — filters"]:::w
+        C4["Cell 4 — cleaning / SD"]:::w
+        C5["Cell 5 — ES metric"]:::w
+    end
+
+    DATA -->|"mark_stale(ALL_DOWNSTREAM, …)"| BANNERS["STALE_BANNERS<br/>{overall, subgroup,<br/>regression, spline}<br/>(others = silent no-op)"]:::s
+
+    BANNERS --> OV["⚠ overall banner"]
+    BANNERS --> SG["⚠ subgroup banner"]
+    BANNERS --> RG["⚠ regression banner"]
+    BANNERS --> SP["⚠ spline banner"]
+
+    OV -->|"user clicks Run<br/>OverallController"| OVR["clear_stale('overall')<br/>+ mark_stale(all-except-self, 'Overall Re-run')"]:::c
+    OVR --> SG
+    OVR --> RG
+    OVR --> SP
+
+    C8["Cell 8 — subgroup config"]:::w -->|"mark_stale(['subgroup','plots'])"| SG
+    SG -->|"user clicks Run<br/>SubgroupController"| SGR["clear_stale('subgroup')<br/>+ mark_stale(['plots'], 'Subgroup Re-run')"]:::c
+    RG -->|"user clicks Run<br/>RegressionController"| RGR["clear_stale('regression')<br/>+ mark_stale(['plots','spline'], 'Regression Re-run')"]:::c
+    RGR --> SP
+
     classDef w fill:#fef3c7,stroke:#ca8a04
     classDef s fill:#fde68a,stroke:#b45309
     classDef c fill:#bbf7d0,stroke:#15803d
