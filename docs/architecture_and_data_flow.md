@@ -563,93 +563,212 @@ The statistical core is split between **Cell 1** (low-level math primitives, REM
 
 ### 4.1 Three-level orchestration (`OverallEngine.run_analysis`)
 
+The orchestrator follows a deterministic, five-step workflow declared in the source as `WORKFLOW: 1. Prepare data; 2. Fixed-effect analysis; 3. Heterogeneity statistics; 4. 2-level random-effects; 5. 3-level random-effects (if feasible); 6. Model selection.` Each step is gated by an optional `progress_callback(message)` hook (currently wired to a no-op in `OverallController.run_analysis`, but exposed so that a future status widget can attach without engine changes — see § 4.5.1).
+
+**Signature.** `run_analysis(alpha=0.05, dist_type='t', use_kh=True, tau_method='REML', model_choice='Auto-Select (Best AIC)', match_r_ll=False, progress_callback=None) -> Optional[OverallResult]`. The defaults match the manuscript's canonical configuration; `match_r_ll=True` adds the constant `−0.5·k·log(2π)` to the REML log-likelihood (and a matching update to `aic = 6 − 2·log_lik`) so that values are byte-identical with `metafor::rma.mv` for validation cross-checks (§ Validation cells 26–43).
+
+**Step-by-step.**
+
+| # | Step | Implementation (Cell 7 line) | Output |
+|---|---|---|---|
+| 1 | Prepare data | `df = self.data_manager.prepare_data()` (l. 1163) — drops `NaN`s in effect/var columns, removes `var ≤ 0`. Failure → returns `None`. | clean `df`, `y`, `v`, `k_obs`, `k_studies` |
+| 2 | Fixed-effect | `fe_results = self.fixed_engine.calculate(y, v, alpha, dist_type)` (l. 1178) | `mu_fixed`, `se_fixed`, `ci_*_fixed` |
+| 3 | Heterogeneity | `Q, df_Q, p_Q = self.het_engine.calculate_Q_statistics(y, v, fe_results['mu'])` + `I2 = self.het_engine.calculate_I2(Q, df_Q)` (l. 1183–1184) | `Q`, `df_Q`, `p_Q`, `I²` |
+| 4 | 2-level RE | `TwoLevelEngine(tau_method=tau_method)` → `.estimate_tau2(df, …)` (dispatches to `calculate_tau_squared` for REML/ML or `calculate_tau2_DL` for DL; falls back to DL on failure with `warnings.warn`) → `.calculate_pooled_effect(y, v, tau2, alpha, dist_type, use_kh, k_studies)` → `.calculate_loglik_aic(y, v, tau2, match_r_ll)` (l. 1190–1204) | `tau²`, `re_results`, `ll_2l`, `aic_2l` |
+| 5 | 3-level RE *(conditional)* | Gated on `self.data_manager.check_3level_feasibility(df)` (l. 1209). When `True`: `three_level_results = self.three_level_engine.fit(df, effect_col, var_col, vcv_matrices)` (l. 1213–1218). Adds `match_r_ll` constant if requested; computes `ci_lower/upper/p_value` for the 3-level mean using `t.ppf` / `norm.ppf` depending on `dist_type` and `df_3l = k_studies − 1`. Optimiser failure → `has_3level = False`, optimiser exception → caught and progress-stream `"⚠️ 3-level fitting failed: {e}"`. | `mu_3l`, `tau²_3l`, `σ²_3l`, ICCs, profile CIs, `aic_3l` |
+| 6 | Model selection | `best_model = self._select_model(model_choice, aic_2l, aic_3l, sigma2_3l, tau2_3l)` (l. 1255) | `'2-Level'` or `'3-Level'` |
+| 7 | Result assembly | Constructs the `OverallResult` dataclass (Cell 7 l. 52–115) with FE / 2L / 3L blocks and persists via `OverallDataManager.save_overall_results(result)` → `ANALYSIS_CONFIG['overall_results']` and `ANALYSIS_CONFIG['three_level_results']`. | `OverallResult` |
+
+**Structure-aware model selection.** `_select_model(model_choice, aic_2l, aic_3l, sigma2_3l, tau2_3l)` (Cell 7, l. 1337) is *not* a pure AIC tournament. It applies, in order:
+
+1. **Hard overrides.** `model_choice == 'Force 2-Level'` → return `"2-Level"`; `model_choice == 'Force 3-Level'` → return `"3-Level"` if `aic_3l is not None` else `"2-Level"`.
+2. **Three-level availability.** If `aic_3l is None` (feasibility failed or optimiser returned `None`) → `"2-Level"`.
+3. **Parameter-boundary check.** If `sigma2_3l < 1e-5` or `tau2_3l < 1e-5` → `"2-Level"`. This is the **boundary-collapse rule** surfaced verbatim in the publication-text generator (§ 4.5.1, item 4) — preventing the engine from reporting a 3-level model that degenerated into a 2-level model under variance partitioning.
+4. **Parsimony check.** Return `"3-Level"` only if `aic_3l < aic_2l − 3` (i.e. ΔAIC ≥ 3 in favour of the 3-level fit). Otherwise return `"2-Level"`. The 3-unit margin is a documented design choice: a marginal AIC improvement is not allowed to override the simpler model.
+
 ```mermaid
 sequenceDiagram
+    autonumber
     participant UI as run_overall_meta_analysis
     participant Ctl as OverallController
     participant DM as OverallDataManager
     participant Eng as OverallEngine
-    participant TLE as ThreeLevelEngine
+    participant FE as FixedEffectEngine
+    participant HE as HeterogeneityEngine
+    participant T2 as TwoLevelEngine
+    participant T3 as ThreeLevelEngine
     participant View as OverallResultsView
 
     UI->>Ctl: OverallController(ANALYSIS_CONFIG)
-    Ctl->>DM: __init__
-    Ctl->>Eng: OverallEngine(DM)
-    UI->>Ctl: run_analysis()
-    Ctl->>DM: save_global_settings(...)
-    Ctl->>Eng: run_analysis(alpha, dist_type, tau_method, ...)
-    Eng->>DM: prepare_data()
-    Eng->>Eng: FixedEffectEngine.calculate(y, v)
-    Eng->>Eng: HeterogeneityEngine.calculate_Q_statistics / I2
-    Eng->>Eng: TwoLevelEngine(tau_method).estimate_tau2 / pooled / loglik_aic
+    Ctl->>DM: __init__ + _validate_prerequisites
+    Ctl->>Eng: OverallEngine(DM) [+ FE, HE, T3 sub-engines]
+    UI->>Ctl: run_analysis() [reads widgets]
+    Ctl->>DM: save_global_settings(alpha, dist_type, tau_method, use_kh, model_choice)
+    Ctl->>Eng: run_analysis(...)
+    Eng->>DM: prepare_data() [dropna, var>0]
+    Eng->>FE: calculate(y, v, alpha, dist_type)
+    Eng->>HE: calculate_Q_statistics, calculate_I2
+    Eng->>T2: TwoLevelEngine(tau_method).estimate_tau2 / .calculate_pooled_effect / .calculate_loglik_aic
+    Note over Eng,T2: τ² fallback REML/ML→DL via warnings.warn
     alt check_3level_feasibility(df) is True
-        Eng->>TLE: fit(df, effect_col, var_col, vcv_matrices)
+        Eng->>T3: fit(df, effect_col, var_col, vcv_matrices)
+        T3-->>Eng: dict or None
+        opt match_r_ll
+            Eng->>Eng: log_lik += -0.5·k·log(2π); aic = 6 - 2·log_lik
+        end
+        Eng->>Eng: compute ci_lower/upper/p_value (t or norm, df=k_studies-1)
     end
-    Eng->>Eng: _select_model(...)
+    Eng->>Eng: _select_model: overrides → availability → boundary → ΔAIC≥3
     Eng-->>Ctl: OverallResult
-    Ctl->>DM: save_overall_results(result)
-    Ctl->>View: render_*(result)
+    Ctl->>DM: save_overall_results(result) → ANALYSIS_CONFIG
+    Ctl->>View: render_primary_tab / render_comparison_tab / render_publication_tab
 ```
 
-### 4.2 Three-level REML core (`ThreeLevelEngine.fit`, Cell 7 lines 740–1099)
+### 4.2 Three-level REML core (`ThreeLevelEngine.fit`, Cell 7 lines 740–1098)
 
-`fit()` consumes the dataframe, the effect / variance columns, and the global VCV dictionary. After sorting by `id` and building parallel lists `y_all`, `vcv_all`, it constructs the per-study negative log-likelihood closure `nll(params)` where `params = [τ², σ²]`. The likelihood marginalises the pooled mean analytically; the Σᵢ matrix for study *i* is
+`fit(df, effect_col, var_col, vcv_dict)` consumes the analysis dataframe, the effect / variance column names, and the VCV dictionary keyed by `study_id`. It returns either a dictionary with the fitted parameters or `None` if optimisation completely fails (caught by `OverallEngine.run_analysis` to set `has_3level = False`).
 
-```
-Σ_i = V_i + σ²·I_k + τ²·1·1ᵀ
-```
+**Data preparation.**
 
-with two fast paths:
+1. **Deterministic ordering.** `df = df.sort_values('id').reset_index(drop=True)` — the source comment is `# 1. CRITICAL: Sort to ensure alignment with VCV construction order` (l. 778). The optimiser indexes per-study `y_all[i]` and `vcv_all[i]` in parallel, so any reshuffling between data-prep and fit would produce a silently wrong result.
+2. **Robust VCV key lookup.** For each study group the lookup tries `str(study_id)` first, then the raw `study_id` (l. 788–795), so a study indexed as the integer `42` in the dataframe will still find a VCV matrix keyed as the string `'42'` (and vice versa). When neither key matches, the engine **falls back to a per-row diagonal** `np.diag(vi)` after a `NaN`/empty-vector validation pass — raising `ValueError(f"Invalid variance data for study {study_id}")` if the input is unusable.
+3. **Cardinality check.** `if len(y_all) != len(vcv_all): raise ValueError(...)` (l. 803) — guarantees the optimiser cannot be entered with a misaligned per-study list.
+
+**Per-study covariance.** For each study *i* the marginal covariance is
+
+$$
+\Sigma_i \;=\; V_i \;+\; \sigma^2 \, I_k \;+\; \tau^2 \, \mathbf{1}\mathbf{1}^{\!\top}
+$$
+
+The implementation chooses between two execution paths via `is_diag = (k == 1) or np.allclose(V_i, np.diag(np.diag(V_i)))` (l. 832):
 
 | Path | Trigger | Math |
 |---|---|---|
-| Sherman–Morrison | `V_i` is diagonal (no shared control in study *i*) | Closed-form rank-1 update using `A_inv = 1/(v + σ²)`, `denom = 1 + τ²·sum(A_inv)` |
-| Full Cholesky | `V_i` has off-diagonal entries | `np.linalg.cholesky(Σ_i)`; falls back to `np.linalg.pinv` on `LinAlgError` |
+| Sherman–Morrison (closed-form) | `k == 1` *or* `V_i` is exactly diagonal (no shared control in study *i*) | `A_inv = 1/(v + σ²)`, `denom = 1 + τ²·sum(A_inv)`, then `w_y = A_inv·y − (τ²·A_inv·sum(A_inv·y))/denom` and `w_1 = A_inv − (τ²·A_inv·sum(A_inv))/denom`. Avoids any matrix factorisation. |
+| Cholesky (full matrix) | `V_i` has off-diagonal entries (shared-control block from § 3.4) | `Σ_i = V_i.copy(); np.fill_diagonal(Σ_i, diag(Σ_i)+σ²); Σ_i += τ²` then `L = np.linalg.cholesky(Σ_i)`; `log_det = 2·sum(log(diag(L)))`; `A_inv_mat = np.linalg.inv(Σ_i)`. **Fallback:** on `np.linalg.LinAlgError` the routine substitutes `np.linalg.pinv(Σ_i)` and `np.linalg.slogdet(Σ_i)` for the log-determinant. |
 
-The optimiser is a deterministic **multi-start L-BFGS-B**:
+**Optimisation.** The negative REML log-likelihood `nll(params)` profiles the pooled mean μ analytically (μ = `sum_Sy / sum_S`) so the optimiser searches only over two non-negative parameters `(τ², σ²)`. Convergence uses a **deterministic six-start L-BFGS-B**:
 
 ```python
 start_points = [[0.01, 0.01], [0.1, 0.1], [0.5, 0.5],
                 [1.0, 1.0],   [1.0, 0.1], [0.1, 1.0]]
 for start in start_points:
-    res = minimize(nll, start,
-                   bounds=[(1e-8, None)]*2,
-                   method='L-BFGS-B',
-                   options={'ftol': 1e-11})
+    res = minimize(nll, start, bounds=[(1e-8, None)]*2,
+                   method='L-BFGS-B', options={'ftol': 1e-11})
+    if res.success and res.fun < best_fun:
+        best_fun, best_res = res.fun, res
 ```
 
-Profile-likelihood confidence intervals for both variance components are obtained via `brentq` root-finding on `profile_nll_tau2(t2)` / `profile_nll_sigma2(s2)` at the canonical threshold `LL_THRESHOLD = 1.9208` (½·χ²₁(0.95)), with the conjugate variance re-optimised at each candidate. When the profile is flat, the upper bound is honestly reported as `np.inf` rather than capped.
+The six starts are intentionally a *coarse but fixed* grid spanning four orders of magnitude on each axis, plus two asymmetric corners; this provides deterministic reproducibility (no random seeds) while still escaping likelihood ridges with one variance component near zero. If *all six* starts fail, `fit()` returns `None`; otherwise the `argmin` over `res.fun` wins.
 
-`fit()` returns a dictionary including `mu`, `se`, `tau2`, `sigma2`, `tau2_ci_lower/upper`, `sigma2_ci_lower/upper`, `icc_l3`, `icc_l2`, `aic`, `log_lik_reml`, `pi_lower`, `pi_upper`. These are then funnelled through `OverallResult` (dataclass, Cell 7 lines 52–115) and serialised by `OverallDataManager.save_overall_results(result)` into `ANALYSIS_CONFIG['three_level_results']`.
+**Second-pass recomputation of μ and SE.** The optimiser only retains the variance components. Once `(τ², σ²)` is fixed, the engine **re-iterates** over the per-study list at the optimum to recompute `sum_S`, `sum_Sy`, then sets
+
+```
+μ  = sum_Sy / sum_S
+SE = sqrt(1 / sum_S)
+```
+
+(l. 921–937). This is mathematically identical to the within-`nll` computation but is performed explicitly so the optimiser interface stays clean.
+
+**ICCs.** Reported using a *metafor-convention typical-variance* denominator: `v_typical = mean(mean(diag(V_i)) for V_i in vcv_all)`; `icc_l3 = τ²/(τ²+σ²+v_typical)·100`; `icc_l2 = σ²/(τ²+σ²+v_typical)·100` (l. 942–948). This matches the `metafor::rma.mv` convention rather than the bare-variance-ratio `τ²/(τ²+σ²)` form, so values are comparable to the R ecosystem in cross-validation.
+
+**Profile-likelihood confidence intervals for τ² and σ².** Implemented via `scipy.optimize.brentq` root-finding on `profile_nll_tau2(t2)` and `profile_nll_sigma2(s2)` at threshold `LL_THRESHOLD = 1.9208` (`½·χ²₁(0.95) = 3.841/2`). For each candidate value of one variance component, the *other* component is re-optimised by `minimize_scalar` (bounded on `(1e-8, 50.0)`, method `'bounded'`, `xatol=1e-8`) so that the resulting profile is *not* a slice at the joint optimum but the true profile likelihood. Boundary handling:
+
+- **Lower bound** at 0 when the optimum sits at machine zero (`tau2 < 1e-6`) *or* when the function does not change sign between `1e-8` and the optimum.
+- **Upper bound** is searched in `[opt, max(opt·100+2.0, 10.0)]` and expanded ×10 up to `1e6` if the likelihood remains below threshold; if the profile never crosses, the upper CI is reported honestly as **`np.inf`** rather than capped. This is the "honest scientific reporting" the source comments call out (l. 1006–1011 and 1062–1067).
+
+**Prediction interval.** Uses `df_pi = max(1, M − 2)` and `pi_se = sqrt(SE² + τ² + σ²)` to compute `pi_lower, pi_upper` from the t-quantile (l. 1083–1088) — i.e. the prediction interval reflects *both* random-effect variance components plus the SE of the pooled estimate.
+
+**Returned dictionary.** Keys: `mu`, `se`, `tau2`, `tau` (= √τ²), `tau2_ci_lower/upper`, `sigma2`, `sigma2_ci_lower/upper`, `icc_l3`, `icc_l2`, `n`, `m`, `aic` (= 6 − 2·log_lik, three parameters: μ, τ², σ²), `log_lik_reml`, `pi_lower`, `pi_upper`. These flow into the `OverallResult` dataclass (Cell 7 l. 52–115) and are persisted to `ANALYSIS_CONFIG['three_level_results']` by `OverallDataManager.save_overall_results` (Cell 7 l. 277–340).
 
 ### 4.3 Three-level meta-regression and CR2 cluster-robust variance (Cell 1)
 
-For models with moderators, `_run_three_level_reml_regression_v2(analysis_data, moderator_col, effect_col, var_col)` (Cell 1, line 1402) implements a documented **Plan A → B → C fallback strategy**:
+For models with moderators, `_run_three_level_reml_regression_v2(analysis_data, moderator_col, effect_col, var_col)` (Cell 1, l. 1402) generalises the fixed-mean optimiser of § 4.2 to arbitrary linear predictors via a documented **Plan A → B → C fallback strategy**. Two preliminary checks run before any optimiser is invoked:
 
-* **Plan A — Full 3-Level GLS with VCV matrices.** Triggered when any study block is non-diagonal. Minimises `_neg_log_lik_reml_reg` (or `_neg_log_lik_reml_reg_constrained` when the moderator is study-constant) under L-BFGS-B with five start points, then polishes with `Nelder-Mead`.
-* **Plan B — 3-Level GLS with Diagonal.** Same optimiser, but with `vcv_all_diag = [np.diag(v_i)]` substituted for the matrix list; used when Plan A fails to converge.
-* **Plan C — Aggregated 2-Level Regression.** When the moderator is constant within study (`is_constant_within=True`) and 3-level plans fail, `_run_aggregated_2level_regression(y_all, vcv_all, X_all, M_studies, tau_sq_prior)` collapses each study to a precision-weighted mean and runs a classical 2-level meta-regression. The function returns a `plan_c_result` dictionary tagged `model_type = "2-Level Aggregated (Fallback)"`.
+* **Topology / sample-size guards.** `if M_studies < 2 or N_total < 3: return None, None, None`; the moderator's empirical range must exceed `1e-10` (`mod_range < 1e-10`) or the function returns `None` to avoid optimising over a constant column.
+* **Constant-within-study detection.** `is_constant_within = analysis_data.groupby('id')[moderator_col].nunique().max() == 1`. When `True`, the moderator carries no within-study information; the constrained REML log-likelihood (`_neg_log_lik_reml_reg_constrained`, l. 1382) is used in Plans A/B to bias σ² toward a prior, and Plan C becomes legally executable as a parsimonious aggregated alternative.
+* **Variance prior.** `tau_sq_prior, sigma_sq_prior = _estimate_variance_from_intercept_model_vcv(y_all, vcv_all_matrix, M_studies)` (l. 1465) — runs an intercept-only fit first to seed the optimiser's start points.
 
-The fixed-effects β and naive `cov_beta` come from `_get_gls_estimates(params, y_all, vcv_all, X_all, N_total, M_studies, p_params)`. The robust inference is then delegated to:
+**Plan dispatch.**
+
+| Plan | Trigger | Optimiser | Start points | Polish |
+|---|---|---|---|---|
+| **A — Full 3-Level GLS with VCV matrices** | `has_off_diag = any(not np.allclose(m, np.diag(np.diag(m))) for m in vcv_all_matrix)` evaluates `True` | `_neg_log_lik_reml_reg` (unconstrained) *or* `_neg_log_lik_reml_reg_constrained` (when `is_constant_within=True`), L-BFGS-B, `bounds=[(0.0, None), (0.0, None)]`, `ftol=1e-12, gtol=1e-10, maxiter=5000` | Constrained: 5 starts including `[tau_sq_prior, sigma_sq_prior]`, `[tau_sq_prior·0.5, sigma_sq_prior]`, `[tau_sq_prior·2.0, sigma_sq_prior]`, `[0.1, 0.1]`, `[0.5, 0.01]`. Unconstrained: prior + 5 grid starts. | Nelder-Mead with `xatol=1e-12, fatol=1e-12, maxiter=5000` on the winning result (l. 1571–1583), guarded by `if np.isfinite(final_res.fun) and final_res.fun < best_res.fun`. |
+| **B — 3-Level GLS with Diagonal** | Plan A returned `None` (no convergence) | Same as Plan A but with `vcv_all_diag = [np.diag(v_i)]` substituted for the matrix list | Same as Plan A | Same as Plan A |
+| **C — Aggregated 2-Level Regression** | Plan B returned `None` *and* `is_constant_within=True` | `_run_aggregated_2level_regression(y_all, vcv_all, X_all, M_studies, tau_sq_prior)`: collapses each study to a precision-weighted mean and runs a classical 2-level meta-regression | — | — |
+
+When Plan C fires, the function returns immediately with a `plan_c_result` dictionary tagged `model_type = "2-Level Aggregated (Fallback)"` and a `fake_opt_result` namespace mimicking a `scipy.optimize.OptimizeResult` (so downstream code does not need a special branch). Otherwise Plan A or Plan B's result is tagged `"3-Level VCV"`, `"3-Level VCV (Constrained)"`, `"3-Level Diagonal"`, or `"3-Level Diagonal (Constrained)"` — the literal strings surfaced in the Settings tab (§ 4.5.1, item 3).
+
+**Estimation pipeline (Plans A and B only).**
+
+1. **GLS coefficients.** `final_est = _get_gls_estimates(best_res.x, y_all, final_vcv, X_all, N_total, M_studies, p_params)` (l. 1588) returns `betas`, naive `cov_beta`, `se_betas`, `tau_sq`, `sigma_sq`, and `log_lik_reml`. The internal log-likelihood is checked against `-np.inf` and the function returns `None` if degenerate.
+2. **CR2 robust variance and Satterthwaite DF.**
+   ```python
+   var_betas_robust, dfs_robust = _compute_robust_var_betas(
+       betas, y_all, final_vcv, X_all,
+       final_est['tau_sq'], final_est['sigma_sq']
+   )
+   ```
+   If `np.all(np.isfinite(se_betas_robust)) and np.all(se_betas_robust > 0)` the robust quantities supplant the naive ones; otherwise the naive `cov_beta` and a constant `df = max(1, M_studies − p_params)` vector are retained (graceful fallback, no exception).
+3. **Inference under Satterthwaite DF.** `t_stats = betas / se_betas; p_values = 2·(1 − t.cdf(|t_stats|, df)); crit_val = t.ppf(1 − α/2, df); ci_lower/upper = betas ∓ crit_val·se_betas`. The DF vector is **per-coefficient** (`df[j]`), so intercept and slope are tested against *different* t-distributions when their CR2 Satterthwaite DFs differ.
+
+#### `_compute_robust_var_betas` (Cell 1, lines 1899–2045)
+
+Implements **CR2 (bias-reduced linearisation)** cluster-robust variance with **Satterthwaite degrees of freedom** following Pustejovsky & Tipton (2018, eq. 6). The function expects already-fitted `betas`, the per-study `y_all`, `vcv_all`, `X_all` lists, and the optimised variance components; it returns `(var_robust, df_vec)` — a `p × p` matrix and a length-`p` DF vector.
+
+**Phase 1 — Bread.** A first pass over studies builds the *bread* and caches per-study quantities for the second pass:
 
 ```python
-var_betas_robust, dfs_robust = _compute_robust_var_betas(
-    betas, y_all, final_vcv, X_all,
-    final_est['tau_sq'], final_est['sigma_sq']
-)
+Σ_i = V_i + σ²·I_k + τ²·1·1ᵀ
+inv_Σ_i = np.linalg.inv(Σ_i)   # pinv() fallback on LinAlgError
+sum_Xt_invS_X += X_iᵀ · (inv_Σ_i · X_i)
+e_i = y_i − X_i · betas
 ```
 
-#### `_compute_robust_var_betas` (Cell 1, lines 1899–2049)
+The bread is `bread_inv = inv(sum_Xt_invS_X)`. If *that* inversion fails the whole CR2 path emits a documented degenerate fallback: `fallback_var = np.eye(p_params) * 0.01` and `fallback_df = np.full(p_params, max(1.0, M_studies − p_params))`. (Defensive — surfaced as the "CR2 numerical failure" branch in § 4.5, item 5.)
 
-This routine implements **CR2 (bias-reduced linearisation)** cluster-robust variance with **Satterthwaite degrees of freedom**, following Pustejovsky & Tipton (2018):
+A subtle defence-in-depth move: the routine accepts `V_i.ndim == 1` and converts it on-the-fly to `np.diag(V_i)` before forming `Σ_i` (l. 1929–1930), so callers that pass per-row variance vectors instead of full matrices do not crash.
 
-1. **Bread.** First pass: build `Σ_i = V_i + σ²·I_k + τ²·1·1ᵀ`, invert (with `np.linalg.pinv` fallback), and accumulate `sum_Xt_invS_X = Σᵢ Xᵢᵀ Σᵢ⁻¹ Xᵢ`. `bread_inv = inv(sum_Xt_invS_X)`.
-2. **CR2 adjustment.** For each study compute the hat-matrix block `H_ii = X_i · bread_inv · (Σ_i⁻¹ X_i)ᵀ`, symmetrise `D_i = I − H_ii`, eigendecompose `eigh(D_i)`, floor eigenvalues at `max(1e-10, 1e-6·max|λ|)`, and form the adjustment `A_i = D_i^{-1/2}`.
-3. **Meat.** Adjusted residuals `e* = A_i · e_i` feed `g_i = X_iᵀ · Σ_i⁻¹ · e*`; the meat is `Σᵢ g_i g_iᵀ`.
-4. **Sandwich.** `var_robust = bread_inv · meat · bread_inv`.
-5. **Satterthwaite DF.** For contrast vector `c_j` (jth coefficient), pre-cache `B_i = A_i · Σ_i · A_iᵀ` and `q_i = (Σ_i⁻¹ X_i) · bread_inv · c_j`. Then `g_ij = q_iᵀ B_i q_i` and `df_j = (Σᵢ g_ij)² / Σᵢ g_ij²`, clipped to `[1, M_studies − 1]`. (Implements Pustejovsky & Tipton 2018, eq. 6.)
+**Phase 2 — CR2 adjustment and meat.** For each study, the hat-matrix block `H_ii = X_i · bread_inv · (inv_Σ_i · X_i)ᵀ` is formed. The CR2 adjustment matrix `A_i = D_i^{−1/2}` is obtained via *symmetrised eigendecomposition* of `D_i = (I − H_ii + (I − H_ii)ᵀ)/2`:
 
-The function returns `(var_robust, df_vec)`; downstream code uses `df_vec` to compute `t_stats = betas / se_betas`, `p_values = 2·(1 − t.cdf(|t|, df))`, and CIs with `t.ppf(1 − α/2, df)` — i.e. *every* coefficient is tested against its own Satterthwaite-corrected reference distribution.
+```python
+eigvals, eigvecs = np.linalg.eigh(D_i)
+tol = max(1e-10, 1e-6 * np.max(np.abs(eigvals)))
+eigvals_safe = np.where(eigvals > tol, eigvals, tol)
+A_i = eigvecs @ np.diag(1.0 / np.sqrt(eigvals_safe)) @ eigvecs.T
+```
+
+The eigenvalue floor (`tol = max(1e-10, 1e-6·max|λ|)`) is what makes the routine numerically stable when `D_i` is rank-deficient — without it, `A_i` would diverge whenever a contrast lies in the null space of `D_i`. The adjusted residuals are `e* = A_i · e_i`; the meat accumulates `g_i = X_iᵀ · inv_Σ_i · e*` outer products: `meat += g_i g_iᵀ`.
+
+**Sandwich.** `var_robust = bread_inv · meat · bread_inv` (l. 1994).
+
+**Phase 3 — Satterthwaite DF per coefficient.** Implements Pustejovsky & Tipton (2018) eq. 6 in its scalar (per-contrast) form:
+
+$$
+\hat{\nu}_j \;=\; \frac{\bigl(\sum_i g_{ij}\bigr)^2}{\sum_i g_{ij}^{\,2}}
+\quad \text{with} \quad
+g_{ij} \;=\; q_i^{\!\top} B_i\, q_i,\;\;
+B_i = A_i\,\Sigma_i\,A_i^{\!\top},\;\;
+q_i = (\mathrm{inv\_\Sigma_i}\,X_i)\,\mathrm{bread\_inv}\,c_j
+$$
+
+The code precomputes `B_i = A_i · Σ_i · A_iᵀ` once per study (l. 2012–2015) so that the inner contrast loop reduces to a single quadratic form `q_iᵀ · B_i · q_i` (avoiding the `k × k` matrix multiplications `outer(q_i, q_i)` would imply). The final DF is **clipped** to `[1.0, M_studies − 1]` (l. 2040–2041) so that pathologically small values (e.g. when one cluster dominates the contrast) cannot drop below 1 or exceed the cluster count minus one. When `g_sq_sum == 0` (a contrast orthogonal to every study), the routine returns the conventional `max(1, M_studies − p_params)`.
+
+```mermaid
+flowchart LR
+    A["betas, y_all, vcv_all, X_all,<br/>τ², σ²"]:::n --> P1["Phase 1: Bread<br/>Σ_i = V_i + σ²I + τ²11ᵀ<br/>cache invΣ_i, e_i, invΣ_i·X_i"]
+    P1 --> BR{"bread_inv ok?"}
+    BR -->|No| FB["Fallback:<br/>var = 0.01·I<br/>df = max(1, M-p)"]:::f
+    BR -->|Yes| P2["Phase 2: CR2 + Meat<br/>D_i = sym(I-H_ii)<br/>A_i = D_i^(-1/2) (eigh)<br/>e* = A_i·e_i<br/>g_i = X_iᵀ·invΣ_i·e*<br/>meat += g_i g_iᵀ"]
+    P2 --> SW["Sandwich:<br/>var_robust = bread_inv·meat·bread_inv"]
+    SW --> P3["Phase 3: Satterthwaite<br/>B_i = A_i Σ_i A_iᵀ<br/>q_i = (invΣ_i X_i) bread_inv c_j<br/>g_ij = q_iᵀ B_i q_i<br/>df_j = (Σg_ij)² / Σg_ij²<br/>clip to [1, M-1]"]
+    P3 --> OUT["(var_robust, df_vec)"]:::g
+    classDef n fill:#dbeafe,stroke:#1d4ed8
+    classDef g fill:#bbf7d0,stroke:#15803d
+    classDef f fill:#fee2e2,stroke:#dc2626
+```
+
+The function returns `(var_robust, df_vec)`; downstream code uses `df_vec[j]` for *each* coefficient independently to compute `t_stats[j] = betas[j] / se_betas[j]`, `p_values[j] = 2·(1 − t.cdf(|t_stats[j]|, df_vec[j]))`, and CIs with `t.ppf(1 − α/2, df_vec[j])` — every coefficient is tested against its own Satterthwaite reference distribution rather than a shared scalar DF.
 
 ### 4.4 Library stack
 
