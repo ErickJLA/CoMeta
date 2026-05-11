@@ -692,6 +692,37 @@ flowchart TD
     classDef n fill:#dbeafe,stroke:#1d4ed8
 ```
 
+#### 4.5.1 How fallbacks are surfaced to the user
+
+A fallback that executes silently is, for a methods-conscious audience, indistinguishable from a bug. CoMeta therefore exposes *every* fallback through a layered set of user-facing channels, so that the analyst can both *see* that a fallback occurred and *cite* the rationale verbatim in a manuscript. The channels are ordered from glance-readable to publication-ready:
+
+| Channel | Surfaced where | Triggered by |
+|---|---|---|
+| **AIC WINNER 🏆 / 🏆 Best Fit badge** | *📊 Primary Result* tab title (Cell 7, line 2133) and the verdict column of the *⚖️ Model Selection* tab (`OverallHTMLTemplates.model_comparison_table`, line 1560) | Sets the green-highlighted row in the comparison table and the heading badge to whichever model `_select_model` returned. The user can therefore see at a glance which model is being reported and why (AIC). |
+| **`N/A` AIC cell** | *⚖️ Model Selection* tab, 3-Level row of `model_comparison_table` | `aic_3l_disp = f"{aic_3l:.1f}" if aic_3l is not None else "N/A"` (line 1562). When `check_3level_feasibility` returned `False` or `ThreeLevelEngine.fit` returned `None`, the cell shows `N/A`, signalling to the reader that the 3-level model was not estimated rather than that it lost on AIC. |
+| **`model_type` string in the model-summary box** | *Settings* tab via `OverallHTMLTemplates.settings_info_box` and, for meta-regression, `RegressionHTMLTemplates.model_summary` (Cell 12, line 1185: `<b>Model Type:</b> {model_type}`) | Carries the literal label set by the engine — `"3-Level VCV"`, `"3-Level VCV (Constrained)"`, `"3-Level Diagonal"`, `"3-Level Diagonal (Constrained)"`, or `"2-Level Aggregated (Fallback)"`. The user therefore sees which of Plan A → B → C produced the published estimates. |
+| **Plan C explanatory paragraph** | *Settings* / *Model* tab of the meta-regression view (Cell 12, line 1832) | When `model_type` matches `"2-Level"` or `"Aggregated"`, the renderer swaps the 3-level model specification block for a 2-level aggregated block and appends the prose disclosure: *"Note: Data aggregated to study level because moderator was constant within studies."* |
+| **Boundary-collapse narrative paragraph** | *📝 Publication Text* tab via `OverallPublicationTextGenerator.generate_results_section` (Cell 7, lines 1873–1898) | When `result.sigma_squared_3level < 1e-5` *or* `result.tau_squared_3level < 1e-5`, the variable `variance_collapsed` is set to `True`. The Results section then states verbatim: *"A three-level random-effects model was initially evaluated to account for the potential dependency of nested effects. However, variance partitioning resulted in a parameter boundary collapse (a variance component approached zero), indicating the dataset lacked the topological information necessary to reliably support three distinct hierarchical levels. Consequently, the algorithm defaulted to the more parsimonious two-level random-effects model."* This is the paragraph an analyst can lift directly into the manuscript Methods/Results. |
+| **`progress_callback` event stream** | `OverallEngine.run_analysis(..., progress_callback=...)` (Cell 7, lines 1158–1329) | An optional `progress_callback(message)` parameter receives ordered status events as the engine traverses the workflow — e.g. `"📊 Preparing data..."`, `"🎲 Running 2-level RE (REML)..."`, `"🔄 Running 3-level RE (nested)..."`, `"⚠️ 3-level fitting failed: {str(e)}"`, `"🏆 Evaluating model structure and fit..."`, and a closing `"✅ {best_model}: μ = {…} {sig}"`. The default controller wires this to a no-op stub (`def progress_callback(message: str): pass # Could be enhanced with progress widget`) so callers may attach a status widget without modifying the engine. The same hook is mirrored in `RegressionEngine` (Cell 12, lines 873–916). |
+| **`render_error(message, details)`** | `OverallResultsView.render_error` (Cell 7, line 2440); also defined on `RegressionResultsView` (Cell 12, line 1989) | A *hard* failure (e.g. `ANALYSIS_CONFIG` not yet populated, data-preparation `ValueError`, runtime exception inside the engine) is displayed as a red error card via `self.view.render_error("Data Error", str(e))` or `render_error("Runtime Error", str(e))`. The user never sees a raw Python traceback unless `traceback.print_exc()` is invoked in the outermost handler of `run_overall_meta_analysis()`. |
+| **`warnings.warn` console output** | The `TwoLevelEngine.estimate_tau2` τ² fallback (Cell 7, lines 595 and 603) | Emits `f"{tau_method} not available, using DL estimator"` or `f"τ² estimation failed: {e}, using DL"` through Python's `warnings` module. On Colab these surface in the cell output stream beneath the rendered HTML, providing a non-blocking but visible trace that the chosen heterogeneity estimator was *not* the one configured in the UI. |
+| **Stale banner** | `widgets.HTML` registered per-module via `register_banner('overall', ...)` and toggled by `mark_stale` / `clear_stale` (Cell 1, lines 117–146) | Not a fallback channel *per se*, but the related notification surface that warns the user when upstream choices (data, effect-size metric, filters) change without the downstream module having been re-run — preventing a stale 3-level result from being misread as a fresh fallback decision. |
+| **Excel `Protocol & Settings` worksheet** | `_get_protocol_metadata(report_type)` (Cell 1, line 2274) feeds `export_analysis_report(...)` | Captures `model_choice` ('Auto-Select (Best AIC)' / 'Force 2-Level' / 'Force 3-Level'), `tau_method`, `knapp_hartung.used`, and `best_model` so that the audit reader can recover from the exported report alone which model was finally chosen and which path got it there. |
+
+A single fallback typically triggers *several* of these channels simultaneously. For example, when an attempted 3-level fit collapses to a near-zero σ², the user receives: (i) a green ✓ on the 2-Level row of the model-comparison table; (ii) an `N/A` or visibly larger AIC on the 3-Level row; (iii) the explicit boundary-collapse paragraph in the publication-text tab; (iv) a `"⚠️ 3-level fitting failed"` or `"🏆 Evaluating model structure"` event on the progress stream; and (v) the `best_model: '2-Level'` line in the exported `Protocol & Settings` sheet. The redundancy is deliberate — every audit pathway (interactive UI, copy-pasteable manuscript prose, exported workbook) carries the same finding, so the choice of reporting medium cannot accidentally hide the methodological decision.
+
+```mermaid
+flowchart LR
+    F[Fallback triggered<br/>e.g. 3L → 2L collapse]:::n --> CH1["📊 Primary tab:<br/>'AIC WINNER 🏆' on 2-Level"]
+    F --> CH2["⚖️ Comparison tab:<br/>green row + N/A or higher AIC"]
+    F --> CH3["⚙️ Settings tab:<br/>model_type = '2-Level Aggregated (Fallback)'<br/>or '3-Level Diagonal'"]
+    F --> CH4["📝 Publication tab:<br/>boundary-collapse paragraph"]
+    F --> CH5["progress_callback:<br/>'⚠️ 3-level fitting failed: …'"]
+    F --> CH6["warnings.warn console<br/>(τ² fallback only)"]
+    F --> CH7["💾 Excel Protocol & Settings<br/>best_model / model_choice"]
+    classDef n fill:#fef3c7,stroke:#ca8a04
+```
+
 ---
 
 ## 5. Session Serialization & Reporting
