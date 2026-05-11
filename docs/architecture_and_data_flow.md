@@ -613,9 +613,7 @@ sequenceDiagram
     alt check_3level_feasibility(df) is True
         Eng->>T3: fit(df, effect_col, var_col, vcv_matrices)
         T3-->>Eng: dict or None
-        opt match_r_ll
-            Eng->>Eng: log_lik += -0.5·k·log(2π); aic = 6 - 2·log_lik
-        end
+        Note over Eng: if match_r_ll then log_lik += -0.5*k*log(2pi); aic = 6 - 2*log_lik
         Eng->>Eng: compute ci_lower/upper/p_value (t or norm, df=k_studies-1)
     end
     Eng->>Eng: _select_model: overrides → availability → boundary → ΔAIC≥3
@@ -745,11 +743,11 @@ The eigenvalue floor (`tol = max(1e-10, 1e-6·max|λ|)`) is what makes the routi
 **Phase 3 — Satterthwaite DF per coefficient.** Implements Pustejovsky & Tipton (2018) eq. 6 in its scalar (per-contrast) form:
 
 $$
-\hat{\nu}_j \;=\; \frac{\bigl(\sum_i g_{ij}\bigr)^2}{\sum_i g_{ij}^{\,2}}
+\hat{\nu}_j \;=\; \frac{\left(\sum_i g_{ij}\right)^{2}}{\sum_i (g_{ij})^{2}}
 \quad \text{with} \quad
-g_{ij} \;=\; q_i^{\!\top} B_i\, q_i,\;\;
-B_i = A_i\,\Sigma_i\,A_i^{\!\top},\;\;
-q_i = (\mathrm{inv\_\Sigma_i}\,X_i)\,\mathrm{bread\_inv}\,c_j
+g_{ij} \;=\; q_i^{\top} B_i \, q_i, \quad
+B_i \;=\; A_i \, \Sigma_i \, A_i^{\top}, \quad
+q_i \;=\; \Sigma_i^{-1} X_i \, (X^{\top} \Sigma^{-1} X)^{-1} \, c_j
 $$
 
 The code precomputes `B_i = A_i · Σ_i · A_iᵀ` once per study (l. 2012–2015) so that the inner contrast loop reduces to a single quadratic form `q_iᵀ · B_i · q_i` (avoiding the `k × k` matrix multiplications `outer(q_i, q_i)` would imply). The final DF is **clipped** to `[1.0, M_studies − 1]` (l. 2040–2041) so that pathologically small values (e.g. when one cluster dominates the contrast) cannot drop below 1 or exceed the cluster count minus one. When `g_sq_sum == 0` (a contrast orthogonal to every study), the routine returns the conventional `max(1, M_studies − p_params)`.
