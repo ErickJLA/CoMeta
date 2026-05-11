@@ -600,26 +600,26 @@ sequenceDiagram
     participant View as OverallResultsView
 
     UI->>Ctl: OverallController(ANALYSIS_CONFIG)
-    Ctl->>DM: __init__ + _validate_prerequisites
-    Ctl->>Eng: OverallEngine(DM) [+ FE, HE, T3 sub-engines]
-    UI->>Ctl: run_analysis() [reads widgets]
+    Ctl->>DM: __init__ and _validate_prerequisites
+    Ctl->>Eng: OverallEngine(DM) plus FE, HE, T3 sub-engines
+    UI->>Ctl: run_analysis (reads widgets)
     Ctl->>DM: save_global_settings(alpha, dist_type, tau_method, use_kh, model_choice)
     Ctl->>Eng: run_analysis(...)
-    Eng->>DM: prepare_data() [dropna, var>0]
+    Eng->>DM: prepare_data (dropna, var greater than 0)
     Eng->>FE: calculate(y, v, alpha, dist_type)
-    Eng->>HE: calculate_Q_statistics, calculate_I2
-    Eng->>T2: TwoLevelEngine(tau_method).estimate_tau2 / .calculate_pooled_effect / .calculate_loglik_aic
-    Note over Eng,T2: τ² fallback REML/ML→DL via warnings.warn
+    Eng->>HE: calculate_Q_statistics and calculate_I2
+    Eng->>T2: TwoLevelEngine(tau_method) then estimate_tau2, calculate_pooled_effect, calculate_loglik_aic
+    Note over Eng,T2: tau-squared fallback REML or ML to DL via warnings.warn
     alt check_3level_feasibility(df) is True
         Eng->>T3: fit(df, effect_col, var_col, vcv_matrices)
         T3-->>Eng: dict or None
-        Note over Eng: if match_r_ll then log_lik += -0.5*k*log(2pi); aic = 6 - 2*log_lik
-        Eng->>Eng: compute ci_lower/upper/p_value (t or norm, df=k_studies-1)
+        Note over Eng: if match_r_ll then add -0.5 k log(2 pi) constant; aic = 6 minus 2 log_lik
+        Eng->>Eng: compute ci_lower, ci_upper, p_value (t or norm, df = k_studies - 1)
     end
-    Eng->>Eng: _select_model: overrides → availability → boundary → ΔAIC≥3
+    Eng->>Eng: _select_model (overrides, availability, boundary, delta-AIC at least 3)
     Eng-->>Ctl: OverallResult
-    Ctl->>DM: save_overall_results(result) → ANALYSIS_CONFIG
-    Ctl->>View: render_primary_tab / render_comparison_tab / render_publication_tab
+    Ctl->>DM: save_overall_results(result) into ANALYSIS_CONFIG
+    Ctl->>View: render_primary_tab, render_comparison_tab, render_publication_tab
 ```
 
 ### 4.2 Three-level REML core (`ThreeLevelEngine.fit`, Cell 7 lines 740–1098)
