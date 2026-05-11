@@ -46,12 +46,12 @@ mark_stale(ALL_DOWNSTREAM, "Step 5: Effect Size Metric Changed")
 
 ```mermaid
 flowchart LR
-    W[Widget change<br/>e.g. τ² method]:::w --> M[mark_stale(ALL_DOWNSTREAM)]:::s
-    M --> B1[overall banner]
-    M --> B2[subgroup banner]
-    M --> B3[regression banner]
-    M --> B4[...]
-    B1 -->|user re-runs| C[clear_stale('overall')]:::c
+    W["Widget change<br/>e.g. τ² method"]:::w --> M["mark_stale(ALL_DOWNSTREAM)"]:::s
+    M --> B1["overall banner"]
+    M --> B2["subgroup banner"]
+    M --> B3["regression banner"]
+    M --> B4["..."]
+    B1 -->|user re-runs| C["clear_stale('overall')"]:::c
     classDef w fill:#fef3c7,stroke:#ca8a04
     classDef s fill:#fde68a,stroke:#b45309
     classDef c fill:#bbf7d0,stroke:#15803d
@@ -103,22 +103,22 @@ On success the renderer writes the renamed, type-coerced frame to `ANALYSIS_CONF
 
 ```mermaid
 flowchart TD
-    A[User opens Cell 2]:::u --> B{Data source}
-    B -->|FileUpload| C[on_process_file_clicked]
-    B -->|Google Sheets| D[on_load_sheet_clicked]
-    B -->|JSON session| E[_on_repro_upload]
-    B -->|Built-in| F[on_load_example_clicked]
-    C --> G[_initiate_mapping_interface]
+    A["User opens Cell 2"]:::u --> B{"Data source"}
+    B -->|FileUpload| C["on_process_file_clicked"]
+    B -->|Google Sheets| D["on_load_sheet_clicked"]
+    B -->|JSON session| E["_on_repro_upload"]
+    B -->|Built-in| F["on_load_example_clicked"]
+    C --> G["_initiate_mapping_interface"]
     D --> G
     F --> G
-    G --> H{Data type}
-    H -->|raw_continuous| I[_render_raw_mapping]
-    H -->|raw_binary| J[_render_binary_mapping]
-    H -->|pre_calculated| K[_render_precalc_mapping]
-    I --> V[_validate_and_coerce_mapped_numerics]
+    G --> H{"Data type"}
+    H -->|raw_continuous| I["_render_raw_mapping"]
+    H -->|raw_binary| J["_render_binary_mapping"]
+    H -->|pre_calculated| K["_render_precalc_mapping"]
+    I --> V["_validate_and_coerce_mapped_numerics"]
     J --> V
     K --> V
-    V --> W[ANALYSIS_CONFIG\['clean_dataframe'\]]:::s
+    V --> W["ANALYSIS_CONFIG['clean_dataframe']"]:::s
     E --> W
     classDef u fill:#dbeafe,stroke:#1d4ed8
     classDef s fill:#bbf7d0,stroke:#15803d
@@ -200,12 +200,12 @@ The full block-diagonal *VCV matrix* of the dataset is never instantiated as a s
 
 ```mermaid
 flowchart LR
-    A[clean_dataframe] --> B[detect_shared_controls]
-    B --> C[shared_group_id column]
-    C --> D[build_vcv_matrices]
-    D -->|study i: diag(v_i)| E1[no shared control → diagonal]
-    D -->|study i: Gleser-Olkin| E2[shared control → block]
-    E1 & E2 --> F[ANALYSIS_CONFIG\['vcv_matrices'\]]
+    A["clean_dataframe"] --> B["detect_shared_controls"]
+    B --> C["shared_group_id column"]
+    C --> D["build_vcv_matrices"]
+    D -->|"study i: diag(v_i)"| E1["no shared control → diagonal"]
+    D -->|"study i: Gleser-Olkin"| E2["shared control → block"]
+    E1 & E2 --> F["ANALYSIS_CONFIG['vcv_matrices']"]
 ```
 
 ---
@@ -218,7 +218,7 @@ The statistical core is split between **Cell 1** (low-level math primitives, REM
 
 ```mermaid
 sequenceDiagram
-    participant UI as run_overall_meta_analysis()
+    participant UI as run_overall_meta_analysis
     participant Ctl as OverallController
     participant DM as OverallDataManager
     participant Eng as OverallEngine
@@ -235,7 +235,7 @@ sequenceDiagram
     Eng->>Eng: FixedEffectEngine.calculate(y, v)
     Eng->>Eng: HeterogeneityEngine.calculate_Q_statistics / I2
     Eng->>Eng: TwoLevelEngine(tau_method).estimate_tau2 / pooled / loglik_aic
-    alt check_3level_feasibility(df)
+    alt check_3level_feasibility(df) is True
         Eng->>TLE: fit(df, effect_col, var_col, vcv_matrices)
     end
     Eng->>Eng: _select_model(...)
@@ -334,14 +334,14 @@ Convergence and feasibility failures cascade gracefully:
 
 ```mermaid
 flowchart TD
-    A[Run overall analysis]:::n --> B{check_3level_feasibility}
-    B -->|False| C[2-Level only<br/>OverallResult.best_model = '2-Level']
-    B -->|True| D[ThreeLevelEngine.fit]
+    A["Run overall analysis"]:::n --> B{"check_3level_feasibility"}
+    B -->|False| C["2-Level only<br/>OverallResult.best_model = '2-Level'"]
+    B -->|True| D["ThreeLevelEngine.fit"]
     D -->|None| C
-    D -->|Success| E{σ² or τ² < 1e-5?}
-    E -->|Yes| F[Report boundary collapse<br/>default to 2-Level]
-    E -->|No| G[_select_model on AIC]
-    G --> H[3-Level reported]
+    D -->|Success| E{"σ² or τ² &lt; 1e-5?"}
+    E -->|Yes| F["Report boundary collapse<br/>default to 2-Level"]
+    E -->|No| G["_select_model on AIC"]
+    G --> H["3-Level reported"]
     G --> C
     classDef n fill:#dbeafe,stroke:#1d4ed8
 ```
@@ -419,14 +419,14 @@ The final HTML is committed via `OverallDataManager.save_publication_text(text)`
 
 ```mermaid
 flowchart LR
-    R[OverallResult dataclass]:::r --> G[generate_results_section]
-    ES[es_config dict] --> G
-    AC[ANALYSIS_CONFIG\['sd_missing_strategy'\]] --> M[generate_methods_section]
+    R["OverallResult dataclass"]:::r --> G["generate_results_section"]
+    ES["es_config dict"] --> G
+    AC["ANALYSIS_CONFIG['sd_missing_strategy']"] --> M["generate_methods_section"]
     ES --> M
-    G --> H1[overall_text HTML]
-    M --> H2[methods HTML]
-    H1 & H2 --> View[Publication tab\nOverallResultsView]
-    H1 & H2 --> XLS[export_analysis_report\n→ MetaAnalysis.xlsx]
+    G --> H1["overall_text HTML"]
+    M --> H2["methods HTML"]
+    H1 & H2 --> View["Publication tab<br/>OverallResultsView"]
+    H1 & H2 --> XLS["export_analysis_report<br/>→ MetaAnalysis.xlsx"]
     classDef r fill:#ede9fe,stroke:#6d28d9
 ```
 
