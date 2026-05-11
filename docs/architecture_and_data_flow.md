@@ -33,6 +33,7 @@ This document is organised as a top-down traversal of the CoMeta pipeline, from 
 | [6](#6-extension-guide-adding-a-new-analytical-module) | **Extension Guide: Adding a New Analytical Module** | A copy-pasteable `*DataManager` / `*Engine` / `*Controller` skeleton showing how to reuse `_run_three_level_reml_regression_v2`, `_compute_robust_var_betas`, the staleness contract, and the JSON round-trip. |
 | [A](#appendix-a--key-file-map) | **Appendix A** — Key file map | Cell-by-cell inventory of the notebook with the principal functions, classes, and data structures defined in each cell. |
 | [B](#appendix-b--bibliography-of-methods-implemented) | **Appendix B** — Bibliography of methods implemented | The methodological references underpinning each statistical primitive (Gleser & Olkin 2009, Lajeunesse 2011, Pustejovsky & Tipton 2018, Knapp & Hartung 2003, Viechtbauer 2005, Higgins & Thompson 2002). |
+| [C](#appendix-c--glossary-of-abbreviations-and-symbols) | **Appendix C** — Glossary of abbreviations and symbols | Plain-English expansions of every acronym (MVC, VCV, REML, CR2, KH, lnRR, …), every Greek symbol (μ, τ², σ², Σᵢ, I², Q), and every short data-column token (`xe`, `sdc`, `events_e`, …) used throughout the document. |
 
 ---
 
@@ -1183,3 +1184,97 @@ Following this contract, a new analytical module integrates with the existing st
 * Viechtbauer, W. (2005). REML estimator behaviour; the default `tau_method='REML'` in `TwoLevelEngine` and `ThreeLevelEngine`.
 * Higgins, J. P., & Thompson, S. G. (2002). *I² heterogeneity statistic*; `HeterogeneityEngine.calculate_I2`.
 * Lajeunesse, M. J. (2011). lnRR shared-control covariance; the `effect_type == 'lnRR'` branch of `build_vcv_matrices`.
+
+## Appendix C — Glossary of abbreviations and symbols
+
+The notation in this document follows the conventions of the meta-analytic literature, but for readers who come from adjacent fields (software engineering, ecology, or applied statistics) the table below disambiguates every abbreviation and Greek symbol that appears in the body of the text. Entries are grouped by domain; within each group the order is alphabetical for acronyms and conventional for symbols.
+
+### Statistical methods, estimators, and tests
+
+| Abbreviation | Expansion | Used in CoMeta to denote |
+|---|---|---|
+| **AIC** | Akaike Information Criterion | The model-selection score `2·p − 2·log L`; lower is better. Used by `_select_model` with a `ΔAIC ≥ 3` parsimony threshold. |
+| **CR2** | Cluster-Robust, type 2 (bias-Reduced linearisation) | The small-sample correction implemented in `_compute_robust_var_betas`, defined by `A_i = D_i^{−1/2}` with `D_i = I − H_ii`. |
+| **DL** | DerSimonian–Laird | Method-of-moments estimator of τ² used as the fallback in `TwoLevelEngine.estimate_tau2`. |
+| **GLS** | Generalised Least Squares | The estimation principle behind `_get_gls_estimates` — weighted regression accounting for the per-study covariance Σᵢ. |
+| **KH** | Knapp–Hartung | Small-sample correction to the standard error of the pooled effect; toggled by `OverallController.use_kh_widget`. |
+| **L-BFGS-B** | Limited-memory Broyden–Fletcher–Goldfarb–Shanno with Box constraints | The bounded quasi-Newton optimiser (`scipy.optimize.minimize(method='L-BFGS-B')`) used for REML maximisation in `ThreeLevelEngine.fit` and `_run_three_level_reml_regression_v2`. |
+| **LOO** | Leave-One-Out | Sensitivity analysis re-fitting the model with each study removed in turn (Cells 20–22). |
+| **ML** | Maximum Likelihood | An alternative τ² estimator (in addition to REML and DL) available via `tau_method='ML'`. |
+| **PET–PEESE** | Precision-Effect Test / Precision-Effect Estimate with Standard Error | Publication-bias diagnostic implemented in Cell 18. |
+| **PM** | Paule–Mandel | Another τ² estimator implemented in `calculate_tau_squared_PM`. |
+| **PRESS / RVE** | Robust Variance Estimation | The general family of sandwich estimators to which CR2 belongs. |
+| **REML** | Restricted (or Residual) Maximum Likelihood | Default τ² estimator in `TwoLevelEngine` and the variance-component estimator in `ThreeLevelEngine` and `_run_three_level_reml_regression_v2`. |
+| **SJ** | Sidik–Jonkman | Another τ² estimator implemented in `calculate_tau_squared_SJ`. |
+
+### Effect-size metrics
+
+| Abbreviation | Expansion | Domain |
+|---|---|---|
+| **lnRR** | Natural-log Response Ratio | Continuous, strictly positive outcomes; `ln(x̄_E / x̄_C)`. |
+| **log OR / lnOR** | Natural-log Odds Ratio | Binary 2×2 outcomes; `log(a·d / b·c)`. |
+| **log RR** | Natural-log Risk Ratio | Binary 2×2 outcomes; `log(risk_E / risk_C)`. |
+| **SMD** | Standardised Mean Difference | Generic continuous comparison on different scales. |
+| **Hedges' *g*** | Small-sample-corrected SMD | Cohen's *d* multiplied by `J`, computed via `_hedges_j(df_val)`. |
+| **Cohen's *d*** | Uncorrected SMD | `(x̄_E − x̄_C) / s_pooled`. |
+| **Fisher's *z*** | Fisher *r*-to-*z* transformation | Correlation-based effect sizes; normalises *r* to support inference. |
+
+### Statistical quantities and Greek symbols
+
+| Symbol / abbreviation | Meaning |
+|---|---|
+| **μ** (mu) | Pooled effect-size estimate. |
+| **τ²** (tau-squared) | Between-study variance component in the random-effects model. |
+| **σ²** (sigma-squared) | Within-study (between-effect-size) variance component in the three-level model. |
+| **Σᵢ** (Sigma-sub-i) | Marginal covariance matrix for study *i*: `Σᵢ = V_i + σ²·I_k + τ²·1·1ᵀ`. |
+| **V_i** | Within-study sampling-variance-covariance block produced by `build_vcv_matrices`. |
+| **I²** | Higgins–Thompson heterogeneity statistic; the percentage of total variance attributable to between-study heterogeneity. |
+| **Q** | Cochran's homogeneity statistic; tests `H₀ : τ² = 0`. |
+| **SE** | Standard Error of the pooled estimate. |
+| **CI** | Confidence Interval. |
+| **PI** | Prediction Interval (for a new study). |
+| **DF** | Degrees of Freedom. |
+| **ICC** | Intra-class Correlation Coefficient; `icc_l3 = τ²/(τ² + σ² + v_typical)` and `icc_l2 = σ²/(τ² + σ² + v_typical)`. |
+| **k** | Number of effect sizes (observations). |
+| **m** | Number of independent studies (clusters). |
+| **N** | Total observations across the dataset (synonymous with *k* in this codebase). |
+| **CV** | Coefficient of Variation; `SD / mean`. Used in `impute_sd_median_cv` and `impute_sd_custom_cv`. |
+| **VCV** | Variance–Covariance (matrix). Refers to either the per-study `V_i` block or the global `vcv_matrices` dictionary in `ANALYSIS_CONFIG`. |
+
+### Data and column abbreviations
+
+| Token | Meaning |
+|---|---|
+| `xe` / `xc` | Sample mean of the experimental (treatment) / control arm. |
+| `sde` / `sdc` | Sample standard deviation of the experimental / control arm. |
+| `ne` / `nc` | Sample size of the experimental / control arm. |
+| `sde_imputed` / `sdc_imputed` | Post-imputation copy of `sde` / `sdc` created in Cell 6 so the original input is preserved for audit. |
+| `events_e` / `nonevents_e` | Counts of events / non-events in the experimental arm (binary outcomes). |
+| `events_c` / `nonevents_c` | Counts of events / non-events in the control arm. |
+| `yi`, `vi`, `se` | Pre-calculated effect size, variance, and standard error in pre-calculated ingestion mode. |
+| `id` | Study identifier — the column used by `groupby('id')` throughout the engine. |
+| `shared_group_id` | Tag emitted by `detect_shared_controls` to mark co-dependent rows. |
+
+### Architecture and implementation
+
+| Abbreviation | Expansion | Used in CoMeta to denote |
+|---|---|---|
+| **MVC** | Model–View–Controller | The architectural pattern instantiated by every analytical module (`*DataManager` / `*Engine` / `*ResultsView` / `*Controller`). |
+| **DAG** | Directed Acyclic Graph | The staleness-propagation topology described in § 1.2 (data-prep cells fan out, analytical modules cascade). |
+| **API** | Application Programming Interface | A function or method signature exposed for external use. |
+| **CLI** | Command-Line Interface | Used in the manuscript-context references to terminal-based tooling. |
+| **UI** | User Interface | The `ipywidgets`-based interactive layer. |
+| **GUI** | Graphical User Interface | Synonym for UI in the introductory context. |
+| **BLAS** | Basic Linear Algebra Subprograms | The underlying numerical-linear-algebra library NumPy / SciPy delegate to; mentioned in § 4.4.1 because BLAS micro-versions can affect floating-point reproducibility. |
+
+### File formats and general
+
+| Abbreviation | Expansion |
+|---|---|
+| **CSV** | Comma-Separated Values |
+| **JSON** | JavaScript Object Notation |
+| **HTML** | HyperText Markup Language |
+| **DOI** | Digital Object Identifier |
+| **PR** | (GitHub) Pull Request |
+| **REPL** | Read–Eval–Print Loop |
+| **KaTeX** | The math-typesetting library GitHub uses for `$$ … $$` blocks |
