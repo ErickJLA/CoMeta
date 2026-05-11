@@ -1079,26 +1079,36 @@ This design separates **inputs** (preserved in JSON, used to *re-derive* outputs
 
 ### 5.2 Automated Materials & Methods / Results generator
 
-Each analytical cell exposes a publication-text class — for the overall model this is `OverallPublicationTextGenerator` (Cell 7, lines 1657 onward), which renders two HTML fragments injected into the *Publication* tab of `OverallResultsView`.
+Each analytical cell exposes a publication-text class — for the overall model this is `OverallPublicationTextGenerator` (Cell 7, line 1657), which renders two HTML fragments injected into the *Publication* tab of `OverallResultsView`. The class's `__init__` is a no-op `pass` (line 1662), so it is effectively a stateless namespace; both routines below are *instance methods*, conventionally called as `OverallPublicationTextGenerator().generate_*_section(...)`.
 
-#### `generate_methods_section(es_config, use_kh)`
+#### `OverallPublicationTextGenerator.generate_methods_section(self, es_config, use_kh)`
 
-1. **Citation database `db`.** Hard-coded dictionary of canonical references (Hedges 1981, Hedges/Gurevitch/Curtis 1999 for lnRR, Viechtbauer 2005 for REML, Higgins & Thompson 2002 for I², Knapp & Hartung 2003, SciPy/Virtanen 2020, etc.).
-2. **Dynamic reference list `active_refs`.** Citations are appended *conditionally*: effect-size citation chosen by inspecting `es_config['type']` and `es_config['effect_label']`; Sweeting et al. (2004) appended only for `log_or` / `log_rr`; Knapp–Hartung appended only if `use_kh=True`. The reference indices are stored as `ref_es`, `ref_reml`, `ref_kh`, `ref_py`, `ref_tool` and interpolated into the prose.
-3. **Conditional disclosures.** The function reads `ANALYSIS_CONFIG.get('sd_missing_strategy', 'none')` and appends an explicit caveat ("treating imputed variances as known parameters may slightly underestimate the true uncertainty …") when imputation was performed.
+Signature `generate_methods_section(self, es_config: Dict[str, Any], use_kh: bool) -> str` (Cell 7 line 1665).
 
-#### `generate_results_section(result, es_config)`
+1. **Citation database `db`.** Hard-coded dictionary of canonical references (Hedges 1981, Hedges/Gurevitch/Curtis 1999 for lnRR, Viechtbauer 2005 for REML, Higgins & Thompson 2002 for I², Knapp & Hartung 2003, SciPy/Virtanen 2020, Fleiss 1993 for log OR, Greenland & Robins 1985 for log RR, Sweeting et al. 2004 for the binary continuity correction, and a self-citation slot for the Co-Meta tool itself).
+2. **Dynamic reference list `active_refs`.** Citations are appended *conditionally*: the effect-size citation is chosen by inspecting `es_config['type']` (matched against the tokens `'log_or'` / `'log_rr'`) and `es_config['effect_label']` (substring-matched for `'Hedges'` / `'Ratio'`); Sweeting et al. (2004) is appended only for `log_or` / `log_rr`; Knapp–Hartung is appended only if `use_kh=True`. Reference indices are stored as `ref_es` (always), `ref_sweeting` (conditional on the binary branch), `ref_reml` (always), `ref_i2` (always), `ref_kh` (conditional on `use_kh`), `ref_py` (always), and `ref_tool` (always) — then interpolated into the prose so the in-text citation numbers always match the rendered bibliography.
+3. **Conditional disclosures.** Guarded by `if 'ANALYSIS_CONFIG' in globals():` (line 1757, a defensive check against module-import without the global config), the function reads `ANALYSIS_CONFIG.get('sd_missing_strategy', 'none')` and appends an explicit caveat ("treating imputed variances as known parameters may slightly underestimate the true uncertainty …") on any of the three imputation branches `median_cv` / `nearest` / `custom_cv`.
 
-Reads from the `OverallResult` dataclass and emits a fully-formed Results paragraph:
+#### `OverallPublicationTextGenerator.generate_results_section(self, result, es_config)`
+
+Signature `generate_results_section(self, result: 'OverallResult', es_config: Dict[str, Any]) -> str` (Cell 7 line 1789). Reads from the `OverallResult` dataclass and emits a fully-formed Results paragraph:
 
 * Selects the reporting target (`mu_p = result.mu_random if result.best_model == "2-Level" else result.mu_3level`); same triage for `ci_lo_p`, `ci_hi_p`, `p_p`.
 * **Effect-size description** chosen from a literal lookup `es_map` keyed on `es_config['type']`.
 * **Significance / formatting** — `sig_text = "significant" if p_p < 0.05 else "non-significant"`; `p_format = "< 0.001" if p_p < 0.001 else f"= {p_p:.3f}"`.
 * **Magnitude interpretation** — Cohen-style bins on `abs(mu_p)` (`< 0.2` negligible, `< 0.5` small, `< 0.8` moderate, else large); for `log_or` / `log_rr`, bins on `exp(|μ|)` (`< 1.5`, `< 3.0`, ≥ 3.0).
 * **Heterogeneity interpretation** — Higgins-style bins on `result.I2` (`< 25`, `< 50`, `< 75`, else considerable).
-* **Model-selection narrative** — three branches gated on `result.best_model`, `delta_aic = abs(aic_2level − aic_3level)`, and `variance_collapsed = (sigma_squared_3level < 1e-5) or (tau_squared_3level < 1e-5)`.
+* **Model-selection narrative.** Wrapped in an outer `if result.has_3level: ... else: ...` (line 1870). The `else` arm is the *no-3L-evaluated* case and emits a single sentence — *"A standard two-level random-effects meta-analysis was conducted."* Inside the `if` arm, three sub-branches are gated on `result.best_model`, `delta_aic = abs(aic_2level − aic_3level)`, and `variance_collapsed = (σ² is not None and σ² < 1e-5) or (τ² is not None and τ² < 1e-5)` (the `is not None` guards prevent a crash when the 3L fit did not return a variance component):
+  - **3L wins** (`best_model == "3-Level"`) — favours the three-level model based on a structure-aware decision tree plus AIC.
+  - **Collapse fallback** (`variance_collapsed`) — defaults to the two-level model because the 3L fit hit a parameter boundary (a variance component approached zero), signalling the dataset lacks the topological information needed to support three hierarchical levels.
+  - **AIC favours 2L** (otherwise) — favours 2L using a conservative, boundary-aware threshold of `ΔAIC ≥ 3`, citing Greven & Kneib (2010) inline for the threshold choice.
 
-The final HTML is committed via `OverallDataManager.save_publication_text(text)` → `ANALYSIS_CONFIG['overall_text']`, which is what the Excel exporter (`export_analysis_report(report_type, filename_prefix)`, Cell 1 line 2397) ships in the "Publication Text" sheet alongside the protocol metadata captured by `_get_protocol_metadata(report_type)`.
+The final HTML is wired through the Controller in two stages (Cell 7 lines 2682 and 2688):
+
+1. `OverallResultsView.render_publication_tab(result, es_config)` is invoked, which internally calls both methods of `OverallPublicationTextGenerator` and returns a combined HTML string.
+2. The Controller then persists that string with `OverallDataManager.save_publication_text(text)` → `ANALYSIS_CONFIG['overall_text']` (Cell 7 line 372).
+
+The Excel exporter (`export_analysis_report(report_type, filename_prefix)`, Cell 1 line 2507) then ships `ANALYSIS_CONFIG['overall_text']` in the "Publication Text" sheet alongside the protocol metadata captured by `_get_protocol_metadata(report_type)`.
 
 ```mermaid
 flowchart LR
