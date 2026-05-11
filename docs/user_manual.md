@@ -92,26 +92,6 @@ After running, Cell 1 shows a single styled **CoMeta welcome card**. The card co
 
 No interaction is required. If the status footer reads "Environment Verified", Cell 1 is complete and you can proceed to Cell 2.
 
-#### The figure-size preset (appears in visualization cells, not here)
-
-Cell 1 also defines a global **📏 Preset** dropdown widget that pre-fills plot dimensions and font sizes across several visualization cells. This dropdown is **not visible in Cell 1's output** — it appears inside the style panel of the visualization cells that use it (Cells 10, 17, and 25). You do not need to do anything in Cell 1 to use the preset; simply select the desired format from the dropdown when you reach one of those cells.
-
-Available presets:
-
-| Preset | Width × Height | Intended use |
-|---|---|---|
-| Custom | (unchanged) | Adjust each plot individually |
-| Cell Press 1-Col (85 mm) | 3.35 × 3.35 in | Single-column figure in Cell/Current Biology/iScience |
-| Cell Press 1.5-Col (114 mm) | 4.49 × 4.00 in | 1.5-column figure in Cell Press journals |
-| Cell Press Full (174 mm) | 6.85 × 5.50 in | Full-width figure in Cell Press journals |
-| STAR Protocols 1-Col (134 mm) | 5.28 × 5.00 in | Single-column figure in STAR Protocols |
-| STAR Protocols Full (172 mm) | 6.77 × 6.00 in | Full-width figure in STAR Protocols |
-| Cell 3-Col Layout (55 mm) | 2.17 × 2.50 in | Narrow three-column layout |
-| Thesis (A4 Portrait) | 6.30 × 8.00 in | Thesis chapter figures |
-| Presentation (16:9) | 13.3 × 7.50 in | Slides and posters |
-
-> **Tip.** Selecting a preset does not lock sizes permanently. Each visualization cell has its own width and height sliders that you can adjust after applying the preset. Think of the preset as a starting point, not a constraint.
-
 > **Important.** Colab sessions disconnect after approximately 90 minutes of inactivity and after a maximum of 12 hours. When a session is disconnected, all in-memory data is lost. To continue your work after reconnecting, run **all cells from Cell 1 onward** in sequence, or load a previously exported session JSON in Cell 2 to restore your configuration automatically.
 
 ---
@@ -302,7 +282,7 @@ After you confirm the column mapping, Cell 2 validates the data (checking that n
 
 **Study identifier as a number.** CoMeta treats the `id` column as a text label. If your study IDs are pure numbers (1, 2, 3…), they will be converted to strings ("1", "2", "3") automatically — this does not affect the analysis.
 
-**Three-level nesting.** For a genuine three-level analysis, you need two separate identifier columns: one for the **primary study** (e.g., `paper_id`) and one for the **within-study unit** (e.g., `experiment_id` or `species_id`). Map the primary-study column to `id`. The within-study unit column should be left as a moderator column; CoMeta's model detects the nesting structure automatically from repeated values of `id`.
+**Three-level nesting.** CoMeta detects the three-level structure automatically from the single `id` column — no second identifier is needed. All rows that share the same `id` value are treated as effect sizes belonging to the same primary study. When a study contributes more than one effect size (multiple rows with the same `id`), those are the within-study units at level 2. Simply make sure every row from the same paper or experiment carries the same `id` value; CoMeta handles the rest.
 
 **Large Excel files.** Files larger than approximately 50 MB may be slow to upload over a network connection. Consider converting to CSV first, which is typically much smaller for tabular data.
 
