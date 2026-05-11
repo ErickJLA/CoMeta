@@ -1117,20 +1117,43 @@ flowchart LR
 
 ## 6. Extension Guide: Adding a New Analytical Module
 
-Follow the canonical `Manager / Engine / View / Controller` pattern used by every existing cell. A new module *N* should consume `ANALYSIS_CONFIG['analysis_data']`, `ANALYSIS_CONFIG['vcv_matrices']`, and `ANALYSIS_CONFIG['global_settings']`, and must write its outputs back under a single namespaced key, e.g. `ANALYSIS_CONFIG['mymodule_results']`.
+CoMeta's per-cell architecture is uniform across every existing analytical cell (Overall, Subgroup, Meta-Regression, Spline, LOO, Cumulative, …). Following the same four-class pattern guarantees that a new module integrates with the global state, the staleness propagation system, the JSON round-trip, the Excel exporter, and the publication-text generator without further changes elsewhere in the notebook.
 
-### 6.1 Reading the global dataframe and VCV
+### 6.0 The four-class pattern
+
+| Class | Reference (Cell 7) | Responsibility |
+|---|---|---|
+| `*DataManager` | `OverallDataManager` (line 120) | Centralised read/write layer over `ANALYSIS_CONFIG`. Exposes typed property accessors (`analysis_data`, `effect_col`, `var_col`, `vcv_matrices`, `es_config`, `global_settings`) and *typed* save methods (one per result kind, e.g. `save_overall_results`, `save_publication_text`). Performs prerequisite validation in `__init__`. |
+| `*Engine` | `OverallEngine` (line 1101) | Orchestrates the statistical computation. Composes shared sub-engines from Cell 1 (`FixedEffectEngine`, `HeterogeneityEngine`, `TwoLevelEngine`, `ThreeLevelEngine`) rather than re-implementing primitives. Takes a `DataManager` in its constructor; exposes a top-level `run_analysis(...)` (or `fit(...)`). |
+| `*ResultsView` | `OverallResultsView` (line 2052) | Owns the rendering side. Manages a `widgets.Tab` whose children are individual `widgets.Output` panels; exposes a `render(result)` method that writes formatted HTML / matplotlib output into each tab. |
+| `*Controller` | `OverallController` (line 2467) | The MVC glue. Instantiates the DataManager, Engine, and ResultsView; creates the settings widgets; registers the staleness banner; wires the run button to a `_on_run_clicked` handler that calls the engine, saves the result, clears its own staleness, and marks downstream cells stale. |
+
+A new module *N* must:
+- consume `ANALYSIS_CONFIG['analysis_data']` and `ANALYSIS_CONFIG['vcv_matrices']` (both written by Cell 6) and `ANALYSIS_CONFIG['global_settings']` (written by Cell 7 line 361, inside `OverallDataManager.save_global_settings`),
+- write its outputs back under namespaced keys (e.g. `ANALYSIS_CONFIG['mymodule_results']`, `ANALYSIS_CONFIG['mymodule_text']`),
+- register a single staleness-banner ID that is short and globally unique, and
+- add that ID to `ALL_DOWNSTREAM` in Cell 1 (line 145) if upstream config changes should invalidate the module.
+
+### 6.1 The DataManager
 
 ```python
-# Inside MyModuleDataManager (mirroring OverallDataManager)
+# Inside MyModuleDataManager (mirroring OverallDataManager, Cell 7 lines 120–395)
 class MyModuleDataManager:
     def __init__(self, analysis_config):
         self._config = analysis_config
+        self._validate_prerequisites()
 
+    def _validate_prerequisites(self):
+        if 'effect_col' not in self._config:
+            warnings.warn("effect_col not in ANALYSIS_CONFIG, using default 'hedges_g'")
+        if 'var_col' not in self._config:
+            warnings.warn("var_col not in ANALYSIS_CONFIG, using default 'Vg'")
+
+    # ── property accessors ─────────────────────────────────────
     @property
     def analysis_data(self):
         df = self._config.get('analysis_data')
-        return df.copy() if df is not None else None
+        return df.copy() if df is not None else None      # defensive copy
 
     @property
     def effect_col(self):
@@ -1144,13 +1167,32 @@ class MyModuleDataManager:
     def vcv_matrices(self):
         return self._config.get('vcv_matrices', {})
 
-    def save_results(self, payload: dict):
-        self._config['mymodule_results'] = payload
+    @property
+    def es_config(self):
+        return self._config.get('es_config', {})
+
+    @property
+    def global_settings(self):
+        return self._config.get('global_settings',
+                                {'alpha': 0.05, 'dist_type': 't'})
+
+    # ── typed save methods (one per result kind) ───────────────
+    def save_results(self, result):
+        self._config['mymodule_results'] = result
+
+    def save_publication_text(self, html: str):
+        self._config['mymodule_text'] = html
 ```
 
-### 6.2 Engine wiring (re-using primitives)
+Notes:
+- `analysis_data` returns a **copy** so that engine code cannot mutate the global dataframe in place.
+- The real `OverallDataManager` types its save methods to specific result classes (`save_overall_results(result: OverallResult)`, `save_publication_text(text: str)`, `save_global_settings(...)`). Keep your save methods generic if your result is a plain dict, or introduce a `@dataclass MyModuleResult` and type the save method against it — both styles are accepted by the rest of the pipeline as long as the saved object is JSON-coercible via `make_json_safe`.
 
-Re-use the existing Cell 1 primitives rather than re-implementing them:
+### 6.2 The Engine
+
+Re-use existing Cell 1 primitives rather than re-implementing them. Two patterns are common:
+
+**Pattern A — single statistical routine.** If your module only needs one regression call, mirror the call sites in Cells 9 (subgroup execution) and 12 (meta-regression):
 
 ```python
 class MyModuleEngine:
@@ -1158,49 +1200,72 @@ class MyModuleEngine:
         self.dm = data_manager
 
     def fit(self, alpha=0.05, dist_type='t'):
-        df = self.dm.analysis_data
-        df = df.sort_values('id').reset_index(drop=True)
+        df = self.dm.analysis_data.sort_values('id').reset_index(drop=True)
 
-        # Three-level regression with CR2 — same pattern as Cells 9 / 12
+        # Three-level regression with CR2 (Cell 1, line 1402).
+        # NB. The first positional parameter of this routine is `analysis_data`,
+        # not `df` — passing by keyword keeps the call grep-able against source.
         final_est, info, opt = _run_three_level_reml_regression_v2(
-            df, moderator_col='my_predictor',
-            effect_col=self.dm.effect_col, var_col=self.dm.var_col
+            analysis_data=df,
+            moderator_col='my_predictor',
+            effect_col=self.dm.effect_col,
+            var_col=self.dm.var_col,
         )
-
-        # CR2 + Satterthwaite are already inside _run_three_level_reml_regression_v2,
-        # but you can also call _compute_robust_var_betas directly if you build
-        # X_all / vcv_all manually.
+        # CR2 + Satterthwaite are already executed inside the routine. If you
+        # need to call _compute_robust_var_betas directly, assemble X_all and
+        # vcv_all manually and follow the contract from §4.3.
         return final_est
 ```
 
-If your module needs a *new* design matrix (e.g. splines, polynomials, interactions), follow `_run_robust_spline_analysis(df, moderator_col, effect_col, var_col, df_spline=3)` (Cell 1, line 2051), which builds a `patsy.dmatrix` basis and then calls `_compute_robust_var_betas` on the resulting `X_all`.
+**Pattern B — composing sub-engines.** If you need fixed-effect, 2-level, and 3-level fits side by side (the way the Overall module does it), follow `OverallEngine.__init__` (Cell 7 line 1107), which composes four orthogonal sub-engines from Cell 1:
 
-### 6.3 Binding to the UI
+```python
+class MyModuleEngine:
+    def __init__(self, data_manager):
+        self.dm = data_manager
+        self.fixed_engine       = FixedEffectEngine()
+        self.het_engine         = HeterogeneityEngine()
+        self.three_level_engine = ThreeLevelEngine()
+        # ...add any module-specific sub-engines here
+```
+
+For modules that need a **new design matrix** (splines, polynomials, interactions), use `_run_robust_spline_analysis(df, moderator_col, effect_col, var_col, df_spline=3)` (Cell 1, line 2161) as a template — it builds a `patsy.dmatrix` basis with the "plug-in" trick (freeze τ²/σ² from a linear fit before solving the spline coefficients) and then calls `_compute_robust_var_betas` on the resulting `X_all`.
+
+### 6.3 The Controller and UI binding
 
 ```python
 class MyModuleController:
     def __init__(self, analysis_config):
         self.dm = MyModuleDataManager(analysis_config)
         self.engine = MyModuleEngine(self.dm)
-        self.view = MyModuleResultsView()      # render() methods write into widgets.Output tabs
+        self.view = MyModuleResultsView()      # render() writes into widgets.Output tabs
 
-        # Register staleness banner
+        # ── staleness banner ──────────────────────────────────────
+        # 'mymodule' is the module ID — short, lower-snake-case, globally
+        # unique, and added to ALL_DOWNSTREAM in Cell 1 (line 145) if this
+        # module should be invalidated by upstream config changes.
         self.stale_banner = widgets.HTML(value="")
         register_banner('mymodule', self.stale_banner)
 
-        # Configurable widgets — observers MUST mark downstream cells stale
+        # ── settings widgets ─────────────────────────────────────
         self.alpha_widget = widgets.Dropdown(
             options=[('95% CI', 0.05), ('99% CI', 0.01)],
             value=0.05, description='Confidence:'
         )
+        # Reproducibility: restore widget value from JSON-loaded config.
+        if (saved := analysis_config.get('mymodule_alpha')) is not None:
+            self.alpha_widget.value = saved
+
         self.run_button = widgets.Button(description='Run Analysis')
         self.run_button.on_click(self._on_run_clicked)
 
     def _on_run_clicked(self, b):
         result = self.engine.fit(alpha=self.alpha_widget.value)
         self.dm.save_results(result)
-        clear_stale('mymodule')
-        mark_stale(['plots'], "MyModule Re-run")
+        self.dm._config['mymodule_alpha'] = self.alpha_widget.value  # persist for JSON
+
+        clear_stale('mymodule')                       # clear my own banner
+        mark_stale(['plots'], "MyModule Re-run")      # invalidate downstream plots
         self.view.render(result)
 
 def run_mymodule():
@@ -1210,19 +1275,83 @@ def run_mymodule():
     ctl = MyModuleController(ANALYSIS_CONFIG)
     display(widgets.VBox([ctl.stale_banner, ctl.alpha_widget,
                           ctl.run_button, ctl.view.tabs]))
-    # Optional: auto-execute under reproducibility mode
+    # Reproducibility mode: auto-execute when ANALYSIS_CONFIG was loaded from JSON
     if ANALYSIS_CONFIG.get('is_reproducing', False):
         ctl._on_run_clicked(None)
 
 run_mymodule()
 ```
 
+#### Staleness contract (read this before choosing the module ID)
+
+The staleness machinery lives in Cell 1 (lines 115–145) and exposes three primitives:
+
+| Primitive | Cell 1 line | Purpose |
+|---|---|---|
+| `STALE_BANNERS = {}` | 115 | Global registry: module_id → `widgets.HTML` banner. |
+| `register_banner(module_id, banner)` | 117 | Register a module's banner so it can be activated globally. |
+| `mark_stale(module_ids: list, trigger_source: str)` | 121 | Activate the banners of all listed downstream modules with a uniform "Stale Results Detected" notice citing `trigger_source`. |
+| `clear_stale(module_id)` | 140 | Clear a single module's banner after a successful re-run. |
+
+Three rules govern correct registration:
+
+1. **Module IDs are flat strings**, listed canonically on Cell 1 line 145:
+   ```python
+   ALL_DOWNSTREAM = ['overall', 'subgroup', 'regression', 'spline',
+                     'pub_bias', 'pet_peese', 'loo', 'cumulative', 'plots']
+   ```
+   Choose a short, lower-snake-case ID for your module (e.g. `'mymodule'`).
+2. **If your module is downstream of upstream config changes** — i.e. modifying Cells 4–6 (data prep / VCV / global settings) should invalidate your results — add your ID to `ALL_DOWNSTREAM`. Upstream cells call `mark_stale(ALL_DOWNSTREAM, "<trigger>")` and rely on the constant being current.
+3. **If your module is upstream of others** — i.e. running yours should invalidate visualisations or sensitivity analyses — pass the affected IDs to `mark_stale(...)` in `_on_run_clicked` *after* saving the result. The example above marks only `'plots'`; widen the list as the module's downstream impact requires.
+
 ### 6.4 Reporting and serialisation
 
-* Always coerce numerics with `make_json_safe(...)` before writing to `ANALYSIS_CONFIG` if your result dictionary may contain numpy types.
-* Add your new result key to the `RESULT_KEYS` set inside `export_config_for_reproducibility` (Cell 1) so it is *not* serialised; only inputs (widget values, configuration) belong in the JSON.
-* If you want your module to appear in the Excel export, add a branch in `_get_protocol_metadata(report_type)` and call `export_analysis_report(report_type='mymodule', filename_prefix='MyModule')`.
-* Provide a `MyModulePublicationTextGenerator` that consumes the result object and produces an HTML fragment, then save with `self.dm._config['mymodule_text'] = html` — the same pattern used by `OverallPublicationTextGenerator` and `generate_methods_section` / `generate_results_section`.
+Four hooks must be touched for a new module to integrate with the export pipeline:
+
+1. **JSON exclusion (`RESULT_KEYS`).** Inside `export_config_for_reproducibility` (Cell 1, line 2768) there is a local set called `RESULT_KEYS` (line 2777). Add your new result keys (e.g. `'mymodule_results'`, `'mymodule_text'`) to that set so they are *excluded* from the JSON snapshot — only inputs (widget values, configuration) belong in the JSON; outputs are recomputed when the session is reloaded.
+2. **Numeric coercion (`make_json_safe`).** Anything you store under `ANALYSIS_CONFIG` that *isn't* in `RESULT_KEYS` must round-trip through JSON. Coerce numpy scalars / arrays via `make_json_safe(...)` (Cell 1 line 2739) before assignment — it recursively handles `np.integer`, `np.floating`, `np.bool_`, `np.ndarray`, `datetime`, nested dicts/lists, and sets, falling through to a `json.dumps` probe for anything else.
+3. **Protocol metadata (`_get_protocol_metadata`).** Add a branch to `_get_protocol_metadata(report_type)` (Cell 1 line 2384) that returns `[{'Category', 'Parameter', 'Value'}]` rows describing your module's user settings; these populate a dedicated sheet of the Excel export.
+4. **Excel export (`export_analysis_report`).** Add a branch to `export_analysis_report(report_type=..., filename_prefix=...)` (Cell 1 line 2507) that pulls your saved result out of `ANALYSIS_CONFIG['mymodule_results']` and writes it to one or more `pd.ExcelWriter` sheets. Call from the Controller after a successful run:
+   ```python
+   export_analysis_report(report_type='mymodule', filename_prefix='MyModule')
+   ```
+
+For the **publication-text generator**, follow `OverallPublicationTextGenerator` (Cell 7 line 1657) and the procedural helpers `generate_methods_section(es_config, use_kh)` (Cell 7 line 1665) and `generate_results_section(result, es_config)` (Cell 7 line 1789). The Controller should call:
+```python
+html = MyModulePublicationTextGenerator(self.dm.es_config).render(result)
+self.dm.save_publication_text(html)
+```
+
+#### Reproducibility round-trip
+
+When `ANALYSIS_CONFIG` is loaded from a JSON export, every key in `RESULT_KEYS` is *absent* (deliberately excluded on export); only the widget values and configuration are present, under their original keys. Reading them back is symmetrical: in the Controller's `__init__`, after instantiating each widget, restore it from the saved config:
+```python
+if (saved := analysis_config.get('mymodule_alpha')) is not None:
+    self.alpha_widget.value = saved
+```
+and in `_on_run_clicked`, persist the latest value back:
+```python
+analysis_config['mymodule_alpha'] = self.alpha_widget.value
+```
+The `if ANALYSIS_CONFIG.get('is_reproducing'): ctl._on_run_clicked(None)` line at the end of `run_mymodule()` then auto-fires the run with the restored widget values, producing byte-identical output from the same JSON input.
+
+### 6.5 Shipping checklist
+
+Before opening a PR for a new analytical module, verify each of the following:
+
+- [ ] `*DataManager`, `*Engine`, `*ResultsView`, `*Controller` classes defined and following the §6.0 responsibilities.
+- [ ] `_validate_prerequisites` raises (or warns) when `ANALYSIS_CONFIG` is incomplete.
+- [ ] `analysis_data` accessor returns a defensive copy (not the underlying dataframe).
+- [ ] `register_banner('<id>', self.stale_banner)` called in `Controller.__init__`.
+- [ ] `<id>` added to `ALL_DOWNSTREAM` (Cell 1 line 145) if upstream changes should invalidate this module.
+- [ ] `_on_run_clicked` calls `clear_stale('<id>')` after saving, then `mark_stale([...], "<trigger>")` to invalidate downstream modules.
+- [ ] All saved result keys (`<id>_results`, `<id>_text`, …) added to `RESULT_KEYS` in `export_config_for_reproducibility` (Cell 1 line 2777).
+- [ ] All widget values you want to round-trip are persisted as JSON-safe scalars under their own top-level keys, *outside* the `RESULT_KEYS` namespace.
+- [ ] Branch added to `_get_protocol_metadata(report_type)` (Cell 1 line 2384).
+- [ ] Branch added to `export_analysis_report(report_type=..., filename_prefix=...)` (Cell 1 line 2507).
+- [ ] `MyModulePublicationTextGenerator` defined and called from `_on_run_clicked` via `save_publication_text`.
+- [ ] `if ANALYSIS_CONFIG.get('is_reproducing'): ctl._on_run_clicked(None)` hook present at the bottom of `run_<module>()`.
+- [ ] A validation cell (in the §🧪 Validation block at the end of the notebook) compares the module's output to an R reference (or to a known-good static result) for at least one canned dataset.
 
 Following this contract, a new analytical module integrates with the existing staleness propagation, JSON round-trip, Excel export, and publication-text generation with no further changes elsewhere in the notebook.
 
