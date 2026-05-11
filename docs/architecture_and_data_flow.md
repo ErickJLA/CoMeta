@@ -599,27 +599,27 @@ sequenceDiagram
     participant T3 as ThreeLevelEngine
     participant View as OverallResultsView
 
-    UI->>Ctl: OverallController(ANALYSIS_CONFIG)
-    Ctl->>DM: __init__ and _validate_prerequisites
-    Ctl->>Eng: OverallEngine(DM) plus FE, HE, T3 sub-engines
-    UI->>Ctl: run_analysis (reads widgets)
-    Ctl->>DM: save_global_settings(alpha, dist_type, tau_method, use_kh, model_choice)
-    Ctl->>Eng: run_analysis(...)
-    Eng->>DM: prepare_data (dropna, var greater than 0)
-    Eng->>FE: calculate(y, v, alpha, dist_type)
-    Eng->>HE: calculate_Q_statistics and calculate_I2
-    Eng->>T2: TwoLevelEngine(tau_method) then estimate_tau2, calculate_pooled_effect, calculate_loglik_aic
-    Note over Eng,T2: tau-squared fallback REML or ML to DL via warnings.warn
-    alt check_3level_feasibility(df) is True
-        Eng->>T3: fit(df, effect_col, var_col, vcv_matrices)
+    UI->>Ctl: instantiate with ANALYSIS_CONFIG
+    Ctl->>DM: init and validate prerequisites
+    Ctl->>Eng: init with FE HE T3 sub engines
+    UI->>Ctl: run_analysis reads widgets
+    Ctl->>DM: save_global_settings
+    Ctl->>Eng: run_analysis
+    Eng->>DM: prepare_data dropna and positive variance
+    Eng->>FE: calculate fixed effect
+    Eng->>HE: calculate Q statistics and I squared
+    Eng->>T2: estimate tau squared and pool and loglik aic
+    Eng->>Eng: tau squared fallback REML or ML to DL via warnings warn
+    alt three level feasibility holds
+        Eng->>T3: fit with df effect_col var_col vcv_matrices
         T3-->>Eng: dict or None
-        Note over Eng: if match_r_ll then add -0.5 k log(2 pi) constant; aic = 6 minus 2 log_lik
-        Eng->>Eng: compute ci_lower, ci_upper, p_value (t or norm, df = k_studies - 1)
+        Eng->>Eng: if match_r_ll add log_lik constant and recompute aic
+        Eng->>Eng: compute ci and p value using t or normal with k_studies minus one
     end
-    Eng->>Eng: _select_model (overrides, availability, boundary, delta-AIC at least 3)
+    Eng->>Eng: select model overrides availability boundary delta AIC at least 3
     Eng-->>Ctl: OverallResult
-    Ctl->>DM: save_overall_results(result) into ANALYSIS_CONFIG
-    Ctl->>View: render_primary_tab, render_comparison_tab, render_publication_tab
+    Ctl->>DM: save_overall_results into ANALYSIS_CONFIG
+    Ctl->>View: render primary heterogeneity comparison settings publication tabs
 ```
 
 ### 4.2 Three-level REML core (`ThreeLevelEngine.fit`, Cell 7 lines 740–1098)
