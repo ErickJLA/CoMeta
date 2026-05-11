@@ -4,6 +4,38 @@
 
 ---
 
+## Document map
+
+This document is organised as a top-down traversal of the CoMeta pipeline, from how the notebook is structured as an application through ingestion, preparation, the statistical core, reporting, and an extension guide for developers. Use the table below as both a table of contents and an at-a-glance description of what each section contains; every entry is a clickable anchor.
+
+| § | Title | What it covers |
+|---|---|---|
+| [1](#1-system-overview-the-notebook-as-an-application) | **System Overview: The Notebook as an Application** | How CoMeta implements MVC inside a sequential Colab notebook, including the global `ANALYSIS_CONFIG` state dictionary and the staleness-banner mechanism that propagates "re-run me" warnings across cells. |
+| [1.1](#11-global-state-analysis_config) | Global state: `ANALYSIS_CONFIG` | The single dictionary that every cell reads from and writes to; canonical key inventory and pipeline-stage table. |
+| [1.2](#12-staleness-propagation) | Staleness propagation | `register_banner` / `mark_stale` / `clear_stale` primitives; audit of all ten `mark_stale` call sites; the broadcast-vs-cascade regime distinction. |
+| [2](#2-data-ingestion-and-initialization-cell-2) | **Data Ingestion and Initialization (Cell 2)** | Four mutually exclusive ingestion pathways (CSV/Excel upload, Google Sheets, JSON session restore, built-in examples) and how each lands in the global dataframe. |
+| [2.1](#21-ingestion-pathways) | Ingestion pathways | Per-source handlers, the synonym tables (`RAW_*`, `BINARY_*`, `PRECALC_*`, `GEO_*`), and the `BUILT_IN_DATASETS` registry. |
+| [2.2](#22-column-mapping--validation) | Column mapping & validation | The split between ingest-time checks (`_check_duplicate_columns`, `_coerce_numeric_columns`) and renderer-time checks (`_validate_and_coerce_mapped_numerics`); commit semantics for `raw_data_standardized` → `ANALYSIS_CONFIG['clean_dataframe']`. |
+| [3](#3-data-preparation-and-vcv-matrix-construction) | **Data Preparation and VCV Matrix Construction** | Everything that happens between a clean ingested dataframe and an analysis-ready dataset with per-study variance–covariance blocks. |
+| [3.1](#31-shared-control-detection-cell-4) | Shared-control detection (Cell 4) | `detect_shared_controls` and the `shared_group_id` tag that bridges data preparation and covariance modelling. |
+| [3.2](#32-missing-sd-imputation-strategies-cell-4) | Missing-SD imputation strategies (Cell 4) | The four missing-SD strategies (`nearest`, `median_cv`, `custom_cv`, `drop`), the three zero-SD strategies, and the four audit-trail mechanisms (`sd_log`, `removed_records`, `sde_imputed`/`sdc_imputed`, Protocol & Settings worksheet). |
+| [3.3](#33-rule-based-effect-size-recommendation-cell-5) | Rule-based effect-size recommendation (Cell 5) | The topology hard-router (pure binary → `log_or`; mixed → Hedges' *g*; continuous → scoring) and the six weighted scoring rules R1–R6 that decide between `lnRR` and `hedges_g`. |
+| [3.4](#34-exact-vcv-construction-cell-6--build_vcv_matrices) | Exact VCV construction (Cell 6) | The Gleser–Olkin / Lajeunesse closed-form per-study covariances with a deep dive into the lnRR off-diagonal and its delta-method derivation. |
+| [4](#4-the-statistical-engine-flow-cells-1--7--12) | **The Statistical Engine Flow** | The core of CoMeta: orchestration, REML optimisation, CR2 cluster-robust variance, the library stack with environment lockdown, and the multi-channel fallback notification surface. |
+| [4.1](#41-three-level-orchestration-overallenginerun_analysis) | Three-level orchestration | The five-step workflow inside `OverallEngine.run_analysis`, the `_select_model` structure-aware decision tree, and the controller-view fan-out. |
+| [4.2](#42-three-level-reml-core-threelevelenginefit-cell-7-lines-7401098) | Three-level REML core | `ThreeLevelEngine.fit`: data preparation invariants, Σᵢ algebra with the Sherman–Morrison vs Cholesky paths, the deterministic six-start L-BFGS-B optimiser, profile-likelihood CIs, and the prediction interval. |
+| [4.3](#43-three-level-meta-regression-and-cr2-cluster-robust-variance-cell-1) | Three-level meta-regression and CR2 | `_run_three_level_reml_regression_v2` Plan A → B → C fallback strategy and the `_compute_robust_var_betas` three-phase CR2 implementation with per-coefficient Satterthwaite degrees of freedom. |
+| [4.4](#44-library-stack) | Library stack | The exhaustive NumPy / SciPy / `patsy` / pandas dependency map, plus the `check_and_lockdown()` environment-protection mechanism. |
+| [4.5](#45-fallback-mechanisms) | Fallback mechanisms | The six graceful-degradation pathways (topological pre-check, boundary collapse, optimiser failure, regression Plan A→B→C, CR2 numerical failure, τ² estimator fallback) and the ten channels through which they are surfaced to the user. |
+| [5](#5-session-serialization--reporting) | **Session Serialization & Reporting** | How a CoMeta session is captured as a JSON file and round-tripped back into a fresh runtime, and how the publication-text generators read the result objects to produce manuscript-ready Materials & Methods and Results prose. |
+| [5.1](#51-json-serialization-cell-1-lines-26292768) | JSON serialization | `make_json_safe`, `export_config_for_reproducibility` with the `RESULT_KEYS` skip-list, the optimiser-defaults block, and `load_reproducibility_config`. |
+| [5.2](#52-automated-materials--methods--results-generator) | Materials & Methods / Results generator | Dynamic citation database, conditional disclosures (SD imputation, Knapp–Hartung), Cohen/Higgins effect-size and heterogeneity interpretation bins, and the three-branch model-selection narrative. |
+| [6](#6-extension-guide-adding-a-new-analytical-module) | **Extension Guide: Adding a New Analytical Module** | A copy-pasteable `*DataManager` / `*Engine` / `*Controller` skeleton showing how to reuse `_run_three_level_reml_regression_v2`, `_compute_robust_var_betas`, the staleness contract, and the JSON round-trip. |
+| [A](#appendix-a--key-file-map) | **Appendix A** — Key file map | Cell-by-cell inventory of the notebook with the principal functions, classes, and data structures defined in each cell. |
+| [B](#appendix-b--bibliography-of-methods-implemented) | **Appendix B** — Bibliography of methods implemented | The methodological references underpinning each statistical primitive (Gleser & Olkin 2009, Lajeunesse 2011, Pustejovsky & Tipton 2018, Knapp & Hartung 2003, Viechtbauer 2005, Higgins & Thompson 2002). |
+
+---
+
 ## 1. System Overview: The Notebook as an Application
 
 CoMeta is implemented as a single linear Google Colab notebook (`CoMeta_1.ipynb`, 44 cells). Despite the notebook format, the codebase adheres to a strict **Model–View–Controller (MVC)** discipline within each analytical module: the *Model* is encapsulated in a `*DataManager`/`*Engine` pair, the *View* in a `*ResultsView` (a `widgets.Tab` renderer), and the *Controller* in a `*Controller` class that wires user widgets to the engine and pushes results into the view. The same triplet recurs in Cells 7 (`OverallDataManager`, `OverallEngine`, `OverallResultsView`, `OverallController`), 9 (`SubgroupDataManager`, `SubgroupAnalysisEngine`, `SubgroupController`), 12 (`RegressionDataManager`, `RegressionEngine`, `RegressionController`), and 14 (`SplineMetaRegressionController`).
