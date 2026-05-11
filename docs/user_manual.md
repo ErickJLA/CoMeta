@@ -69,23 +69,32 @@ At the end of most analytical cells you will find a **📥 Download** button. Th
 
 ### Cell 1 — Environment Setup & Core Functions
 
-**Purpose.** Cell 1 prepares the computing environment. It checks that all required packages (NumPy, pandas, SciPy, matplotlib, and others) are installed at the correct versions, installs or updates any that are missing, and loads the core statistical functions used by every downstream cell. It also exposes a single user-facing control: a **figure-size preset dropdown** that pre-fills plot dimensions across all visualization cells for common publication formats.
+**Purpose.** Cell 1 prepares the computing environment. It checks that all required packages (NumPy, pandas, SciPy, matplotlib, and others) are installed at the correct versions, installs or updates any that are missing, and loads every statistical function and helper utility used by downstream cells. Cell 1 produces **no interactive widgets** of its own — its only visible output is the CoMeta welcome card described below.
 
 **Prerequisites.** None — this is always the first cell to run.
 
 #### What happens when you run Cell 1
 
-Running Cell 1 takes 30–90 seconds the first time (package installation) and a few seconds on subsequent runs in the same session. You will see installation messages scroll past and then a summary card confirming the CoMeta version and that the environment is ready. In Colab, the output is cleared automatically once setup is complete to keep the notebook tidy.
+Running Cell 1 takes 30–90 seconds the first time in a new Colab session (package installation) and only a few seconds on subsequent runs within the same session. Any installation messages are cleared automatically once the setup completes, so the output stays tidy.
 
-If you are running CoMeta **locally** (outside Colab), the cell will print a warning listing any package versions that differ from the locked versions. The analysis will still proceed with your local versions, but numerical results may differ slightly from a Colab run if major version mismatches exist.
+If you are running CoMeta **locally** (outside Colab), the cell will instead print a warning listing any package versions that differ from the locked versions. The analysis will still proceed, but numerical results may differ slightly from a Colab run if there are major version mismatches.
 
-#### The figure-size preset
+#### What Cell 1 displays
 
-At the bottom of Cell 1's output you will find:
+After running, Cell 1 shows a single styled **CoMeta welcome card**. The card contains:
 
-| Control | What it does |
-|---|---|
-| **📏 Preset** (dropdown) | Pre-fills width, height, and font sizes across all plot cells to match a target publication format |
+- **CoMeta v1.0** — the platform name and version.
+- **"From data to report — a no-code platform for rigorous three-level meta-analysis in ecology"** — the platform description.
+- A brief description of the statistical approach (VCV matrices, three-level mixed-effects models).
+- An instruction reminder: *"Execute cells sequentially."*
+- A citation placeholder for the associated manuscript.
+- A status footer: **Environment Verified · Core engine initialised** — confirming that the environment check passed and all core functions are loaded.
+
+No interaction is required. If the status footer reads "Environment Verified", Cell 1 is complete and you can proceed to Cell 2.
+
+#### The figure-size preset (appears in visualization cells, not here)
+
+Cell 1 also defines a global **📏 Preset** dropdown widget that pre-fills plot dimensions and font sizes across several visualization cells. This dropdown is **not visible in Cell 1's output** — it appears inside the style panel of the visualization cells that use it (Cells 10, 17, and 25). You do not need to do anything in Cell 1 to use the preset; simply select the desired format from the dropdown when you reach one of those cells.
 
 Available presets:
 
@@ -95,18 +104,15 @@ Available presets:
 | Cell Press 1-Col (85 mm) | 3.35 × 3.35 in | Single-column figure in Cell/Current Biology/iScience |
 | Cell Press 1.5-Col (114 mm) | 4.49 × 4.00 in | 1.5-column figure in Cell Press journals |
 | Cell Press Full (174 mm) | 6.85 × 5.50 in | Full-width figure in Cell Press journals |
+| STAR Protocols 1-Col (134 mm) | 5.28 × 5.00 in | Single-column figure in STAR Protocols |
+| STAR Protocols Full (172 mm) | 6.77 × 6.00 in | Full-width figure in STAR Protocols |
+| Cell 3-Col Layout (55 mm) | 2.17 × 2.50 in | Narrow three-column layout |
 | Thesis (A4 Portrait) | 6.30 × 8.00 in | Thesis chapter figures |
 | Presentation (16:9) | 13.3 × 7.50 in | Slides and posters |
 
-> **Tip.** Choosing a preset here does not lock the size permanently. Every visualization cell has its own width and height sliders that you can adjust after the preset has been applied. Think of the preset as a "reasonable starting point" rather than a hard constraint.
+> **Tip.** Selecting a preset does not lock sizes permanently. Each visualization cell has its own width and height sliders that you can adjust after applying the preset. Think of the preset as a starting point, not a constraint.
 
-> **Tip.** You can return to Cell 1 at any time to switch presets; the new size values will populate the next plot cell you run.
-
-#### What Cell 1 produces
-
-Cell 1 does not generate any data output for the analysis. Its job is entirely preparatory. After it finishes you should see a styled information card showing the CoMeta version and confirming that the environment is ready. All subsequent cells depend on Cell 1 having been run at least once per Colab session.
-
-> **Important.** Colab sessions disconnect after approximately 90 minutes of inactivity and after a maximum of 12 hours. When a session is disconnected, all in-memory data is lost. To continue your work after reconnection, run **all cells from Cell 1 onward** in sequence, or load a previously exported session JSON in Cell 2 to restore your configuration automatically.
+> **Important.** Colab sessions disconnect after approximately 90 minutes of inactivity and after a maximum of 12 hours. When a session is disconnected, all in-memory data is lost. To continue your work after reconnecting, run **all cells from Cell 1 onward** in sequence, or load a previously exported session JSON in Cell 2 to restore your configuration automatically.
 
 ---
 
