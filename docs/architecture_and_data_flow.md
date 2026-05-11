@@ -154,7 +154,197 @@ data_filtered, n_shared = detect_shared_controls(data_filtered)
 
 The resulting `shared_group_id` column is the bridge between data preparation and covariance modelling — it is the *only* signal the VCV builder uses to decide where off-diagonal entries belong.
 
-### 3.2 Exact VCV construction (Cell 6 — `build_vcv_matrices`)
+### 3.2 Missing-SD imputation strategies (Cell 4)
+
+Continuous-data workflows in CoMeta are dependent on usable experimental and control standard deviations (`sde`, `sdc`). When those columns are empty, zero, or partially missing, the `run_processing(df_config, sd_missing_strategy='median_cv', sd_zero_strategy='global_min', custom_cv=None)` orchestrator in Cell 4 dispatches to one of four mutually exclusive **missing-SD strategies**, paired independently with one of three **zero-SD strategies**. Both choices are exposed in the Cell 4 UI as `widgets.Dropdown` objects and are persisted to `ANALYSIS_CONFIG['sd_missing_strategy']`, `ANALYSIS_CONFIG['sd_zero_strategy']`, and `ANALYSIS_CONFIG['custom_cv']`.
+
+#### 3.2.1 The four missing-SD strategies
+
+| Strategy key | Implementing function (Cell 4) | Formula / behaviour |
+|---|---|---|
+| `'nearest'` | `impute_sd_nearest_neighbor(df, sd_col, n_col, mean_col)` (line 97) | For each NaN row, find the row with the *closest* sample size (`np.argmin(np.abs(valid_ns − target_n))`) that has a valid SD and copy its SD value. Mean column is unused (kept for API consistency). |
+| `'median_cv'` *(default)* | `impute_sd_median_cv(df, sd_col, n_col, mean_col)` (line 141) | Compute `median_cv = median(sd_col / mean_col)` over rows where both are positive (fallback `median_cv = 0.1` if none exist). Imputed value: `sd = |mean| × median_cv`. Rows with missing means stay `NaN`. |
+| `'custom_cv'` | `impute_sd_custom_cv(df, sd_col, n_col, mean_col, custom_cv)` (line 181) | Same formula as `median_cv` but with the user-supplied `ANALYSIS_CONFIG['custom_cv']` (fallback 0.1 if `None`). |
+| `'drop'` | inline in `run_processing`, line 391–397 | Drop every row where `sde` or `sdc` is `NaN`. The dropped slice is tagged `dropped['Reason'] = 'Missing Standard Deviation'` and appended to `removed_records`, which is concatenated into `ANALYSIS_CONFIG['removed_records']` at the end of the pipeline. |
+
+A parallel three-way dispatch handles **zero** SDs *before* the missing-value pass, because the zero strategy can convert zeros into `NaN`s for the imputer to pick up:
+
+| `sd_zero_strategy` | Action |
+|---|---|
+| `'global_min'` *(default)* | `replace_zero_sd_global_min(df, sd_col)` (line 213): replace zeros with `nonzero_sds.min()`; absolute fallback `0.001`. |
+| `'same_as_missing'` | Convert zeros to `NaN` so the missing-SD imputer handles them with whichever strategy is selected. |
+| `'drop'` | Drop the offending rows and tag them `dropped['Reason'] = 'Zero Standard Deviation'`. |
+
+#### 3.2.2 How imputed values are flagged for the Excel audit trail
+
+CoMeta tracks imputation provenance through **four parallel mechanisms** that together feed the downstream audit sheets:
+
+1. **`ANALYSIS_CONFIG['sd_log']`** — A list of human-readable strings appended inline as each branch runs. Examples that appear *verbatim* in the log:
+
+   ```
+   Imputed 7 Exp SDs using median CV (0.2143)
+   Imputed 7 Ctl SDs using median CV (0.1879)
+   Replaced 2 zero Exp SDs with global minimum (0.0040)
+   Removed 5 rows with missing SDs
+   ```
+
+   Each branch (`'nearest'`, `'median_cv'`, `'custom_cv'`) explicitly logs the *count* of affected rows and the *parameter value* used (e.g. the empirical median CV) so the audit trail is fully self-contained.
+
+2. **`ANALYSIS_CONFIG['removed_records']`** — A concatenated `pd.DataFrame` carrying every row that was dropped, with a `Reason` column distinguishing `'Zero Standard Deviation'`, `'Missing Standard Deviation'`, `'Double-Zero Event Count (Uninformative)'`, and user-filter reasons. The Excel exporter exposes this directly:
+
+   ```python
+   def _get_exclusion_log():
+       if 'ANALYSIS_CONFIG' in globals() and 'removed_records' in ANALYSIS_CONFIG:
+           return ANALYSIS_CONFIG['removed_records']
+       return pd.DataFrame([{'ID': 'All Data Kept', 'Reason': 'No records were removed.'}])
+   ```
+
+   `export_analysis_report(...)` (Cell 1, line 2397) writes the returned frame to the `Data Exclusions` worksheet:
+
+   ```python
+   df_excl = _get_exclusion_log()
+   df_excl.to_excel(writer, sheet_name='Data Exclusions', index=False)
+   ```
+
+3. **`sde_imputed` / `sdc_imputed` columns on the analysis dataframe** — Cell 6 creates dedicated post-imputation copies the moment the effect-size pipeline begins (`build_vcv_matrices`/effect-size calculator, line 248–249):
+
+   ```python
+   if 'sde' in df.columns: df['sde_imputed'] = df['sde']
+   if 'sdc' in df.columns: df['sdc_imputed'] = df['sdc']
+   ```
+
+   Every subsequent formula references these columns instead of `sde`/`sdc` (e.g. lnRR variance at line 315: `df['sde_imputed']**2 / (df['ne']*df['xe']**2) + …`), so the original input columns remain untouched and the user can compare `sde` vs `sde_imputed` row-by-row in the `Processed Data` sheet of the exported workbook. The VCV builder is also imputation-aware: in `build_vcv_matrices` (line 102) it preferentially reads `sdc_imputed` when present:
+
+   ```python
+   sdc_column = 'sdc_imputed' if 'sdc_imputed' in shared_rows.columns else sdc_col
+   ```
+
+4. **`Protocol & Settings` worksheet** — `_get_protocol_metadata(report_type)` (Cell 1, line 2274) reads `ANALYSIS_CONFIG.get('sd_missing_strategy')` and records the chosen method so the analyst can recover the exact strategy from any historical report. The publication-text generator goes one step further — `OverallPublicationTextGenerator.generate_methods_section` (Cell 7, line 1756) consults the same key and appends an explicit caveat to the Methods narrative:
+
+   > *"Missing standard deviations were imputed using the median coefficient of variation (CV) from available data. It should be noted that treating imputed variances as known parameters may slightly underestimate the true uncertainty of those specific effect sizes."*
+
+Together, these four mechanisms guarantee that **every imputation event is recoverable** from the exported Excel report alone: the count and parameter from `sd_log`, the per-row dropped data from `Data Exclusions`, the imputed numerical values from `sde_imputed`/`sdc_imputed` in `Processed Data`, and the configured strategy from `Protocol & Settings`.
+
+### 3.3 Rule-based effect-size recommendation (Cell 5)
+
+Cell 5 (`#@title 🔬 5. Effect Size Selection & Diagnostics`) does *not* fit a model — it diagnoses the prepared dataframe and proposes the most defensible effect-size metric. The logic operates in two stages: a topology-based **hard router** that decides whether the data are continuous, pure binary, or ambiguous, followed by a continuous-data **weighted scoring** algorithm that picks between `lnRR` and `hedges_g`. The user is always free to override the recommendation via a `widgets.RadioButtons` selector, but the *recommended* type is highlighted and pre-selected.
+
+#### 3.3.1 Effect-size catalogue
+
+The notebook supports six effect-size metrics, each backed by its own `es_config` dict (Cell 5, lines 343–414 for raw mode; 578–615 for pre-calculated mode):
+
+| Key | `effect_label` | `effect_col` / `var_col` | Data domain | Auto-recommendable? |
+|---|---|---|---|---|
+| `'lnRR'` | log Response Ratio | `lnRR` / `var_lnRR` | continuous, strictly positive | ✅ (continuous router) |
+| `'hedges_g'` | Hedges' g (corrected SMD) | `hedges_g` / `Vg` | continuous, any sign | ✅ (continuous router) |
+| `'cohen_d'` | Cohen's d (uncorrected SMD) | `cohen_d` / `Vd` | continuous, any sign | ⚠️ manual only |
+| `'log_or'` | log Odds Ratio | `log_OR` / `var_log_OR` | binary 2×2 | ✅ (binary short-circuit) |
+| `'log_rr'` | log Risk Ratio | `log_RR` / `var_log_RR` | binary 2×2, when absolute risk matters | ⚠️ user choice within the binary branch |
+| `'fisher_z'` | Fisher's z | `fisher_z` / `var_fisher_z` | pre-calculated correlations | ⚠️ manual, pre-calc mode only |
+
+> **Note.** The codebase implements `log_rr` as the log of the *risk ratio* (also called *relative risk*) and does **not** implement a standalone *risk difference* metric — clinical RD is therefore reachable only by selecting `log_rr` and back-transforming downstream.
+
+#### 3.3.2 Stage 1 — Topology-based hard routing
+
+The first block of Cell 5 (lines 25–67) inspects the prepared `data_filtered` (or `raw_data_standardized` as a fallback) and classifies the dataset:
+
+```python
+binary_cols = ['events_e', 'nonevents_e', 'events_c', 'nonevents_c']
+has_binary_cols     = all(c in target_df.columns for c in binary_cols)
+has_continuous_cols = all(c in target_df.columns for c in ['xe', 'xc'])
+has_sd_cols         = (... sde or sdc has any non-null ...)
+
+if has_binary_cols:
+    is_valid_binary = (binary_data >= 0).all().all() and \
+                      (binary_data == binary_data.round(0)).all().all()
+    if is_valid_binary and has_continuous_cols and has_sd_cols:
+        _binary_data_detected = 'mixed'           # → recommend hedges_g, low confidence
+    elif is_valid_binary and not has_sd_cols:
+        _binary_data_detected = 'pure'            # → recommend log_or, high confidence
+```
+
+The hard router therefore produces three exclusive outcomes:
+
+| Detected topology | Recommendation | Confidence | Scoring runs? |
+|---|---|---|---|
+| **Pure binary** — only `events_*`/`nonevents_*` columns, all non-negative integers | `log_or` | `High` | No |
+| **Mixed/ambiguous** — both binary *and* continuous SD columns present | `hedges_g` (placeholder) | `Low` | No (yellow warning banner displayed) |
+| **Continuous only** — `xe`, `xc` (± `sde`, `sdc`) | scored (see §3.3.3) | depends on margin | Yes |
+
+#### 3.3.3 Stage 2 — Weighted scoring (`lnRR` vs `hedges_g`)
+
+When the topology is continuous, Cell 5 computes a battery of summary statistics on `target_df` (`xe.describe()`, `xc.describe()`, skewness, scale ratio, SD coverage, fraction of controls near unity) and applies six additive scoring rules to two accumulators, `score_lnRR` and `score_hedges_g`. Each rule both updates the score *and* appends a diagnostic tuple `(label, weight_marker, recommended_metric, rationale)` to a `reasons` list that is later rendered in the **🧠 Decision Logic** tab.
+
+| Rule (Cell 5, lines 119–168) | Trigger | Effect on score |
+|---|---|---|
+| **R1 — Negative values (hard constraint)** | `(target_df['xe'] < 0).sum() > 0` or same for `xc` | `score_hedges_g += 10` (else `score_lnRR += 2`) |
+| **R2 — Normalisation / fold-change** | `pct_control_exactly_one > 50` → `score_lnRR += 5`; `pct_control_near_one > 30` (`0.95 ≤ xc ≤ 1.05`) → `+= 3`; `0.8 < mean(xc) < 1.2` → `+= 1` | `score_lnRR` |
+| **R3 — Scale heterogeneity** | `scale_ratio = max(range_xe, range_xc) / (min + 1e-4)`; `> 100` → `score_lnRR += 3`; `> 10` → `+= 2`; else `score_hedges_g += 1` | depends |
+| **R4 — Zero values** | any `xe == 0` or `xc == 0` | `score_hedges_g += 2` (rationale: `log(0)` undefined) |
+| **R5 — SD coverage** | `sd_pct = SDs_present / total × 100`; `> 80` → `score_hedges_g += 1`; `< 20` → emits a warning row (no score change) | `score_hedges_g` |
+| **R6 — Distribution shape (skewness)** | `max(skew_xe, skew_xc) > 1.5` → `score_lnRR += 2`; `−0.5 < max_skew < 0.5` → `score_hedges_g += 1` | depends |
+
+After R1–R6, a **smart tie-breaker** fires when `score_lnRR == score_hedges_g`:
+
+```python
+if score_lnRR == score_hedges_g:
+    if not has_negative and not has_zero:
+        score_lnRR    += 1   # prefer lnRR for strictly-positive ecological data
+    else:
+        score_hedges_g += 1  # safer mathematical choice when zeros/negatives lurk
+```
+
+The winner becomes `recommended_type`, and the **confidence label** is derived from the absolute score gap:
+
+```python
+score_diff = abs(score_lnRR - score_hedges_g)
+confidence = "High"     if score_diff >= 5 \
+        else "Moderate" if score_diff >= 3 \
+        else "Low"
+```
+
+#### 3.3.4 Persisting the decision
+
+When the user clicks **✓ Confirm Selection**, `on_proceed(b)` (Cell 5, line 421) commits the chosen metric to global state:
+
+```python
+ANALYSIS_CONFIG['effect_size_type'] = sel
+ANALYSIS_CONFIG['es_config']        = es_configs[sel]
+ANALYSIS_CONFIG['data_type']        = 'raw'
+ANALYSIS_CONFIG['effect_col']       = es_configs[sel]['effect_col']
+ANALYSIS_CONFIG['var_col']          = es_configs[sel]['var_col']
+ANALYSIS_CONFIG['se_col']           = es_configs[sel]['se_col']
+mark_stale(ALL_DOWNSTREAM, "Step 5: Effect Size Metric Changed")
+```
+
+The downstream calculator in Cell 6 reads these keys to dispatch the correct formula branch (lnRR, hedges_g, cohen_d, log_or, log_rr, fisher_z). The handshake is one-directional: Cell 5 *recommends*, Cell 6 *computes* — the metric can be silently overridden by editing `ANALYSIS_CONFIG['effect_size_type']` (the path taken by `load_reproducibility_config` when restoring a session). Because the call to `mark_stale(ALL_DOWNSTREAM, …)` is unconditional, every change re-arms the warning banners across all downstream cells.
+
+```mermaid
+flowchart TD
+    A["Cleaned & filtered df"] --> B{"Binary cols<br/>(events_e, events_c, …)<br/>present?"}
+    B -->|Yes + SDs present| MIX["Ambiguous → hedges_g<br/>Confidence: Low<br/>(yellow warning)"]
+    B -->|Yes + no SDs| PB["Pure binary → log_or<br/>Confidence: High"]
+    B -->|No| C["Continuous scoring"]
+    C --> R1["R1 negatives → +hedges_g 10"]
+    R1 --> R2["R2 controls≈1 → +lnRR 1..5"]
+    R2 --> R3["R3 scale ratio → ±"]
+    R3 --> R4["R4 zeros → +hedges_g 2"]
+    R4 --> R5["R5 SD coverage → +hedges_g 1"]
+    R5 --> R6["R6 skewness → ±"]
+    R6 --> TB{"Tie?"}
+    TB -->|Yes & no zeros/neg| TL["+lnRR 1"]
+    TB -->|Yes & risky| TH["+hedges_g 1"]
+    TB -->|No| W["Argmax → recommended_type"]
+    TL --> W
+    TH --> W
+    W --> CONF["Confidence:<br/>|Δ|≥5 High • ≥3 Moderate • else Low"]
+    PB --> UI["RadioButtons<br/>(user can override)"]
+    MIX --> UI
+    CONF --> UI
+    UI --> CFG["ANALYSIS_CONFIG['effect_size_type']<br/>+ 'es_config'<br/>+ mark_stale(ALL_DOWNSTREAM)"]
+```
+
+### 3.4 Exact VCV construction (Cell 6 — `build_vcv_matrices`)
 
 Cell 6 contains the closed-form Variance–Covariance constructor, declared in the source as:
 
@@ -552,9 +742,9 @@ Following this contract, a new analytical module integrates with the existing st
 | 1 | Environment Setup & Core Functions | `calculate_tau_squared_*`, `_hedges_j`, `_get_three_level_estimates`, `_run_three_level_reml_regression_v2`, `_run_aggregated_2level_regression`, `_compute_robust_var_betas`, `_run_robust_spline_analysis`, `export_analysis_report`, `make_json_safe`, `export_config_for_reproducibility`, `load_reproducibility_config`, `register_banner` / `mark_stale` / `clear_stale` |
 | 2 | Data Ingestion | `RAW_COLUMN_SPECS`, `BINARY_COLUMN_SPECS`, `PRECALC_COLUMN_SPECS`, `GEO_COLUMN_SPECS`, `BUILT_IN_DATASETS`, `_safe_read_csv`, `_validate_and_coerce_mapped_numerics`, `_initiate_mapping_interface`, `on_*_clicked` handlers |
 | 3 | Global Filtering | `prefilter_col`, `prefilter_values` |
-| 4 | Data Cleaning & Pre-processing | `detect_shared_controls`, SD imputation helpers |
-| 5 | Effect Size Selection & Diagnostics | `es_configs` dispatch table, `effect_size_type` |
-| 6 | Effect Size Calculation | `build_vcv_matrices` (Gleser & Olkin 2009) |
+| 4 | Data Cleaning & Pre-processing | `detect_shared_controls`, `impute_sd_nearest_neighbor`, `impute_sd_median_cv`, `impute_sd_custom_cv`, `replace_zero_sd_global_min`, `run_processing` |
+| 5 | Effect Size Selection & Diagnostics | Topology router + weighted scoring (`score_lnRR` / `score_hedges_g`), `es_configs` dispatch table, `effect_size_type` |
+| 6 | Effect Size Calculation | `build_vcv_matrices` (Gleser & Olkin 2009); `sde_imputed` / `sdc_imputed` provenance columns |
 | 7 | Overall Meta-Analysis | `OverallConfig`, `OverallResult`, `OverallDataManager`, `FixedEffectEngine`, `HeterogeneityEngine`, `TwoLevelEngine`, `ThreeLevelEngine`, `OverallEngine`, `OverallPublicationTextGenerator`, `OverallResultsView`, `OverallController` |
 | 8 | Subgroup Configuration | `subgroup_config` |
 | 9 | Subgroup Execution | `SubgroupDataManager`, `SubgroupAnalysisEngine`, `SubgroupController` |
