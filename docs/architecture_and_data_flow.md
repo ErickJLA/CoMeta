@@ -27,6 +27,8 @@ This document is organised as a top-down traversal of the CoMeta pipeline, from 
 | [4.3](#43-three-level-meta-regression-and-cr2-cluster-robust-variance-cell-1) | Three-level meta-regression and CR2 | `_run_three_level_reml_regression_v2` Plan A → B → C fallback strategy and the `_compute_robust_var_betas` three-phase CR2 implementation with per-coefficient Satterthwaite degrees of freedom. |
 | [4.4](#44-library-stack) | Library stack | The exhaustive NumPy / SciPy / `patsy` / pandas dependency map, plus the `check_and_lockdown()` environment-protection mechanism. |
 | [4.5](#45-fallback-mechanisms) | Fallback mechanisms | The six graceful-degradation pathways (topological pre-check, boundary collapse, optimiser failure, regression Plan A→B→C, CR2 numerical failure, τ² estimator fallback) and the ten channels through which they are surfaced to the user. |
+| [4.6](#46-publication-bias-diagnostics-cells-1619) | Publication-bias diagnostics | Egger's regression, Duval–Tweedie trim-and-fill (Cell 16), and PET-PEESE (Cell 18) — all fitted through the same three-level REML core — plus the funnel / trim-and-fill plots (Cells 17, 19). |
+| [4.7](#47-sensitivity-analysis-cells-2022) | Sensitivity analysis | The subgroup-style 3-level orchestrator `_run_three_level_reml_for_subgroup` with its Plan A/B/C structural fallback (Cell 20), the LOO MVC (`BaselineEstimator` → `LOOIterator` → `InfluenceDetector`), the LOO forest plot with significance-change highlighting (Cell 21), and the Baujat heterogeneity-vs-influence scatter (Cell 22). |
 | [5](#5-session-serialization--reporting) | **Session Serialization & Reporting** | How a CoMeta session is captured as a JSON file and round-tripped back into a fresh runtime, and how the publication-text generators read the result objects to produce manuscript-ready Materials & Methods and Results prose. |
 | [5.1](#51-json-serialization-cell-1-lines-26292768) | JSON serialization | `make_json_safe`, `export_config_for_reproducibility` with the `RESULT_KEYS` skip-list, the optimiser-defaults block, and `load_reproducibility_config`. |
 | [5.2](#52-automated-materials--methods--results-generator) | Materials & Methods / Results generator | Dynamic citation database, conditional disclosures (SD imputation, Knapp–Hartung), Cohen/Higgins effect-size and heterogeneity interpretation bins, and the three-branch model-selection narrative. |
@@ -478,14 +480,14 @@ The builder produces one block per `id`. Each study's block is initialised as a 
 | `effect_type` | Off-diagonal covariance |
 |---|---|
 | `cohen_d` | `cov(d_i, d_j) = 1/nc + d_i·d_j·nc / (2·N_i·N_j)` where `N_i = nt_i + nc` |
-| `hedges_g` | `J_i·J_j · [ 1/nc + (d_i·d_j·nc) / (2·N_i·N_j) ]` with `J = exp(gammaln(df/2) − ½·log(df/2) − gammaln((df−1)/2))` from `_hedges_j(df_val)` |
+| `hedges_g` | `J_i·J_j · [ 1/nc + (d_i·d_j·nc) / (2·N_i·N_j) ]`, where the inputs are back-converted from the stored `g` values via `d_i = g_i / J_i`, `d_j = g_j / J_j` (guarded so that `J = 0` falls back to the raw `g`), and `J = exp(gammaln(df/2) − ½·log(df/2) − gammaln((df−1)/2))` is computed by `_hedges_j(df_val)` |
 | `lnRR` | `sdc² / (nc · xc²)` |
 | `log_or` | `1/c_c + 1/d_c` (shared control events / non-events) |
 | `log_rr` | `1/c_c − 1/n_c` (shared control events / total) |
 
 #### 3.4.1 Anatomy of a study block
 
-For a study *s* with `k = len(study_grp)` effect sizes, the algorithm proceeds in three deterministic steps (Cell 6, lines 74–177):
+For a study *s* with `k = len(study_grp)` effect sizes, the algorithm proceeds in three deterministic steps (Cell 6, lines 75–179):
 
 1. **Block initialisation.** The diagonal is seeded with the per-row sampling variances drawn from the already-computed effect-size variance column (`var_col_name`, which resolves to `var_lnRR` for response-ratio workflows):
    ```python
@@ -519,7 +521,7 @@ $$
 
 The first term is *idiosyncratic* to each treatment arm and is therefore independent across effect sizes *i* and *j* — even when those effect sizes are nested within the same study. The second term, however, is **identical** for every effect size that draws on the same control mean. Substituting two effect sizes that share `(xc, sdc, nc)` into the delta-method variance and retaining only the *common* terms yields the covariance formula above. In other words, the off-diagonal entry for a pair of lnRR effect sizes that share a control arm is exactly the *control-arm contribution* to their individual sampling variances — the part of the variance that would otherwise be double-counted if the effect sizes were naïvely treated as independent.
 
-The implementation faithfully translates this derivation (Cell 6, lines 99–106):
+The implementation faithfully translates this derivation (Cell 6, lines 101–112):
 
 ```python
 # ── lnRR ─────────────────────────────────────────────
@@ -539,9 +541,9 @@ if effect_type == 'lnRR' and xc_col in shared_rows.columns:
 Several engineering choices in this snippet are worth flagging for methodologists auditing the implementation:
 
 - **Imputation-aware SD.** Rather than reading `sdc` directly, the routine preferentially reads `sdc_imputed` whenever that column has been generated by the SD-handling pipeline (§ 3.2). This guarantees that — if a row's control SD was imputed via `median_cv`, `custom_cv`, or `nearest`-neighbour — the *imputed* value, not the original `NaN`, is propagated into the covariance term. The substitution is intentional: a missing or zero `sdc` would otherwise drive the off-diagonal entry to zero and would silently dissolve the very dependence structure CoMeta is attempting to model.
-- **Single representative row.** Because every member of the shared-control cluster is, by definition of `shared_group_id`, expected to carry identical `(xc, sdc, nc)` triples, the implementation reads these values from the first row of the cluster (`shared_rows.iloc[0]`). The shared-control detector in Cell 4 (§ 3.1) constructs the `shared_group_id` precisely so that this invariant holds — the cluster key is built by hashing `nc / xc / sdc` to six decimal places.
+- **Single representative row.** Because every member of the shared-control cluster is, by definition of `shared_group_id`, expected to carry identical `(xc, sdc, nc)` triples, the implementation reads these values from the first row of the cluster (`shared_rows.iloc[0]`). The shared-control detector in Cell 4 (§ 3.1) constructs the `shared_group_id` precisely so that this invariant holds — the cluster key is a **string concatenation** of `nc`, `round(xc, 6)`, and `round(sdc, 6)` (joined by underscores), with any `NaN` placeheld by the sentinel `-999` before stringification. Two rows fall into the same cluster iff they produce the same concatenated key.
 - **Zero-mean guard.** If `xc == 0` the divisor would diverge; the routine returns `cov = 0.0` in that boundary case. Such rows should already have been removed or offset in Cell 6's `lnRR` pre-processing block (which adds a scale-adjusted offset to any zero `xe`/`xc` and removes negatives), so this branch is a defence-in-depth guard rather than an expected code path.
-- **Constant covariance across the cluster.** The covariance `(sdc²)/(nc · xc²)` is computed once and assigned to every off-diagonal pair in the cluster. This is the correct behaviour: under shared controls, *all* pairs of effect sizes share the same control-arm uncertainty, so the off-diagonal block is uniform with magnitude exactly equal to the squared standard error of `ln(xc)`.
+- **Constant covariance across the cluster.** The covariance `(sdc²)/(nc · xc²)` is computed once and assigned to every off-diagonal pair in the cluster. This is the correct behaviour: under shared controls, *all* pairs of effect sizes share the same control-arm uncertainty, so the off-diagonal block is uniform with magnitude exactly equal to the squared standard error of $\ln \bar X_C$ (the delta-method variance of the log control mean).
 
 #### 3.4.3 Interpretation and downstream consumption
 
@@ -566,15 +568,22 @@ vcv_matrices[study_id] = vcv     # np.ndarray, shape (k_i, k_i)
 return vcv_matrices
 ```
 
-`build_vcv_matrices` is called once at the end of Cell 6 and persisted globally:
+`build_vcv_matrices` is invoked at the end of Cell 6's calculation pipeline (line 451) and again from the cell's re-execution branch (line 1029), with both call sites persisting the analysis dataframe before storing the resulting VCV dictionary on the global configuration:
 
 ```python
+ANALYSIS_CONFIG['analysis_data'] = df                                       # locked in first
+...
 vcv_matrices = build_vcv_matrices(df, effect_size_type, var_col, **vcv_kwargs)
-ANALYSIS_CONFIG['vcv_matrices'] = vcv_matrices
-ANALYSIS_CONFIG['analysis_data'] = df
+ANALYSIS_CONFIG['vcv_matrices'] = vcv_matrices                              # then VCV stored
 ```
 
-Studies that never matched a `shared_group_id` retain the pure-diagonal block, and pre-calculated workflows missing the raw count columns silently fall back to the diagonal identity (line 67 of Cell 6) — these are the only conditions under which the block deviates from the exact Gleser–Olkin form.
+A study's block deviates from the exact Gleser–Olkin / Lajeunesse form only under one of three documented fallback paths:
+
+1. **Required-column gate (Cell 6, lines 67–72).** If the columns needed for the chosen `effect_type` (e.g. `nc, xc` for `lnRR`; `events_c, nonevents_c` for `log_or`/`log_rr`; raw sample sizes for SMD) are absent from the dataframe — which is the regime hit by pre-calculated workflows that pass `yi`/`vi` directly without the underlying counts — the builder *short-circuits* and returns a dictionary in which **every** study is a pure diagonal of `var_col_name`. No per-study loop is entered.
+2. **Missing `shared_group_id` column (Cell 6, lines 79–81).** If the dataframe has the required raw counts but does *not* carry a `shared_group_id` column (e.g. because `detect_shared_controls` was bypassed), each study's block is initialised to the diagonal `np.diag(study_grp[var_col_name])` and committed unchanged.
+3. **No shared cluster within a study.** Even when `shared_group_id` is present, studies for which every row has `shared_group_id == NaN` — or whose only "clusters" are singletons (`len(positions) < 2`) — exit the inner loop without inserting any off-diagonal entry, leaving the diagonal block intact by construction.
+
+In all three cases the marginal variances on the diagonal are still the correct closed-form sampling variances; what is forfeited is the *off-diagonal* dependence structure that shared-control rows would otherwise contribute.
 
 The full block-diagonal *VCV matrix* of the dataset is never instantiated as a single `(N × N)` array; the engine operates on the per-study list in study-order, which makes Sherman–Morrison and Cholesky shortcuts cheap (see § 4.2).
 
@@ -743,56 +752,122 @@ When Plan C fires, the function returns immediately with a `plan_c_result` dicti
    If `np.all(np.isfinite(se_betas_robust)) and np.all(se_betas_robust > 0)` the robust quantities supplant the naive ones; otherwise the naive `cov_beta` and a constant `df = max(1, M_studies − p_params)` vector are retained (graceful fallback, no exception).
 3. **Inference under Satterthwaite DF.** `t_stats = betas / se_betas; p_values = 2·(1 − t.cdf(|t_stats|, df)); crit_val = t.ppf(1 − α/2, df); ci_lower/upper = betas ∓ crit_val·se_betas`. The DF vector is **per-coefficient** (`df[j]`), so intercept and slope are tested against *different* t-distributions when their CR2 Satterthwaite DFs differ.
 
-#### `_compute_robust_var_betas` (Cell 1, lines 1899–2045)
+#### `_compute_robust_var_betas` (Cell 1, lines 1898–2155)
 
-Implements **CR2 (bias-reduced linearisation)** cluster-robust variance with **Satterthwaite degrees of freedom** following Pustejovsky & Tipton (2018, eq. 6). The function expects already-fitted `betas`, the per-study `y_all`, `vcv_all`, `X_all` lists, and the optimised variance components; it returns `(var_robust, df_vec)` — a `p × p` matrix and a length-`p` DF vector.
+Implements the **CR2 (bias-reduced linearisation)** cluster-robust variance estimator with **per-coefficient Satterthwaite degrees of freedom**, following Bell & McCaffrey (2002) for the small-sample adjustment and Pustejovsky & Tipton (2018) for the Satterthwaite calibration. The implementation deliberately tracks the `clubSandwich::vcovCR` reference code so that CoMeta's robust SEs and DFs are numerically reproducible against the R ecosystem (see Validation cells 30 and 31).
 
-**Phase 1 — Bread.** A first pass over studies builds the *bread* and caches per-study quantities for the second pass:
+**Scope.** The routine targets the **inverse-variance** branch of CR2 — i.e. the GLS weight matrix is taken equal to the inverse working covariance, `W_j = Φ_j^{−1}` — which is the configuration `metafor::rma.mv` uses when no user-supplied `W` is given. The "general target" branch that `clubSandwich` exposes (a working model different from the fitting weights) is *not* implemented, and **no fixed-effect absorption** is performed: the augmented matrix `M_U` is taken equal to the bread `M`, matching the no-augmentation branch of `vcovCR`. These restrictions are stated explicitly in the source docstring.
 
-```python
-Σ_i = V_i + σ²·I_k + τ²·1·1ᵀ
-inv_Σ_i = np.linalg.inv(Σ_i)   # pinv() fallback on LinAlgError
-sum_Xt_invS_X += X_iᵀ · (inv_Σ_i · X_i)
-e_i = y_i − X_i · betas
-```
-
-The bread is `bread_inv = inv(sum_Xt_invS_X)`. If *that* inversion fails the whole CR2 path emits a documented degenerate fallback: `fallback_var = np.eye(p_params) * 0.01` and `fallback_df = np.full(p_params, max(1.0, M_studies − p_params))`. (Defensive — surfaced as the "CR2 numerical failure" branch in § 4.5, item 5.)
-
-A subtle defence-in-depth move: the routine accepts `V_i.ndim == 1` and converts it on-the-fly to `np.diag(V_i)` before forming `Σ_i` (l. 1929–1930), so callers that pass per-row variance vectors instead of full matrices do not crash.
-
-**Phase 2 — CR2 adjustment and meat.** For each study, the hat-matrix block `H_ii = X_i · bread_inv · (inv_Σ_i · X_i)ᵀ` is formed. The CR2 adjustment matrix `A_i = D_i^{−1/2}` is obtained via *symmetrised eigendecomposition* of `D_i = (I − H_ii + (I − H_ii)ᵀ)/2`:
-
-```python
-eigvals, eigvecs = np.linalg.eigh(D_i)
-tol = max(1e-10, 1e-6 * np.max(np.abs(eigvals)))
-eigvals_safe = np.where(eigvals > tol, eigvals, tol)
-A_i = eigvecs @ np.diag(1.0 / np.sqrt(eigvals_safe)) @ eigvecs.T
-```
-
-The eigenvalue floor (`tol = max(1e-10, 1e-6·max|λ|)`) is what makes the routine numerically stable when `D_i` is rank-deficient — without it, `A_i` would diverge whenever a contrast lies in the null space of `D_i`. The adjusted residuals are `e* = A_i · e_i`; the meat accumulates `g_i = X_iᵀ · inv_Σ_i · e*` outer products: `meat += g_i g_iᵀ`.
-
-**Sandwich.** `var_robust = bread_inv · meat · bread_inv` (l. 1994).
-
-**Phase 3 — Satterthwaite DF per coefficient.** Implements Pustejovsky & Tipton (2018) eq. 6 in its scalar (per-contrast) form:
+**Working covariance.** For each cluster *j*, the marginal covariance under the three-level model is
 
 $$
-\hat{\nu}_j \;=\; \frac{\left(\sum_i g_{ij}\right)^{2}}{\sum_i (g_{ij})^{2}}
-\quad \text{with} \quad
-g_{ij} \;=\; q_i^{\top} B_i \, q_i, \quad
-B_i \;=\; A_i \, \Sigma_i \, A_i^{\top}, \quad
-q_i \;=\; \Sigma_i^{-1} X_i \, (X^{\top} \Sigma^{-1} X)^{-1} \, c_j
+\Phi_j \;=\; V_j \;+\; \sigma^2 \, I_{n_j} \;+\; \tau^2 \, \mathbf{1}_{n_j} \mathbf{1}_{n_j}^{\!\top}, \qquad W_j \;=\; \Phi_j^{-1}.
 $$
 
-The code precomputes `B_i = A_i · Σ_i · A_iᵀ` once per study (l. 2012–2015) so that the inner contrast loop reduces to a single quadratic form `q_iᵀ · B_i · q_i` (avoiding the `k × k` matrix multiplications `outer(q_i, q_i)` would imply). The final DF is **clipped** to `[1.0, M_studies − 1]` (l. 2040–2041) so that pathologically small values (e.g. when one cluster dominates the contrast) cannot drop below 1 or exceed the cluster count minus one. When `g_sq_sum == 0` (a contrast orthogonal to every study), the routine returns the conventional `max(1, M_studies − p_params)`.
+This is the same per-study marginal covariance that § 3.4.3, § 4.2, and Appendix C denote `Σᵢ`; the symbol `Φ_j` is used throughout this subsection only to mirror the source variable name (`Phi_i`) so that the math and the code snippets read in step. Mathematically, `Φ_j ≡ Σᵢ`.
+
+The function returns `(var_robust, df_vec)` — a `p × p` cluster-robust covariance matrix of `betas` and a length-`p` Satterthwaite DF vector.
+
+**Phase 1 — Bread and PD reconstruction.** A first pass over clusters builds the GLS information matrix `sum_XtWX = Σⱼ X_jᵀ W_j X_j` and caches every quantity needed by the two later passes. Crucially, `Φ_j` is **not** inverted via `np.linalg.inv`; instead, the routine symmetrises `Φ_j`, eigendecomposes it, and reconstructs both the inverse and the Cholesky factor from the same spectral decomposition, after applying an eigenvalue floor:
+
+```python
+Phi_i = V_i + sigma_sq * np.eye(n_i) + tau_sq * np.ones((n_i, n_i))
+Phi_i = 0.5 * (Phi_i + Phi_i.T)
+eigvals, eigvecs = np.linalg.eigh(Phi_i)
+floor      = max(1e-12, 1e-10 * float(eigvals.max()))
+eigvals_safe = np.maximum(eigvals, floor)
+Phi_i_pd   = (eigvecs * eigvals_safe)        @ eigvecs.T   # PD reconstruction
+W_i        = (eigvecs * (1.0 / eigvals_safe)) @ eigvecs.T  # spectral inverse
+L_i        = np.linalg.cholesky(Phi_i_pd)                  # falls back to eigvecs·√Λ
+XW_i       = X_i.T @ W_i                                    # p × n_j
+sum_XtWX  += XW_i @ X_i
+```
+
+The eigenvalue floor (`max(1e-12, 1e-10·λ_max)`) is *absolute-with-a-relative-guard*: it only perturbs eigenvalues that are already at or below machine precision relative to the largest eigenvalue of `Φ_j`, so the PD reconstruction is a no-op for well-conditioned clusters and a tiny, deterministic perturbation for degenerate ones. The cached per-cluster dictionary stores `X_i`, `Phi_i_pd`, `L_i`, `W_i`, `XW_i`, the GLS residual `e_i = y_i − X_i · betas`, and `n_i`.
+
+The bread itself is `M_bread = inv(sum_XtWX)` (symmetrised after inversion). If *that* inversion raises `LinAlgError`, the routine emits the documented degenerate fallback `var_robust = np.eye(p) * 0.01` together with `df_vec = max(1.0, M − p)·𝟙_p` — a last-resort branch that lets the caller still report a number rather than crash, and which signals a rank-deficient design (surfaced as the "CR2 numerical failure" branch in § 4.5, item 5). A second Cholesky factor `L_M = chol(M_bread)` is also computed (with an eigenvalue-floor fallback identical in spirit to the one applied to `Φ_j`); `L_M` enters Phase 3 as `clubSandwich`'s `M_U_ct`.
+
+A subtle defence-in-depth move: the routine reshapes `V_j.ndim == 0` to a `1 × 1` matrix and `V_j.ndim == 1` to `np.diag(V_j)` (l. 2016–2019), and reshapes `X_j.ndim == 1` to `(1, p)` (l. 2012–2013), so callers that pass scalar variances, per-row variance vectors, or singleton clusters do not crash.
+
+**Phase 2 — Cholesky-based CR2 adjustment and meat.** For each cluster, the **asymmetric** hat-matrix residualiser `I − H_j` is formed directly — *no symmetrisation step* — and the CR2 adjustment is built from the Cholesky factor of `Φ_j`:
+
+```python
+IH_i       = np.eye(n_i) - X_i @ M_bread @ XW_i     # asymmetric I - H_jj  (n_j × n_j)
+G_i        = L_i.T @ IH_i @ Phi_i @ L_i             # G_j = Rᵀ (I-H) Φ R,  R = chol(Φ)ᵀ
+G_i        = 0.5 * (G_i + G_i.T)                    # symmetrise G only
+
+eigvals, eigvecs = np.linalg.eigh(G_i)
+PINV_TOL   = 1e-12                                   # absolute, matches clubSandwich
+val_inv_sqrt = np.where(eigvals > PINV_TOL,
+                        1.0 / np.sqrt(np.maximum(eigvals, PINV_TOL)),
+                        0.0)
+G_inv_sqrt = (eigvecs * val_inv_sqrt) @ eigvecs.T   # Moore–Penrose G^{-1/2}
+A_i        = L_i @ G_inv_sqrt @ L_i.T               # A_j = Rᵀ G^{-1/2} R
+```
+
+Two implementation details are worth flagging explicitly, since both follow `clubSandwich::vcovCR` rather than a textbook derivation:
+
+1. **The Cholesky factor of `Φ_j` brackets `G` on both sides.** With `Φ = L Lᵀ` (NumPy returns lower-triangular `L`), `R = Lᵀ` and `Rᵀ = L`, so the line `G_i = L_i.T @ IH_i @ Phi_i @ L_i` realises `G_j = R (I − H_j) Φ_j Rᵀ`. The resulting `A_j = Rᵀ G_j^{−1/2} R` is the Bell–McCaffrey limiting form, and matches `clubSandwich::matrix_power(G, −1/2)` bracketed by `chol(Φ)`.
+2. **The pseudo-inverse-square-root uses an *absolute* tolerance `PINV_TOL = 1e-12`** — eigenvalues at or below `1e-12` map to zero, rather than to `1/√tol` — which is what clubSandwich's `matrix_power` does. The absolute floor is required for the pseudoinverse limit to be well-defined: it gives a Moore–Penrose pseudoinverse on the cluster's range space, which is the limiting behaviour needed when a cluster is absorbed by the design (`h_jj → 1`), as happens for singleton clusters that uniquely carry a categorical moderator level. A relative tolerance of the form `tol = max(1e-10, 1e-6·max|λ|)` would not preserve this limit.
+
+The cluster score and meat are then accumulated in their standard sandwich form, but evaluated through the cached `XW_i = X_jᵀ W_j` (avoiding a re-inversion of `Φ_j`):
+
+```python
+EA_i = XW_i @ A_i        # X_jᵀ W_j A_j   (p × n_j)
+g_i  = EA_i @ e_i        # cluster score   (p)
+meat += np.outer(g_i, g_i)
+```
+
+Note that there is **no separate `e* = A_j · e_j` intermediate** in the current code: the adjustment `A_j` is multiplied into the *score operator* `X_jᵀ W_j` once (yielding `EA_i`), and then applied to the raw residual. `EA_i` is itself cached on the per-cluster dictionary so that Phase 3 can re-use it without recomputation.
+
+**Sandwich.** `var_robust = M_bread @ meat @ M_bread`, symmetrised after multiplication (l. 2105–2106).
+
+**Phase 3 — Full P-matrix Satterthwaite DF.** The DF computation uses the **full** Pustejovsky–Tipton P-matrix formula — including the off-diagonal cross-cluster terms — not the simplified diagonal-only quadratic form. For each cluster *j*, two `p`-by-anything tensors are pre-computed (l. 2113–2126):
+
+```python
+ME_j     = M_bread @ EA_j            # p × n_j
+H_per_j  = ME_j @ X_j @ L_M          # p × p     — clubSandwich's H_array[:,:,j]
+G_per_j  = ME_j @ L_j                # p × n_j
+
+H_stack[j_idx]    = H_per_j
+G_norms[j_idx, i] = sum_k (G_per_j[i, k]) ** 2     # |g_{j,i}|²
+```
+
+For each coefficient *i*, the `M × p` matrix `H_mat = H_stack[:, i, :]` is assembled, together with its `M × M` Gram matrix `Gram = H_mat · H_matᵀ` and the column `G_norms[:, i]`. The Pustejovsky–Tipton P-matrix has the form
+
+$$
+P_i[j, j] \;=\; \|G_{j,i}\|^{2} - \|H_{j,i}\|^{2}, \qquad
+P_i[j, j'] \;=\; -\,\langle H_{j,i}, H_{j',i}\rangle \quad (j \neq j'),
+$$
+
+from which the Satterthwaite DF for coefficient *i* is
+
+$$
+\hat{\nu}_i \;=\; \frac{\mathrm{tr}(P_i)^{2}}{\sum_{j,j'} P_i[j, j']^{2}}.
+$$
+
+Both quantities are computed in closed form from `Gram`, `diag(Gram)` (= `|H_{j,i}|²`), and `G_norms[:, i]`:
+
+```python
+trace_P  = float(np.sum(gN - diag_G))                         # Σⱼ (|g_{j,i}|² − |h_{j,i}|²)
+sum_P_sq = float(np.sum(Gram * Gram)
+                 - 2.0 * np.sum(diag_G * gN)
+                 + np.sum(gN * gN))                            # Σ_{j,j'} P_i[j,j']²
+```
+
+The algebraic identity in the last line collapses the off-diagonal contribution `Σ_{j≠j'} Gram[j,j']²` and the corrected diagonal `Σⱼ (gN[j] − diag_G[j])²` into a three-term expression involving only sums over the precomputed tensors — there is no explicit `M × M` loop. **Cross-cluster off-diagonals are therefore retained**, distinguishing this from the simplified "diagonal-only" `g_ij = q_iᵀ B_i q_i` form.
+
+The final DF is **clipped** to `[1.0, M − 1]` so that pathologically small values (one cluster dominating the contrast) cannot drop below 1 and so that DF cannot exceed the cluster count minus one (l. 2149–2151). When either `trace_P` or `sum_P_sq` fails the strict positivity check (i.e. a contrast carrying *no* estimable information after CR2 adjustment), the routine returns the conventional fallback `df_fallback = max(1, M − p)`.
 
 ```mermaid
 flowchart LR
-    A["betas, y_all, vcv_all, X_all,<br/>τ², σ²"]:::n --> P1["Phase 1: Bread<br/>Σ_i = V_i + σ²I + τ²11ᵀ<br/>cache invΣ_i, e_i, invΣ_i·X_i"]
-    P1 --> BR{"bread_inv ok?"}
-    BR -->|No| FB["Fallback:<br/>var = 0.01·I<br/>df = max(1, M-p)"]:::f
-    BR -->|Yes| P2["Phase 2: CR2 + Meat<br/>D_i = sym(I-H_ii)<br/>A_i = D_i^(-1/2) (eigh)<br/>e* = A_i·e_i<br/>g_i = X_iᵀ·invΣ_i·e*<br/>meat += g_i g_iᵀ"]
-    P2 --> SW["Sandwich:<br/>var_robust = bread_inv·meat·bread_inv"]
-    SW --> P3["Phase 3: Satterthwaite<br/>B_i = A_i Σ_i A_iᵀ<br/>q_i = (invΣ_i X_i) bread_inv c_j<br/>g_ij = q_iᵀ B_i q_i<br/>df_j = (Σg_ij)² / Σg_ij²<br/>clip to [1, M-1]"]
+    A["betas, y_all, vcv_all, X_all,<br/>τ², σ²"]:::n --> P1["Phase 1: Bread + PD reconstruction<br/>Φ_j = V_j + σ²I + τ²11ᵀ<br/>eigh(Φ_j) → floor max(1e-12, 1e-10·λ_max)<br/>W_j = spectral inverse;  L_j = chol(Φ_j_pd)<br/>cache XW_j = X_jᵀW_j, e_j = y_j − X_j·β<br/>sum_XtWX += XW_j · X_j"]
+    P1 --> BR{"M_bread = inv(sum_XtWX)<br/>succeeds?"}
+    BR -->|No| FB["Fallback:<br/>var = 0.01·I<br/>df = max(1, M−p)"]:::f
+    BR -->|Yes| LM["L_M = chol(M_bread)<br/>(eig-floor fallback)"]
+    LM --> P2["Phase 2: Cholesky-form CR2 + Meat<br/>IH_j = I − X_j·M·XW_j  (asymmetric)<br/>G_j = L_jᵀ·IH_j·Φ_j·L_j   (symmetrise)<br/>eigh(G_j), abs tol PINV_TOL = 1e-12<br/>G⁻¹ᐟ² via Moore–Penrose pseudoinverse<br/>A_j = L_j·G⁻¹ᐟ²·L_jᵀ<br/>EA_j = XW_j·A_j;  g_j = EA_j·e_j<br/>meat += g_j g_jᵀ"]
+    P2 --> SW["Sandwich:<br/>var_robust = M·meat·M  (symmetrise)"]
+    SW --> P3["Phase 3: Full P-matrix Satterthwaite<br/>H_per_j = M·EA_j·X_j·L_M  (p×p)<br/>G_per_j = M·EA_j·L_j      (p×n_j)<br/>Gram = H_mat·H_matᵀ        (M×M)<br/>trace_P  = Σⱼ (|g_{j,i}|² − |h_{j,i}|²)<br/>sum_P_sq = Σ_{j,j'} P_i[j,j']²<br/>df_i = trace_P² / sum_P_sq, clip to [1, M−1]"]
     P3 --> OUT["(var_robust, df_vec)"]:::g
     classDef n fill:#dbeafe,stroke:#1d4ed8
     classDef g fill:#bbf7d0,stroke:#15803d
@@ -958,6 +1033,279 @@ flowchart LR
 
 ---
 
+### 4.6 Publication-bias diagnostics (Cells 16–19)
+
+Four cells implement three independent publication-bias methodologies — *Egger's regression test* and *Duval–Tweedie trim-and-fill* (Cell 16), *PET-PEESE* (Cell 18) — plus two visualisation cells (Cell 17, Cell 19). All three statistical methodologies fit their working regression through the **same three-level REML core** documented in § 4.2–4.3, i.e. small-study effects are detected and corrected *inside the nested-clustering covariance structure* rather than on an aggregated two-level reduction. The corresponding result keys persisted to `ANALYSIS_CONFIG` are `funnel_results` (Egger), `trimfill_results` (T&F), `pet_peese_results` (PET-PEESE), and the shared `bias_text` for the publication-text fragment.
+
+| Cell | Module | What it owns |
+|---|---|---|
+| 16 | `PublicationBiasModel` / `View` / `Controller` | Egger's regression + Duval–Tweedie trim-and-fill (full MVC; ~1,080 lines) |
+| 17 | `generate_tf_plot` | Trim-and-Fill plot, reads `trimfill_results` |
+| 18 | `PETPEESEDataManager` / `PETPEESEEngine` / `PETPEESEController` (+ 6 result dataclasses) | PET-PEESE with conditional decision rule (full MVC; ~1,600 lines) |
+| 19 | `generate_funnel_plot` | Classical funnel plot, reads `overall_results` and `funnel_results` |
+
+#### 4.6.1 Egger's regression test (Cell 16, lines 69–172)
+
+`PublicationBiasModel.run_eggers_test` (line 69) regresses the effect on its standard error using the three-level REML core, then reports a t-test on the intercept. The heavy lifting is in `_run_robust_eggers_test` (line 119), which assembles `y_all` / `v_all` / `X_all` from the global dataframe — with `X_i = sm.add_constant(group[se_col].values, prepend=True)` giving the design `[1, SE]` per study — and minimises `_neg_log_lik_reml_reg` (the shared REML negative log-likelihood from Cell 1) over the two variance components `(σ², τ²)`:
+
+```python
+start_points = [[0.1, 0.1], [1.0, 0.1], [5.0, 0.1]]            # three deterministic restarts
+res = minimize(neg_log_lik_reml_reg, x0=start, args=(...),
+               method='L-BFGS-B',
+               bounds=[(1e-8, None), (1e-8, None)],
+               options={'ftol': 1e-10})
+# best of three followed by Nelder-Mead polish
+final_res = minimize(neg_log_lik_reml_reg, x0=best_res.x, args=(...),
+                     method='Nelder-Mead', options={'xatol': 1e-10, 'fatol': 1e-10})
+estimates = _get_three_level_regression_estimates_v2(final_res.x, ...)
+```
+
+The reported t-statistic and p-value are then computed from the **intercept** of the regression (lines 85–90):
+
+```python
+intercept = estimates['betas'][0]
+se_intercept = estimates['se_betas'][0]
+t_stat = intercept / se_intercept
+p_value = 2 * (1 - t.cdf(abs(t_stat), df))
+```
+
+**Methodological note.** The canonical *modified* Egger formulation (Sterne & Egger 2005) regresses effect on SE and uses the *slope* of `Effect ~ SE` as the asymmetry test; the intercept is the bias-corrected estimate at the limit `SE → 0`. The current code branch instead reports a t-test on the intercept and feeds that p-value into `get_combined_assessment` as `egger_bias = egger_p < 0.10` (line 371). A maintainer auditing for canonical Egger behaviour may wish to verify whether the intent is to test the slope (`slope_val / se_betas[1]`) — the slope is in fact already computed and saved as `funnel_results['beta_slope']` (line 106), it is just not the quantity used for the bias verdict.
+
+The output dictionary is written to *two* keys: `egger_results` (private to the Model) and `ANALYSIS_CONFIG['funnel_results']` (consumed downstream by Cell 19's funnel plot and by the export pipeline).
+
+#### 4.6.2 Duval–Tweedie trim-and-fill (Cell 16, lines 182–361)
+
+`PublicationBiasModel.run_trimfill_analysis(estimator='L0', side='auto', max_iter=100)` implements the L₀ estimator of Duval & Tweedie (2000), upgraded with three CoMeta-specific extensions: random-effects centering inside the trim loop, the *full 3-level REML* engine for the final bias-corrected pooled estimate, and synthetic study IDs that keep imputed observations from inflating σ². The algorithm proceeds in three phases.
+
+**Phase 1 — Skew direction.** If `side == 'auto'`, a fixed-effect-weighted third-moment test selects the asymmetry side (line 199–203):
+$$
+\hat{\mu}_{FE} = \frac{\sum w_i y_i}{\sum w_i}, \quad
+\text{skew} = \sum w_i (y_i - \hat{\mu}_{FE})^3, \quad
+\text{side} = \begin{cases} \text{left} & \text{if skew} > 0 \\ \text{right} & \text{otherwise} \end{cases}
+$$
+with `w_i = 1/v_i`.
+
+**Phase 2 — Iterative trimming with RE centering.** Studies are sorted by effect size. On each iteration of the L₀ loop, the current trimmed sample is re-pooled using a *random-effects* estimator with a DerSimonian–Laird-like τ² update (lines 219–229), not a fixed-effect mean as in the classical formulation:
+
+$$
+\hat{\mu}_{FE} = \frac{\sum w_i y_i}{\sum w_i}, \quad
+Q = \sum w_i (y_i - \hat{\mu}_{FE})^2, \quad
+\hat{\tau}^2 = \max\!\left(0,\, \frac{Q - df}{C}\right), \quad
+C = \sum w_i - \frac{\sum w_i^2}{\sum w_i}, \quad
+\hat{\mu}_{RE} = \frac{\sum (v_i + \hat{\tau}^2)^{-1} y_i}{\sum (v_i + \hat{\tau}^2)^{-1}}.
+$$
+
+Residuals are formed against `μ_RE`, sign-flipped if `side == 'right'`, ranked by absolute value, and the L₀ statistic is computed from the sum of positive-ranked positions:
+
+```python
+Sn = sum of ranks where signed_res > 0
+k0_new = max(0, round((4·Sn - n·(n + 1)) / (2·n - 1)))
+k0_new = min(k0_new, n - 2)                       # cap at n-2 to keep ≥2 observations
+```
+
+Iteration terminates when `k0_new == k0` (fixed point) or `max_iter = 100` is exceeded.
+
+**Phase 3 — Filling and 3-level re-pooling.** If `k0 > 0`, the `k0` most extreme observations on the asymmetric side are mirror-imaged across the converged `μ_RE` (line 260): `y_filled = 2·μ_RE − y_excess`, with `v_filled = v_excess`. The combined dataset (original + filled) is then re-pooled through the **full 3-level REML engine** with an intercept-only design matrix (lines 271–330), giving SE and CI that respect the nested clustering. Imputed observations receive synthetic study IDs `Imputed_TF_{i}` so that each appears as its own singleton cluster — preventing them from inflating the within-study variance component σ². A final fallback uses the FE-style `SE = 1/√Σ w_i` (line 312–317) only if the REML optimiser fails entirely.
+
+The output dictionary records `k0`, `side`, both original and filled pooled estimates with SE/CI, and the arrays `yi_filled` / `vi_filled` / `yi_combined` / `vi_combined` for plotting; it is saved to `ANALYSIS_CONFIG['trimfill_results']`.
+
+**Combined assessment.** `get_combined_assessment` (line 363) coerces the two diagnostics into a tri-state verdict — `HIGH RISK` (both flag bias: `egger_p < 0.10` *and* `k0 > 0`), `MODERATE RISK` (one flags bias), `LOW RISK` (neither) — which is rendered as a coloured banner in the Publication tab.
+
+#### 4.6.3 PET-PEESE (Cell 18, full MVC)
+
+Cell 18 is a complete MVC module dedicated to a single statistical workflow with a built-in **conditional decision rule**. Five result dataclasses (`PETResult`, `PEESEResult`, `NaiveEstimate`, `PETPEESEDecision`, `PETPEESEResult`, lines 38–98) carry the structured output; the engine pipeline is composed of three sub-engines.
+
+**Data preparation** (`PETPEESEDataManager.prepare_data`, line 199). Forces the presence of both `SE` and `Var` columns (deriving each from the other if missing), drops missing values, requires `Var > 0` and `SE > 0`, and demands at least three observations after cleaning.
+
+**PET regression** (`PETEngine.run_pet_regression`, line 388): three-level REML regression `Effect ~ SE` via `_run_three_level_reml_regression_v2(df, moderator_col='SE', ...)`. Returns the `estimates` dictionary unchanged from the shared regression routine; `_extract_pet_result` then unpacks `betas[0]`, `betas[1]`, `se_betas[0]`, `se_betas[1]`, `ci_lower[0]`, `ci_upper[0]`, and `p_values[1]` into a `PETResult`.
+
+**PEESE regression** (`PEESEEngine.run_peese_regression`, line 443): same wrapper but with `moderator_col='Var'`. The structural assumption that distinguishes the two models is the *shape* of the funnel under bias — PET is linear in SE, PEESE is linear in variance — and consequently the two intercepts disagree on how the bias-corrected estimate scales with precision.
+
+**Decision rule** (`PETPEESEDecisionMaker.make_decision`, line 491, static method). The canonical Stanley–Doucouliagos (2014) two-step rule:
+
+```python
+bias_detected = pet_slope_p < p_threshold        # default p_threshold = 0.10
+if bias_detected:
+    recommended_model = "PEESE"                  # use PEESE intercept + SE + CI
+else:
+    recommended_model = "PET"                    # use PET intercept + SE + CI
+```
+
+Unlike § 4.6.1, this branch correctly tests the **slope** of `Effect ~ SE` against the threshold — i.e. the canonical asymmetry diagnostic — and feeds it into a deterministic model-selection branch. The threshold defaults to `0.10` (not `0.05`) because PET-PEESE was originally calibrated against meta-analyses where the typical asymmetry signal is weak; the threshold is exposed on `PETPEESEConfig.p_threshold` for users who want a stricter cutoff.
+
+**Orchestration** (`PETPEESEEngine.run_analysis`, line 583). The five-step workflow is: prepare data → PET regression → PEESE regression → apply decision rule → fetch naive estimate (from `ANALYSIS_CONFIG['overall_results']`) → assemble a `PETPEESEResult` dataclass. Optional `progress_callback` updates a UI progress widget at each step. The result is saved to `ANALYSIS_CONFIG['pet_peese_results']` and persisted with its own publication-text fragment via `PETPEESEPublicationTextGenerator` (line 1024) — only the *Overall* and *PET-PEESE* modules currently maintain dedicated publication-text generators; all others reuse the global helpers from Cell 7.
+
+#### 4.6.4 Funnel and trim-and-fill plots (Cells 17, 19)
+
+Both visualisation cells are stateless: they read pre-computed results from `ANALYSIS_CONFIG` and render `matplotlib` / `plotly` figures inside `widgets.Output`s.
+
+**Cell 19 — classical funnel plot** (`generate_funnel_plot`, line 121). Plots effect (x-axis) against SE (y-axis, *inverted* so precision increases upward), centred on the pooled effect from `overall_results` (`mu_robust` if available, else `mu` / `pooled_effect_random`). Three pseudo-confidence contours are drawn as triangular envelopes around the pooled effect at widths `c · SE` for `c ∈ {1.645, 1.96, 2.58}` (90 / 95 / 99 %). The Egger's overlay reads `ANALYSIS_CONFIG['funnel_results']['p_value']` and displays it as a corner annotation.
+
+**Cell 17 — trim-and-fill plot** (`generate_tf_plot`, line 620). Extends the funnel plot to mark imputed studies (`yi_filled`, `vi_filled`) with a distinct marker and centres the 95% pseudo-confidence region on the **bias-adjusted** pooled effect (`tf_res['pooled_filled']`) rather than the original. Reads `ANALYSIS_CONFIG['trimfill_results']`. Auto-detects the SE axis range from the combined `vi_combined` array.
+
+#### Module wiring
+
+Both Cell 16 and Cell 18 register their own staleness banners (`'pub_bias'` and `'pet_peese'` respectively, see § 1.2 and the `ALL_DOWNSTREAM` registry on Cell 1 line 145). The Excel exporter dispatches on `report_type='publication_bias'` (Cell 1, `export_analysis_report` line 2507) to ship the protocol metadata, Egger / Trim-Fill / PET-PEESE summaries, and the publication-text fragment to a single workbook. The shared `ANALYSIS_CONFIG['bias_text']` key is used by Cell 16; Cell 18 instead persists its own text under `'pet_peese_text'` because it owns a dedicated publication-text generator.
+
+```mermaid
+flowchart LR
+    DF["analysis_data + overall_results<br/>(from §3–§4.2)"]:::n --> EG["Cell 16<br/>run_eggers_test<br/>3-level REML on Effect ~ SE<br/>(intercept t-test)"]
+    DF --> TF["Cell 16<br/>run_trimfill_analysis<br/>L₀ trim + DL-RE centering<br/>+ 3-level re-pool of filled set"]
+    DF --> PP["Cell 18<br/>PETPEESEEngine.run_analysis<br/>PET (Effect~SE) + PEESE (Effect~Var)<br/>+ slope-p decision rule"]
+    EG --> AC1["ANALYSIS_CONFIG<br/>funnel_results"]:::g
+    TF --> AC2["ANALYSIS_CONFIG<br/>trimfill_results"]:::g
+    PP --> AC3["ANALYSIS_CONFIG<br/>pet_peese_results"]:::g
+    AC1 --> V19["Cell 19<br/>generate_funnel_plot"]
+    AC2 --> V17["Cell 17<br/>generate_tf_plot"]
+    AC1 & AC2 --> CA["get_combined_assessment<br/>HIGH / MODERATE / LOW RISK"]
+    classDef n fill:#dbeafe,stroke:#1d4ed8
+    classDef g fill:#bbf7d0,stroke:#15803d
+```
+
+---
+
+### 4.7 Sensitivity analysis (Cells 20–22)
+
+Three cells implement the classical sensitivity-analysis triad — *leave-one-out* (LOO) execution, *LOO forest* visualisation, and the *Baujat* heterogeneity-vs-influence scatter. Cell 20 alone is the **largest cell in the notebook** (~1,890 lines, 67 K chars) and owns both the LOO MVC stack and a *third* three-level REML orchestrator, `_run_three_level_reml_for_subgroup`, distinct from the `_run_three_level_reml_regression_v2` routine documented in § 4.3. The two visualisation cells (21, 22) are stateless: they read `ANALYSIS_CONFIG['loo_results']` and render `matplotlib` figures.
+
+| Cell | Module | What it owns |
+|---|---|---|
+| 20 | `_run_three_level_reml_for_subgroup` (free function), `LOODataManager` / `LOOEngine` / `LOOController` (+ `LOOConfig`, `OriginalEstimate`, `LOOIteration`, `LOOResult` dataclasses + `BaselineEstimator`, `LOOIterator`, `InfluenceDetector`, `CICalculator` sub-engines) | LOO execution: Plan A/B/C 3-level optimiser, baseline fit, k iterations, influence detection (full MVC; ~1,890 lines) |
+| 21 | `generate_loo_plot` | LOO forest plot, reads `loo_results` |
+| 22 | `generate_baujat_plot` | Baujat scatter (Q-contribution vs LOO influence), reads `loo_results` + `analysis_data` |
+
+#### 4.7.1 The subgroup-style 3-level orchestrator (Cell 20, lines 14–259)
+
+`_run_three_level_reml_for_subgroup(analysis_data, effect_col, var_col)` is the **second** of three 3-level REML orchestrators in the codebase, shared by both the Subgroup module (Cell 9) and the LOO baseline / iteration loop. It differs from `_run_three_level_reml_regression_v2` (§ 4.3) in three important ways:
+
+1. **Intercept-only model.** The design matrix is implicit — no moderator column is consumed. The likelihood used is `_negative_log_likelihood_reml` (defined in Cell 1, separate from `_neg_log_lik_reml_reg` used by the meta-regression / Egger paths in § 4.3 and § 4.6.1).
+2. **Three-tier fallback strategy (Plan A → B → C).** Where § 4.3's `_run_three_level_reml_regression_v2` only has the regression-specific Plan A/B/C fallback for moderator-model fits, this orchestrator's three tiers are *structural*:
+
+   | Plan | Tier | Trigger |
+   |---|---|---|
+   | A | Full 3-level with **block-diagonal VCV** from `ANALYSIS_CONFIG['vcv_matrices']` | `three_level_viable` AND `has_off_diagonal` (i.e. at least one cluster has shared-control off-diagonals from § 3.4) |
+   | B | Full 3-level with **diagonal VCV** (independence assumption) | Plan A failed *or* no off-diagonal structure exists |
+   | C | **2-level** model with σ² fixed to `1e-10` | Plan A and Plan B both failed |
+
+   The `three_level_viable` gate is `n_multi_obs_studies >= 1 and N_total > M_studies` — i.e. σ² is only identifiable when at least one study has more than one effect size *and* the total number of observations exceeds the number of studies. Plan A is skipped entirely if no cluster carries off-diagonal mass (a pure-singleton dataset has nothing for the VCV path to add).
+
+3. **Optimiser configuration tightened for sensitivity work.** The L-BFGS-B options are deliberately stricter than the meta-regression path: `ftol=1e-12`, `gtol=1e-10`, `maxiter=5000`, `maxfun=10000`, with bounds `(1e-8, 50.0)` on both variance components. Six fixed starting points `[[0.01,0.01], [0.1,0.1], [0.5,0.5], [1.0,1.0], [1.0,0.1], [0.1,1.0]]` are augmented at runtime with a *seventh*-and-*eighth* DL-derived start `[τ²_DL, 0.01]` and `[τ²_DL, τ²_DL·0.5]` (lines 94–98) when `calculate_tau_squared(..., method='DL')` succeeds. If *all* eight starts fail to converge, a **log-space BFGS fallback** (lines 138–157) re-parameterises `params = exp(log_params)` to enforce positivity without bound constraints — a recovery branch that is only entered when the boxed L-BFGS-B has fundamentally failed to find a feasible region.
+
+The return signature is `(estimates_dict, debug_tuple)` or `(None, None)` on total failure. The estimates dictionary is augmented with `model_type` ∈ {`'3-level-vcv'`, `'3-level-diag'`, `'2-level'`}, plus `n_studies`, `n_observations`, `n_multi_obs_studies`, and the optimiser metadata — so downstream code can audit which plan actually succeeded for each fit.
+
+#### 4.7.2 LOO orchestration (Cell 20)
+
+The LOO module is a full MVC, instantiated from the controller in three layers that each have a single responsibility.
+
+**`LOOConfig`** (line 266). Frozen `@dataclass` with the user-facing knobs: `effect_col`, `var_col`, `alpha=0.05`, `influence_threshold=20.0` (percent change from baseline; see § 4.7.2 below). `__post_init__` validates each field and raises `ValueError` early if invalid.
+
+**Per-iteration result dataclasses.** `OriginalEstimate` (line 286) carries the full-model baseline `(μ, SE, CI_lo, CI_hi, τ², σ²)`; `LOOIteration` (line 297) carries one removed-study fit `(excluded_study, μ, SE, CI_lo, CI_hi, τ², σ², diff, pct_change, is_influential)`; `LOOResult` (line 312) wraps the baseline together with a DataFrame of all iterations plus `n_studies`, `n_influential`, `min_estimate`, `max_estimate`, `range_estimate`, and the `top_influential` slice (top 5 by absolute difference).
+
+**`BaselineEstimator.estimate_baseline(df)`** (line 595). One fit through `_run_three_level_reml_for_subgroup` on the full dataset, extracting `μ`, `SE`, `CI_lower/upper`, `τ²`, `σ²`. Falls back to `CICalculator.calculate_ci(μ, SE, alpha)` if the orchestrator's estimates dictionary does not carry CI columns. Returns `None` on failure — the LOO engine then aborts before entering the iteration loop.
+
+**`LOOIterator.run_iterations(df, study_ids, baseline, progress_callback)`** (line 699). The hot loop, wrapped in a `tqdm` progress bar:
+
+```python
+for i, exclude_id in enumerate(tqdm(study_ids, desc="Leave-One-Out Analysis", unit="study")):
+    subset_df = df[df['id'] != exclude_id].copy()                    # drop one cluster
+    estimates, metadata = _run_three_level_reml_for_subgroup(
+        subset_df, self.effect_col, self.var_col                     # FULL 3L re-fit
+    )
+    if estimates is None:
+        warnings.warn(f"Failed to fit model without study {exclude_id}")
+        continue                                                      # skip, don't abort
+    mu  = estimates['mu']
+    se  = estimates.get('se_mu', estimates.get('se', np.nan))
+    ...
+    diff       = mu - baseline.mu
+    pct_change = (diff / baseline.mu) * 100 if baseline.mu != 0 else 0.0
+    is_influential = abs(pct_change) > self.influence_threshold
+    iterations.append(LOOIteration(excluded_study=str(exclude_id), ...))
+```
+
+Two design choices distinguish this from a naive LOO loop:
+
+1. **Every iteration re-runs the *full* Plan A/B/C orchestrator.** It does not cache the variance components from the baseline fit — by re-optimising τ² and σ² without each study, the routine produces honest sensitivity estimates that account for *how the removed study changed the heterogeneity structure*, not just the pooled mean.
+2. **Failed iterations are warnings, not exceptions.** If `_run_three_level_reml_for_subgroup` returns `None` for a particular `exclude_id` (e.g. removing it leaves the design rank-deficient), the iterator skips that study with a `warnings.warn` rather than aborting the whole LOO sweep. The downstream `InfluenceDetector` operates on whichever iterations *did* converge.
+
+**`InfluenceDetector.analyze_iterations`** (line 802). Static method that materialises the per-iteration `LOOIteration` list into a DataFrame, computes `n_influential = (is_influential == True).sum()`, the range `[min_estimate, max_estimate]`, and the `top_influential` slice — `iter_df.sort_values('abs_diff', ascending=False).head(5)`.
+
+**`LOOEngine.run_analysis(progress_callback)`** (line 906). The five-step orchestrator: prepare data → estimate baseline → run k iterations (with a `iter_progress` shim that converts `(i, total, study_id)` triples to the controller-side `progress` widget) → analyse influence → assemble a `LOOResult`. `None` is returned if data preparation, baseline estimation, or all iterations fail.
+
+**Persistence.** `LOODataManager.save_loo_results(result)` (line 492) writes a **dict-shaped legacy payload** to `ANALYSIS_CONFIG['loo_results']` — not the raw `LOOResult` dataclass:
+
+```python
+self._config['loo_results'] = {
+    'timestamp':     datetime.datetime.now(),
+    'data':          result.iterations,                # the DataFrame
+    'orig_mu':       result.original.mu,
+    'orig_ci_lo':    result.original.ci_lower,
+    'orig_ci_hi':    result.original.ci_upper,
+    'n_studies':     result.n_studies,
+    'n_influential': result.n_influential,
+    'min_estimate':  result.min_estimate,
+    'max_estimate':  result.max_estimate,
+}
+```
+
+This shape — `dict` with a `'data'` DataFrame key plus the baseline scalars — is what Cells 21 and 22 expect. (Both viz cells also accept a bare DataFrame for backward compatibility with an older pipeline.) The publication-text fragment is written separately to `ANALYSIS_CONFIG['loo_text']` by `LOOPublicationTextGenerator` (Cell 20 line 1069) — the only module besides Overall, PET-PEESE, and Cumulative that ships a dedicated publication-text class.
+
+#### 4.7.3 LOO forest plot (Cell 21, lines 99–~290)
+
+`generate_loo_plot(b)` is a button-handler that renders a *horizontal forest plot* of the LOO sweep. Each row corresponds to one excluded study; the dot shows the recomputed pooled mean and the horizontal bar is its 95% (or `alpha`-aware) CI. Key behaviours:
+
+- **Format-tolerant ingestion.** Accepts either the modern dict-shaped payload (`loo_results['data']` is the DataFrame, baseline read from sibling keys) or a bare DataFrame (baseline read from `overall_results.mu_robust` / `mu` and `ci_lower_robust` / `ci_lower`). Column rename `mu → pooled_effect` and `excluded_study → unit_removed` normalises the two payload generations.
+- **Significance-change highlighting.** A `changes_sig` flag is computed per row by comparing whether the LOO CI brackets the user-configured `null_value` against whether the original CI did. Rows whose significance verdict flipped after removal are coloured red (when `highlight_sig_widget.value` is on) — this is the visual signal that a single study was driving statistical significance.
+- **Reference overlay.** A solid vertical line at `null_value`, a dashed vertical line at the original `μ`, and a shaded vertical band for the original 95% CI provide three deterministic reference anchors.
+- **Sort modes.** `'influence'` (ascending `|μ_LOO − μ_baseline|`, so the most influential study is at the top), `'id'` (numeric/lexicographic), `'effect'` (ascending `μ_LOO`).
+
+#### 4.7.4 Baujat plot (Cell 22, lines 111–~340)
+
+`generate_baujat_plot(b)` (Baujat et al., 2002) plots each study at the coordinates `(Q-contribution, |Δμ|_LOO)` — heterogeneity contribution on the x-axis, influence on the pooled effect on the y-axis. Studies in the upper-right quadrant are *both* heterogeneous and influential — the canonical "outlier" zone.
+
+**X-axis — Q-contribution.** Computed inside the cell rather than read from `overall_results`, because Baujat plots traditionally use the *fixed-effect* pooled mean as the centre (lines 149–157):
+
+$$
+\hat{\mu}_{FE} = \frac{\sum_i w_i y_i}{\sum_i w_i}, \quad w_i = 1/v_i, \quad
+Q_{\text{contrib}}(s) = \sum_{j \in s} w_j \,(y_j - \hat{\mu}_{FE})^2.
+$$
+
+The code comment on line 150 explicitly states *"Baujat plots use the Fixed Effect mean to calculate Q contributions. We calculate it here to ensure accuracy regardless of the main model type."* — i.e. even if the overall fit chose the random-effects or 3-level model, Baujat anchors on the FE mean so the heterogeneity diagnostic is consistent with the textbook definition.
+
+**Y-axis — influence.** Read directly from `loo_results['data']['abs_diff']` (already computed in § 4.7.2 as `|μ_LOO − μ_baseline|`), with a fallback that recomputes from `orig_mu` and `μ` if the column is absent (older payloads).
+
+**Outlier labelling.** Three labelling methods, gated by `show_labels_widget.value`:
+
+- `'combined'`: standardise both axes by z-score, then label the top-`n_lbl` studies by Euclidean distance from origin — equivalent to a circular outlier criterion in z-space.
+- `'heterogeneity'`: top-`n_lbl` by raw `Q_contrib`.
+- `'influence'`: top-`n_lbl` by raw `abs_diff`.
+
+Optional `adjustText.adjust_text` is invoked when the `'best'` label position is selected, to repel overlapping annotations.
+
+**Reference lines.** Median `Q_contrib` (vertical) and median `abs_diff` (horizontal) split the plot into four quadrants when `show_median_lines_widget.value` is on.
+
+#### Module wiring
+
+Cell 20 registers the staleness banner `'loo'` (see § 1.2 and `ALL_DOWNSTREAM` on Cell 1 line 145). The Excel exporter dispatches on `report_type='loo'` (Cell 1 `export_analysis_report` line 2507) to ship the LOO iterations DataFrame, the baseline and range scalars, the influence threshold, and the publication-text fragment to a single workbook. Cells 21 and 22 do *not* register banners — they are pure visualisations that re-read `loo_results` on every render and so are implicitly invalidated whenever the LOO execution cell is re-run.
+
+```mermaid
+flowchart LR
+    DF["analysis_data + vcv_matrices<br/>(from §3.4)"]:::n --> BE["Cell 20<br/>BaselineEstimator.estimate_baseline<br/>full-model fit via<br/>_run_three_level_reml_for_subgroup"]
+    BE --> BL["OriginalEstimate<br/>(μ, SE, CI, τ², σ²)"]
+    DF --> IT["Cell 20<br/>LOOIterator.run_iterations<br/>for each study s:<br/>refit on df.id ≠ s<br/>compute diff, pct_change"]
+    BL --> IT
+    IT --> ID["Cell 20<br/>InfluenceDetector<br/>n_influential = (|pct_change| > 20%).sum()<br/>top_influential = top 5 by |Δμ|"]
+    ID --> RES["LOOResult"]
+    BL --> RES
+    RES --> SAVE["LOODataManager.save_loo_results<br/>→ ANALYSIS_CONFIG['loo_results']<br/>(dict-shaped legacy payload)"]:::g
+    SAVE --> V21["Cell 21<br/>generate_loo_plot<br/>horizontal forest + sig-change flag"]
+    SAVE --> V22["Cell 22<br/>generate_baujat_plot<br/>x = Σ wⱼ(yⱼ − μ_FE)²<br/>y = |μ_LOO − μ_baseline|"]
+    classDef n fill:#dbeafe,stroke:#1d4ed8
+    classDef g fill:#bbf7d0,stroke:#15803d
+```
+
+---
+
 ## 5. Session Serialization & Reporting
 
 ### 5.1 JSON serialization (Cell 1, lines 2629–2768)
@@ -1006,26 +1354,36 @@ This design separates **inputs** (preserved in JSON, used to *re-derive* outputs
 
 ### 5.2 Automated Materials & Methods / Results generator
 
-Each analytical cell exposes a publication-text class — for the overall model this is `OverallPublicationTextGenerator` (Cell 7, lines 1657 onward), which renders two HTML fragments injected into the *Publication* tab of `OverallResultsView`.
+Each analytical cell exposes a publication-text class — for the overall model this is `OverallPublicationTextGenerator` (Cell 7, line 1657), which renders two HTML fragments injected into the *Publication* tab of `OverallResultsView`. The class's `__init__` is a no-op `pass` (line 1662), so it is effectively a stateless namespace; both routines below are *instance methods*, conventionally called as `OverallPublicationTextGenerator().generate_*_section(...)`.
 
-#### `generate_methods_section(es_config, use_kh)`
+#### `OverallPublicationTextGenerator.generate_methods_section(self, es_config, use_kh)`
 
-1. **Citation database `db`.** Hard-coded dictionary of canonical references (Hedges 1981, Hedges/Gurevitch/Curtis 1999 for lnRR, Viechtbauer 2005 for REML, Higgins & Thompson 2002 for I², Knapp & Hartung 2003, SciPy/Virtanen 2020, etc.).
-2. **Dynamic reference list `active_refs`.** Citations are appended *conditionally*: effect-size citation chosen by inspecting `es_config['type']` and `es_config['effect_label']`; Sweeting et al. (2004) appended only for `log_or` / `log_rr`; Knapp–Hartung appended only if `use_kh=True`. The reference indices are stored as `ref_es`, `ref_reml`, `ref_kh`, `ref_py`, `ref_tool` and interpolated into the prose.
-3. **Conditional disclosures.** The function reads `ANALYSIS_CONFIG.get('sd_missing_strategy', 'none')` and appends an explicit caveat ("treating imputed variances as known parameters may slightly underestimate the true uncertainty …") when imputation was performed.
+Signature `generate_methods_section(self, es_config: Dict[str, Any], use_kh: bool) -> str` (Cell 7 line 1665).
 
-#### `generate_results_section(result, es_config)`
+1. **Citation database `db`.** Hard-coded dictionary of canonical references (Hedges 1981, Hedges/Gurevitch/Curtis 1999 for lnRR, Viechtbauer 2005 for REML, Higgins & Thompson 2002 for I², Knapp & Hartung 2003, SciPy/Virtanen 2020, Fleiss 1993 for log OR, Greenland & Robins 1985 for log RR, Sweeting et al. 2004 for the binary continuity correction, and a self-citation slot for the Co-Meta tool itself).
+2. **Dynamic reference list `active_refs`.** Citations are appended *conditionally*: the effect-size citation is chosen by inspecting `es_config['type']` (matched against the tokens `'log_or'` / `'log_rr'`) and `es_config['effect_label']` (substring-matched for `'Hedges'` / `'Ratio'`); Sweeting et al. (2004) is appended only for `log_or` / `log_rr`; Knapp–Hartung is appended only if `use_kh=True`. Reference indices are stored as `ref_es` (always), `ref_sweeting` (conditional on the binary branch), `ref_reml` (always), `ref_i2` (always), `ref_kh` (conditional on `use_kh`), `ref_py` (always), and `ref_tool` (always) — then interpolated into the prose so the in-text citation numbers always match the rendered bibliography.
+3. **Conditional disclosures.** Guarded by `if 'ANALYSIS_CONFIG' in globals():` (line 1757, a defensive check against module-import without the global config), the function reads `ANALYSIS_CONFIG.get('sd_missing_strategy', 'none')` and appends an explicit caveat ("treating imputed variances as known parameters may slightly underestimate the true uncertainty …") on any of the three imputation branches `median_cv` / `nearest` / `custom_cv`.
 
-Reads from the `OverallResult` dataclass and emits a fully-formed Results paragraph:
+#### `OverallPublicationTextGenerator.generate_results_section(self, result, es_config)`
+
+Signature `generate_results_section(self, result: 'OverallResult', es_config: Dict[str, Any]) -> str` (Cell 7 line 1789). Reads from the `OverallResult` dataclass and emits a fully-formed Results paragraph:
 
 * Selects the reporting target (`mu_p = result.mu_random if result.best_model == "2-Level" else result.mu_3level`); same triage for `ci_lo_p`, `ci_hi_p`, `p_p`.
 * **Effect-size description** chosen from a literal lookup `es_map` keyed on `es_config['type']`.
 * **Significance / formatting** — `sig_text = "significant" if p_p < 0.05 else "non-significant"`; `p_format = "< 0.001" if p_p < 0.001 else f"= {p_p:.3f}"`.
 * **Magnitude interpretation** — Cohen-style bins on `abs(mu_p)` (`< 0.2` negligible, `< 0.5` small, `< 0.8` moderate, else large); for `log_or` / `log_rr`, bins on `exp(|μ|)` (`< 1.5`, `< 3.0`, ≥ 3.0).
 * **Heterogeneity interpretation** — Higgins-style bins on `result.I2` (`< 25`, `< 50`, `< 75`, else considerable).
-* **Model-selection narrative** — three branches gated on `result.best_model`, `delta_aic = abs(aic_2level − aic_3level)`, and `variance_collapsed = (sigma_squared_3level < 1e-5) or (tau_squared_3level < 1e-5)`.
+* **Model-selection narrative.** Wrapped in an outer `if result.has_3level: ... else: ...` (line 1870). The `else` arm is the *no-3L-evaluated* case and emits a single sentence — *"A standard two-level random-effects meta-analysis was conducted."* Inside the `if` arm, three sub-branches are gated on `result.best_model`, `delta_aic = abs(aic_2level − aic_3level)`, and `variance_collapsed = (σ² is not None and σ² < 1e-5) or (τ² is not None and τ² < 1e-5)` (the `is not None` guards prevent a crash when the 3L fit did not return a variance component):
+  - **3L wins** (`best_model == "3-Level"`) — favours the three-level model based on a structure-aware decision tree plus AIC.
+  - **Collapse fallback** (`variance_collapsed`) — defaults to the two-level model because the 3L fit hit a parameter boundary (a variance component approached zero), signalling the dataset lacks the topological information needed to support three hierarchical levels.
+  - **AIC favours 2L** (otherwise) — favours 2L using a conservative, boundary-aware threshold of `ΔAIC ≥ 3`, citing Greven & Kneib (2010) inline for the threshold choice.
 
-The final HTML is committed via `OverallDataManager.save_publication_text(text)` → `ANALYSIS_CONFIG['overall_text']`, which is what the Excel exporter (`export_analysis_report(report_type, filename_prefix)`, Cell 1 line 2397) ships in the "Publication Text" sheet alongside the protocol metadata captured by `_get_protocol_metadata(report_type)`.
+The final HTML is wired through the Controller in two stages (Cell 7 lines 2682 and 2688):
+
+1. `OverallResultsView.render_publication_tab(result, es_config)` is invoked, which internally calls both methods of `OverallPublicationTextGenerator` and returns a combined HTML string.
+2. The Controller then persists that string with `OverallDataManager.save_publication_text(text)` → `ANALYSIS_CONFIG['overall_text']` (Cell 7 line 372).
+
+The Excel exporter (`export_analysis_report(report_type, filename_prefix)`, Cell 1 line 2507) then ships `ANALYSIS_CONFIG['overall_text']` in the "Publication Text" sheet alongside the protocol metadata captured by `_get_protocol_metadata(report_type)`.
 
 ```mermaid
 flowchart LR
@@ -1044,20 +1402,43 @@ flowchart LR
 
 ## 6. Extension Guide: Adding a New Analytical Module
 
-Follow the canonical `Manager / Engine / View / Controller` pattern used by every existing cell. A new module *N* should consume `ANALYSIS_CONFIG['analysis_data']`, `ANALYSIS_CONFIG['vcv_matrices']`, and `ANALYSIS_CONFIG['global_settings']`, and must write its outputs back under a single namespaced key, e.g. `ANALYSIS_CONFIG['mymodule_results']`.
+CoMeta's per-cell architecture is uniform across every existing analytical cell (Overall, Subgroup, Meta-Regression, Spline, LOO, Cumulative, …). Following the same four-class pattern guarantees that a new module integrates with the global state, the staleness propagation system, the JSON round-trip, the Excel exporter, and the publication-text generator without further changes elsewhere in the notebook.
 
-### 6.1 Reading the global dataframe and VCV
+### 6.0 The four-class pattern
+
+| Class | Reference (Cell 7) | Responsibility |
+|---|---|---|
+| `*DataManager` | `OverallDataManager` (line 120) | Centralised read/write layer over `ANALYSIS_CONFIG`. Exposes typed property accessors (`analysis_data`, `effect_col`, `var_col`, `vcv_matrices`, `es_config`, `global_settings`) and *typed* save methods (one per result kind, e.g. `save_overall_results`, `save_publication_text`). Performs prerequisite validation in `__init__`. |
+| `*Engine` | `OverallEngine` (line 1101) | Orchestrates the statistical computation. Composes shared sub-engines from Cell 1 (`FixedEffectEngine`, `HeterogeneityEngine`, `TwoLevelEngine`, `ThreeLevelEngine`) rather than re-implementing primitives. Takes a `DataManager` in its constructor; exposes a top-level `run_analysis(...)` (or `fit(...)`). |
+| `*ResultsView` | `OverallResultsView` (line 2052) | Owns the rendering side. Manages a `widgets.Tab` whose children are individual `widgets.Output` panels; exposes a `render(result)` method that writes formatted HTML / matplotlib output into each tab. |
+| `*Controller` | `OverallController` (line 2467) | The MVC glue. Instantiates the DataManager, Engine, and ResultsView; creates the settings widgets; registers the staleness banner; wires the run button to a `_on_run_clicked` handler that calls the engine, saves the result, clears its own staleness, and marks downstream cells stale. |
+
+A new module *N* must:
+- consume `ANALYSIS_CONFIG['analysis_data']` and `ANALYSIS_CONFIG['vcv_matrices']` (both written by Cell 6) and `ANALYSIS_CONFIG['global_settings']` (written by Cell 7 line 361, inside `OverallDataManager.save_global_settings`),
+- write its outputs back under namespaced keys (e.g. `ANALYSIS_CONFIG['mymodule_results']`, `ANALYSIS_CONFIG['mymodule_text']`),
+- register a single staleness-banner ID that is short and globally unique, and
+- add that ID to `ALL_DOWNSTREAM` in Cell 1 (line 145) if upstream config changes should invalidate the module.
+
+### 6.1 The DataManager
 
 ```python
-# Inside MyModuleDataManager (mirroring OverallDataManager)
+# Inside MyModuleDataManager (mirroring OverallDataManager, Cell 7 lines 120–395)
 class MyModuleDataManager:
     def __init__(self, analysis_config):
         self._config = analysis_config
+        self._validate_prerequisites()
 
+    def _validate_prerequisites(self):
+        if 'effect_col' not in self._config:
+            warnings.warn("effect_col not in ANALYSIS_CONFIG, using default 'hedges_g'")
+        if 'var_col' not in self._config:
+            warnings.warn("var_col not in ANALYSIS_CONFIG, using default 'Vg'")
+
+    # ── property accessors ─────────────────────────────────────
     @property
     def analysis_data(self):
         df = self._config.get('analysis_data')
-        return df.copy() if df is not None else None
+        return df.copy() if df is not None else None      # defensive copy
 
     @property
     def effect_col(self):
@@ -1071,13 +1452,32 @@ class MyModuleDataManager:
     def vcv_matrices(self):
         return self._config.get('vcv_matrices', {})
 
-    def save_results(self, payload: dict):
-        self._config['mymodule_results'] = payload
+    @property
+    def es_config(self):
+        return self._config.get('es_config', {})
+
+    @property
+    def global_settings(self):
+        return self._config.get('global_settings',
+                                {'alpha': 0.05, 'dist_type': 't'})
+
+    # ── typed save methods (one per result kind) ───────────────
+    def save_results(self, result):
+        self._config['mymodule_results'] = result
+
+    def save_publication_text(self, html: str):
+        self._config['mymodule_text'] = html
 ```
 
-### 6.2 Engine wiring (re-using primitives)
+Notes:
+- `analysis_data` returns a **copy** so that engine code cannot mutate the global dataframe in place.
+- The real `OverallDataManager` types its save methods to specific result classes (`save_overall_results(result: OverallResult)`, `save_publication_text(text: str)`, `save_global_settings(...)`). Keep your save methods generic if your result is a plain dict, or introduce a `@dataclass MyModuleResult` and type the save method against it — both styles are accepted by the rest of the pipeline as long as the saved object is JSON-coercible via `make_json_safe`.
 
-Re-use the existing Cell 1 primitives rather than re-implementing them:
+### 6.2 The Engine
+
+Re-use existing Cell 1 primitives rather than re-implementing them. Two patterns are common:
+
+**Pattern A — single statistical routine.** If your module only needs one regression call, mirror the call sites in Cells 9 (subgroup execution) and 12 (meta-regression):
 
 ```python
 class MyModuleEngine:
@@ -1085,49 +1485,72 @@ class MyModuleEngine:
         self.dm = data_manager
 
     def fit(self, alpha=0.05, dist_type='t'):
-        df = self.dm.analysis_data
-        df = df.sort_values('id').reset_index(drop=True)
+        df = self.dm.analysis_data.sort_values('id').reset_index(drop=True)
 
-        # Three-level regression with CR2 — same pattern as Cells 9 / 12
+        # Three-level regression with CR2 (Cell 1, line 1402).
+        # NB. The first positional parameter of this routine is `analysis_data`,
+        # not `df` — passing by keyword keeps the call grep-able against source.
         final_est, info, opt = _run_three_level_reml_regression_v2(
-            df, moderator_col='my_predictor',
-            effect_col=self.dm.effect_col, var_col=self.dm.var_col
+            analysis_data=df,
+            moderator_col='my_predictor',
+            effect_col=self.dm.effect_col,
+            var_col=self.dm.var_col,
         )
-
-        # CR2 + Satterthwaite are already inside _run_three_level_reml_regression_v2,
-        # but you can also call _compute_robust_var_betas directly if you build
-        # X_all / vcv_all manually.
+        # CR2 + Satterthwaite are already executed inside the routine. If you
+        # need to call _compute_robust_var_betas directly, assemble X_all and
+        # vcv_all manually and follow the contract from §4.3.
         return final_est
 ```
 
-If your module needs a *new* design matrix (e.g. splines, polynomials, interactions), follow `_run_robust_spline_analysis(df, moderator_col, effect_col, var_col, df_spline=3)` (Cell 1, line 2051), which builds a `patsy.dmatrix` basis and then calls `_compute_robust_var_betas` on the resulting `X_all`.
+**Pattern B — composing sub-engines.** If you need fixed-effect, 2-level, and 3-level fits side by side (the way the Overall module does it), follow `OverallEngine.__init__` (Cell 7 line 1107), which composes four orthogonal sub-engines from Cell 1:
 
-### 6.3 Binding to the UI
+```python
+class MyModuleEngine:
+    def __init__(self, data_manager):
+        self.dm = data_manager
+        self.fixed_engine       = FixedEffectEngine()
+        self.het_engine         = HeterogeneityEngine()
+        self.three_level_engine = ThreeLevelEngine()
+        # ...add any module-specific sub-engines here
+```
+
+For modules that need a **new design matrix** (splines, polynomials, interactions), use `_run_robust_spline_analysis(df, moderator_col, effect_col, var_col, df_spline=3)` (Cell 1, line 2161) as a template — it builds a `patsy.dmatrix` basis with the "plug-in" trick (freeze τ²/σ² from a linear fit before solving the spline coefficients) and then calls `_compute_robust_var_betas` on the resulting `X_all`.
+
+### 6.3 The Controller and UI binding
 
 ```python
 class MyModuleController:
     def __init__(self, analysis_config):
         self.dm = MyModuleDataManager(analysis_config)
         self.engine = MyModuleEngine(self.dm)
-        self.view = MyModuleResultsView()      # render() methods write into widgets.Output tabs
+        self.view = MyModuleResultsView()      # render() writes into widgets.Output tabs
 
-        # Register staleness banner
+        # ── staleness banner ──────────────────────────────────────
+        # 'mymodule' is the module ID — short, lower-snake-case, globally
+        # unique, and added to ALL_DOWNSTREAM in Cell 1 (line 145) if this
+        # module should be invalidated by upstream config changes.
         self.stale_banner = widgets.HTML(value="")
         register_banner('mymodule', self.stale_banner)
 
-        # Configurable widgets — observers MUST mark downstream cells stale
+        # ── settings widgets ─────────────────────────────────────
         self.alpha_widget = widgets.Dropdown(
             options=[('95% CI', 0.05), ('99% CI', 0.01)],
             value=0.05, description='Confidence:'
         )
+        # Reproducibility: restore widget value from JSON-loaded config.
+        if (saved := analysis_config.get('mymodule_alpha')) is not None:
+            self.alpha_widget.value = saved
+
         self.run_button = widgets.Button(description='Run Analysis')
         self.run_button.on_click(self._on_run_clicked)
 
     def _on_run_clicked(self, b):
         result = self.engine.fit(alpha=self.alpha_widget.value)
         self.dm.save_results(result)
-        clear_stale('mymodule')
-        mark_stale(['plots'], "MyModule Re-run")
+        self.dm._config['mymodule_alpha'] = self.alpha_widget.value  # persist for JSON
+
+        clear_stale('mymodule')                       # clear my own banner
+        mark_stale(['plots'], "MyModule Re-run")      # invalidate downstream plots
         self.view.render(result)
 
 def run_mymodule():
@@ -1137,19 +1560,83 @@ def run_mymodule():
     ctl = MyModuleController(ANALYSIS_CONFIG)
     display(widgets.VBox([ctl.stale_banner, ctl.alpha_widget,
                           ctl.run_button, ctl.view.tabs]))
-    # Optional: auto-execute under reproducibility mode
+    # Reproducibility mode: auto-execute when ANALYSIS_CONFIG was loaded from JSON
     if ANALYSIS_CONFIG.get('is_reproducing', False):
         ctl._on_run_clicked(None)
 
 run_mymodule()
 ```
 
+#### Staleness contract (read this before choosing the module ID)
+
+The staleness machinery lives in Cell 1 (lines 115–145) and exposes three primitives:
+
+| Primitive | Cell 1 line | Purpose |
+|---|---|---|
+| `STALE_BANNERS = {}` | 115 | Global registry: module_id → `widgets.HTML` banner. |
+| `register_banner(module_id, banner)` | 117 | Register a module's banner so it can be activated globally. |
+| `mark_stale(module_ids: list, trigger_source: str)` | 121 | Activate the banners of all listed downstream modules with a uniform "Stale Results Detected" notice citing `trigger_source`. |
+| `clear_stale(module_id)` | 140 | Clear a single module's banner after a successful re-run. |
+
+Three rules govern correct registration:
+
+1. **Module IDs are flat strings**, listed canonically on Cell 1 line 145:
+   ```python
+   ALL_DOWNSTREAM = ['overall', 'subgroup', 'regression', 'spline',
+                     'pub_bias', 'pet_peese', 'loo', 'cumulative', 'plots']
+   ```
+   Choose a short, lower-snake-case ID for your module (e.g. `'mymodule'`).
+2. **If your module is downstream of upstream config changes** — i.e. modifying Cells 4–6 (data prep / VCV / global settings) should invalidate your results — add your ID to `ALL_DOWNSTREAM`. Upstream cells call `mark_stale(ALL_DOWNSTREAM, "<trigger>")` and rely on the constant being current.
+3. **If your module is upstream of others** — i.e. running yours should invalidate visualisations or sensitivity analyses — pass the affected IDs to `mark_stale(...)` in `_on_run_clicked` *after* saving the result. The example above marks only `'plots'`; widen the list as the module's downstream impact requires.
+
 ### 6.4 Reporting and serialisation
 
-* Always coerce numerics with `make_json_safe(...)` before writing to `ANALYSIS_CONFIG` if your result dictionary may contain numpy types.
-* Add your new result key to the `RESULT_KEYS` set inside `export_config_for_reproducibility` (Cell 1) so it is *not* serialised; only inputs (widget values, configuration) belong in the JSON.
-* If you want your module to appear in the Excel export, add a branch in `_get_protocol_metadata(report_type)` and call `export_analysis_report(report_type='mymodule', filename_prefix='MyModule')`.
-* Provide a `MyModulePublicationTextGenerator` that consumes the result object and produces an HTML fragment, then save with `self.dm._config['mymodule_text'] = html` — the same pattern used by `OverallPublicationTextGenerator` and `generate_methods_section` / `generate_results_section`.
+Four hooks must be touched for a new module to integrate with the export pipeline:
+
+1. **JSON exclusion (`RESULT_KEYS`).** Inside `export_config_for_reproducibility` (Cell 1, line 2768) there is a local set called `RESULT_KEYS` (line 2777). Add your new result keys (e.g. `'mymodule_results'`, `'mymodule_text'`) to that set so they are *excluded* from the JSON snapshot — only inputs (widget values, configuration) belong in the JSON; outputs are recomputed when the session is reloaded.
+2. **Numeric coercion (`make_json_safe`).** Anything you store under `ANALYSIS_CONFIG` that *isn't* in `RESULT_KEYS` must round-trip through JSON. Coerce numpy scalars / arrays via `make_json_safe(...)` (Cell 1 line 2739) before assignment — it recursively handles `np.integer`, `np.floating`, `np.bool_`, `np.ndarray`, `datetime`, nested dicts/lists, and sets, falling through to a `json.dumps` probe for anything else.
+3. **Protocol metadata (`_get_protocol_metadata`).** Add a branch to `_get_protocol_metadata(report_type)` (Cell 1 line 2384) that returns `[{'Category', 'Parameter', 'Value'}]` rows describing your module's user settings; these populate a dedicated sheet of the Excel export.
+4. **Excel export (`export_analysis_report`).** Add a branch to `export_analysis_report(report_type=..., filename_prefix=...)` (Cell 1 line 2507) that pulls your saved result out of `ANALYSIS_CONFIG['mymodule_results']` and writes it to one or more `pd.ExcelWriter` sheets. Call from the Controller after a successful run:
+   ```python
+   export_analysis_report(report_type='mymodule', filename_prefix='MyModule')
+   ```
+
+For the **publication-text generator**, follow `OverallPublicationTextGenerator` (Cell 7 line 1657) and the procedural helpers `generate_methods_section(es_config, use_kh)` (Cell 7 line 1665) and `generate_results_section(result, es_config)` (Cell 7 line 1789). The Controller should call:
+```python
+html = MyModulePublicationTextGenerator(self.dm.es_config).render(result)
+self.dm.save_publication_text(html)
+```
+
+#### Reproducibility round-trip
+
+When `ANALYSIS_CONFIG` is loaded from a JSON export, every key in `RESULT_KEYS` is *absent* (deliberately excluded on export); only the widget values and configuration are present, under their original keys. Reading them back is symmetrical: in the Controller's `__init__`, after instantiating each widget, restore it from the saved config:
+```python
+if (saved := analysis_config.get('mymodule_alpha')) is not None:
+    self.alpha_widget.value = saved
+```
+and in `_on_run_clicked`, persist the latest value back:
+```python
+analysis_config['mymodule_alpha'] = self.alpha_widget.value
+```
+The `if ANALYSIS_CONFIG.get('is_reproducing'): ctl._on_run_clicked(None)` line at the end of `run_mymodule()` then auto-fires the run with the restored widget values, producing byte-identical output from the same JSON input.
+
+### 6.5 Shipping checklist
+
+Before opening a PR for a new analytical module, verify each of the following:
+
+- [ ] `*DataManager`, `*Engine`, `*ResultsView`, `*Controller` classes defined and following the §6.0 responsibilities.
+- [ ] `_validate_prerequisites` raises (or warns) when `ANALYSIS_CONFIG` is incomplete.
+- [ ] `analysis_data` accessor returns a defensive copy (not the underlying dataframe).
+- [ ] `register_banner('<id>', self.stale_banner)` called in `Controller.__init__`.
+- [ ] `<id>` added to `ALL_DOWNSTREAM` (Cell 1 line 145) if upstream changes should invalidate this module.
+- [ ] `_on_run_clicked` calls `clear_stale('<id>')` after saving, then `mark_stale([...], "<trigger>")` to invalidate downstream modules.
+- [ ] All saved result keys (`<id>_results`, `<id>_text`, …) added to `RESULT_KEYS` in `export_config_for_reproducibility` (Cell 1 line 2777).
+- [ ] All widget values you want to round-trip are persisted as JSON-safe scalars under their own top-level keys, *outside* the `RESULT_KEYS` namespace.
+- [ ] Branch added to `_get_protocol_metadata(report_type)` (Cell 1 line 2384).
+- [ ] Branch added to `export_analysis_report(report_type=..., filename_prefix=...)` (Cell 1 line 2507).
+- [ ] `MyModulePublicationTextGenerator` defined and called from `_on_run_clicked` via `save_publication_text`.
+- [ ] `if ANALYSIS_CONFIG.get('is_reproducing'): ctl._on_run_clicked(None)` hook present at the bottom of `run_<module>()`.
+- [ ] A validation cell (in the §🧪 Validation block at the end of the notebook) compares the module's output to an R reference (or to a known-good static result) for at least one canned dataset.
 
 Following this contract, a new analytical module integrates with the existing staleness propagation, JSON round-trip, Excel export, and publication-text generation with no further changes elsewhere in the notebook.
 
