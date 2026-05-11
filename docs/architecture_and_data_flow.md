@@ -28,6 +28,7 @@ This document is organised as a top-down traversal of the CoMeta pipeline, from 
 | [4.4](#44-library-stack) | Library stack | The exhaustive NumPy / SciPy / `patsy` / pandas dependency map, plus the `check_and_lockdown()` environment-protection mechanism. |
 | [4.5](#45-fallback-mechanisms) | Fallback mechanisms | The six graceful-degradation pathways (topological pre-check, boundary collapse, optimiser failure, regression Plan A→B→C, CR2 numerical failure, τ² estimator fallback) and the ten channels through which they are surfaced to the user. |
 | [4.6](#46-publication-bias-diagnostics-cells-1619) | Publication-bias diagnostics | Egger's regression, Duval–Tweedie trim-and-fill (Cell 16), and PET-PEESE (Cell 18) — all fitted through the same three-level REML core — plus the funnel / trim-and-fill plots (Cells 17, 19). |
+| [4.7](#47-sensitivity-analysis-cells-2022) | Sensitivity analysis | The subgroup-style 3-level orchestrator `_run_three_level_reml_for_subgroup` with its Plan A/B/C structural fallback (Cell 20), the LOO MVC (`BaselineEstimator` → `LOOIterator` → `InfluenceDetector`), the LOO forest plot with significance-change highlighting (Cell 21), and the Baujat heterogeneity-vs-influence scatter (Cell 22). |
 | [5](#5-session-serialization--reporting) | **Session Serialization & Reporting** | How a CoMeta session is captured as a JSON file and round-tripped back into a fresh runtime, and how the publication-text generators read the result objects to produce manuscript-ready Materials & Methods and Results prose. |
 | [5.1](#51-json-serialization-cell-1-lines-26292768) | JSON serialization | `make_json_safe`, `export_config_for_reproducibility` with the `RESULT_KEYS` skip-list, the optimiser-defaults block, and `load_reproducibility_config`. |
 | [5.2](#52-automated-materials--methods--results-generator) | Materials & Methods / Results generator | Dynamic citation database, conditional disclosures (SD imputation, Knapp–Hartung), Cohen/Higgins effect-size and heterogeneity interpretation bins, and the three-branch model-selection narrative. |
@@ -1157,6 +1158,148 @@ flowchart LR
     AC1 --> V19["Cell 19<br/>generate_funnel_plot"]
     AC2 --> V17["Cell 17<br/>generate_tf_plot"]
     AC1 & AC2 --> CA["get_combined_assessment<br/>HIGH / MODERATE / LOW RISK"]
+    classDef n fill:#dbeafe,stroke:#1d4ed8
+    classDef g fill:#bbf7d0,stroke:#15803d
+```
+
+---
+
+### 4.7 Sensitivity analysis (Cells 20–22)
+
+Three cells implement the classical sensitivity-analysis triad — *leave-one-out* (LOO) execution, *LOO forest* visualisation, and the *Baujat* heterogeneity-vs-influence scatter. Cell 20 alone is the **largest cell in the notebook** (~1,890 lines, 67 K chars) and owns both the LOO MVC stack and a *third* three-level REML orchestrator, `_run_three_level_reml_for_subgroup`, distinct from the `_run_three_level_reml_regression_v2` routine documented in § 4.3. The two visualisation cells (21, 22) are stateless: they read `ANALYSIS_CONFIG['loo_results']` and render `matplotlib` figures.
+
+| Cell | Module | What it owns |
+|---|---|---|
+| 20 | `_run_three_level_reml_for_subgroup` (free function), `LOODataManager` / `LOOEngine` / `LOOController` (+ `LOOConfig`, `OriginalEstimate`, `LOOIteration`, `LOOResult` dataclasses + `BaselineEstimator`, `LOOIterator`, `InfluenceDetector`, `CICalculator` sub-engines) | LOO execution: Plan A/B/C 3-level optimiser, baseline fit, k iterations, influence detection (full MVC; ~1,890 lines) |
+| 21 | `generate_loo_plot` | LOO forest plot, reads `loo_results` |
+| 22 | `generate_baujat_plot` | Baujat scatter (Q-contribution vs LOO influence), reads `loo_results` + `analysis_data` |
+
+#### 4.7.1 The subgroup-style 3-level orchestrator (Cell 20, lines 14–259)
+
+`_run_three_level_reml_for_subgroup(analysis_data, effect_col, var_col)` is the **second** of three 3-level REML orchestrators in the codebase, shared by both the Subgroup module (Cell 9) and the LOO baseline / iteration loop. It differs from `_run_three_level_reml_regression_v2` (§ 4.3) in three important ways:
+
+1. **Intercept-only model.** The design matrix is implicit — no moderator column is consumed. The likelihood used is `_negative_log_likelihood_reml` (defined in Cell 1, separate from `_neg_log_lik_reml_reg` used by the meta-regression / Egger paths in § 4.3 and § 4.6.1).
+2. **Three-tier fallback strategy (Plan A → B → C).** Where § 4.3's `_run_three_level_reml_regression_v2` only has the regression-specific Plan A/B/C fallback for moderator-model fits, this orchestrator's three tiers are *structural*:
+
+   | Plan | Tier | Trigger |
+   |---|---|---|
+   | A | Full 3-level with **block-diagonal VCV** from `ANALYSIS_CONFIG['vcv_matrices']` | `three_level_viable` AND `has_off_diagonal` (i.e. at least one cluster has shared-control off-diagonals from § 3.4) |
+   | B | Full 3-level with **diagonal VCV** (independence assumption) | Plan A failed *or* no off-diagonal structure exists |
+   | C | **2-level** model with σ² fixed to `1e-10` | Plan A and Plan B both failed |
+
+   The `three_level_viable` gate is `n_multi_obs_studies >= 1 and N_total > M_studies` — i.e. σ² is only identifiable when at least one study has more than one effect size *and* the total number of observations exceeds the number of studies. Plan A is skipped entirely if no cluster carries off-diagonal mass (a pure-singleton dataset has nothing for the VCV path to add).
+
+3. **Optimiser configuration tightened for sensitivity work.** The L-BFGS-B options are deliberately stricter than the meta-regression path: `ftol=1e-12`, `gtol=1e-10`, `maxiter=5000`, `maxfun=10000`, with bounds `(1e-8, 50.0)` on both variance components. Six fixed starting points `[[0.01,0.01], [0.1,0.1], [0.5,0.5], [1.0,1.0], [1.0,0.1], [0.1,1.0]]` are augmented at runtime with a *seventh*-and-*eighth* DL-derived start `[τ²_DL, 0.01]` and `[τ²_DL, τ²_DL·0.5]` (lines 94–98) when `calculate_tau_squared(..., method='DL')` succeeds. If *all* eight starts fail to converge, a **log-space BFGS fallback** (lines 138–157) re-parameterises `params = exp(log_params)` to enforce positivity without bound constraints — a recovery branch that is only entered when the boxed L-BFGS-B has fundamentally failed to find a feasible region.
+
+The return signature is `(estimates_dict, debug_tuple)` or `(None, None)` on total failure. The estimates dictionary is augmented with `model_type` ∈ {`'3-level-vcv'`, `'3-level-diag'`, `'2-level'`}, plus `n_studies`, `n_observations`, `n_multi_obs_studies`, and the optimiser metadata — so downstream code can audit which plan actually succeeded for each fit.
+
+#### 4.7.2 LOO orchestration (Cell 20)
+
+The LOO module is a full MVC, instantiated from the controller in three layers that each have a single responsibility.
+
+**`LOOConfig`** (line 266). Frozen `@dataclass` with the user-facing knobs: `effect_col`, `var_col`, `alpha=0.05`, `influence_threshold=20.0` (percent change from baseline; see § 4.7.2 below). `__post_init__` validates each field and raises `ValueError` early if invalid.
+
+**Per-iteration result dataclasses.** `OriginalEstimate` (line 286) carries the full-model baseline `(μ, SE, CI_lo, CI_hi, τ², σ²)`; `LOOIteration` (line 297) carries one removed-study fit `(excluded_study, μ, SE, CI_lo, CI_hi, τ², σ², diff, pct_change, is_influential)`; `LOOResult` (line 312) wraps the baseline together with a DataFrame of all iterations plus `n_studies`, `n_influential`, `min_estimate`, `max_estimate`, `range_estimate`, and the `top_influential` slice (top 5 by absolute difference).
+
+**`BaselineEstimator.estimate_baseline(df)`** (line 595). One fit through `_run_three_level_reml_for_subgroup` on the full dataset, extracting `μ`, `SE`, `CI_lower/upper`, `τ²`, `σ²`. Falls back to `CICalculator.calculate_ci(μ, SE, alpha)` if the orchestrator's estimates dictionary does not carry CI columns. Returns `None` on failure — the LOO engine then aborts before entering the iteration loop.
+
+**`LOOIterator.run_iterations(df, study_ids, baseline, progress_callback)`** (line 699). The hot loop, wrapped in a `tqdm` progress bar:
+
+```python
+for i, exclude_id in enumerate(tqdm(study_ids, desc="Leave-One-Out Analysis", unit="study")):
+    subset_df = df[df['id'] != exclude_id].copy()                    # drop one cluster
+    estimates, metadata = _run_three_level_reml_for_subgroup(
+        subset_df, self.effect_col, self.var_col                     # FULL 3L re-fit
+    )
+    if estimates is None:
+        warnings.warn(f"Failed to fit model without study {exclude_id}")
+        continue                                                      # skip, don't abort
+    mu  = estimates['mu']
+    se  = estimates.get('se_mu', estimates.get('se', np.nan))
+    ...
+    diff       = mu - baseline.mu
+    pct_change = (diff / baseline.mu) * 100 if baseline.mu != 0 else 0.0
+    is_influential = abs(pct_change) > self.influence_threshold
+    iterations.append(LOOIteration(excluded_study=str(exclude_id), ...))
+```
+
+Two design choices distinguish this from a naive LOO loop:
+
+1. **Every iteration re-runs the *full* Plan A/B/C orchestrator.** It does not cache the variance components from the baseline fit — by re-optimising τ² and σ² without each study, the routine produces honest sensitivity estimates that account for *how the removed study changed the heterogeneity structure*, not just the pooled mean.
+2. **Failed iterations are warnings, not exceptions.** If `_run_three_level_reml_for_subgroup` returns `None` for a particular `exclude_id` (e.g. removing it leaves the design rank-deficient), the iterator skips that study with a `warnings.warn` rather than aborting the whole LOO sweep. The downstream `InfluenceDetector` operates on whichever iterations *did* converge.
+
+**`InfluenceDetector.analyze_iterations`** (line 802). Static method that materialises the per-iteration `LOOIteration` list into a DataFrame, computes `n_influential = (is_influential == True).sum()`, the range `[min_estimate, max_estimate]`, and the `top_influential` slice — `iter_df.sort_values('abs_diff', ascending=False).head(5)`.
+
+**`LOOEngine.run_analysis(progress_callback)`** (line 906). The five-step orchestrator: prepare data → estimate baseline → run k iterations (with a `iter_progress` shim that converts `(i, total, study_id)` triples to the controller-side `progress` widget) → analyse influence → assemble a `LOOResult`. `None` is returned if data preparation, baseline estimation, or all iterations fail.
+
+**Persistence.** `LOODataManager.save_loo_results(result)` (line 492) writes a **dict-shaped legacy payload** to `ANALYSIS_CONFIG['loo_results']` — not the raw `LOOResult` dataclass:
+
+```python
+self._config['loo_results'] = {
+    'timestamp':     datetime.datetime.now(),
+    'data':          result.iterations,                # the DataFrame
+    'orig_mu':       result.original.mu,
+    'orig_ci_lo':    result.original.ci_lower,
+    'orig_ci_hi':    result.original.ci_upper,
+    'n_studies':     result.n_studies,
+    'n_influential': result.n_influential,
+    'min_estimate':  result.min_estimate,
+    'max_estimate':  result.max_estimate,
+}
+```
+
+This shape — `dict` with a `'data'` DataFrame key plus the baseline scalars — is what Cells 21 and 22 expect. (Both viz cells also accept a bare DataFrame for backward compatibility with an older pipeline.) The publication-text fragment is written separately to `ANALYSIS_CONFIG['loo_text']` by `LOOPublicationTextGenerator` (Cell 20 line 1069) — the only module besides Overall, PET-PEESE, and Cumulative that ships a dedicated publication-text class.
+
+#### 4.7.3 LOO forest plot (Cell 21, lines 99–~290)
+
+`generate_loo_plot(b)` is a button-handler that renders a *horizontal forest plot* of the LOO sweep. Each row corresponds to one excluded study; the dot shows the recomputed pooled mean and the horizontal bar is its 95% (or `alpha`-aware) CI. Key behaviours:
+
+- **Format-tolerant ingestion.** Accepts either the modern dict-shaped payload (`loo_results['data']` is the DataFrame, baseline read from sibling keys) or a bare DataFrame (baseline read from `overall_results.mu_robust` / `mu` and `ci_lower_robust` / `ci_lower`). Column rename `mu → pooled_effect` and `excluded_study → unit_removed` normalises the two payload generations.
+- **Significance-change highlighting.** A `changes_sig` flag is computed per row by comparing whether the LOO CI brackets the user-configured `null_value` against whether the original CI did. Rows whose significance verdict flipped after removal are coloured red (when `highlight_sig_widget.value` is on) — this is the visual signal that a single study was driving statistical significance.
+- **Reference overlay.** A solid vertical line at `null_value`, a dashed vertical line at the original `μ`, and a shaded vertical band for the original 95% CI provide three deterministic reference anchors.
+- **Sort modes.** `'influence'` (ascending `|μ_LOO − μ_baseline|`, so the most influential study is at the top), `'id'` (numeric/lexicographic), `'effect'` (ascending `μ_LOO`).
+
+#### 4.7.4 Baujat plot (Cell 22, lines 111–~340)
+
+`generate_baujat_plot(b)` (Baujat et al., 2002) plots each study at the coordinates `(Q-contribution, |Δμ|_LOO)` — heterogeneity contribution on the x-axis, influence on the pooled effect on the y-axis. Studies in the upper-right quadrant are *both* heterogeneous and influential — the canonical "outlier" zone.
+
+**X-axis — Q-contribution.** Computed inside the cell rather than read from `overall_results`, because Baujat plots traditionally use the *fixed-effect* pooled mean as the centre (lines 149–157):
+
+$$
+\hat{\mu}_{FE} = \frac{\sum_i w_i y_i}{\sum_i w_i}, \quad w_i = 1/v_i, \quad
+Q_{\text{contrib}}(s) = \sum_{j \in s} w_j \,(y_j - \hat{\mu}_{FE})^2.
+$$
+
+The code comment on line 150 explicitly states *"Baujat plots use the Fixed Effect mean to calculate Q contributions. We calculate it here to ensure accuracy regardless of the main model type."* — i.e. even if the overall fit chose the random-effects or 3-level model, Baujat anchors on the FE mean so the heterogeneity diagnostic is consistent with the textbook definition.
+
+**Y-axis — influence.** Read directly from `loo_results['data']['abs_diff']` (already computed in § 4.7.2 as `|μ_LOO − μ_baseline|`), with a fallback that recomputes from `orig_mu` and `μ` if the column is absent (older payloads).
+
+**Outlier labelling.** Three labelling methods, gated by `show_labels_widget.value`:
+
+- `'combined'`: standardise both axes by z-score, then label the top-`n_lbl` studies by Euclidean distance from origin — equivalent to a circular outlier criterion in z-space.
+- `'heterogeneity'`: top-`n_lbl` by raw `Q_contrib`.
+- `'influence'`: top-`n_lbl` by raw `abs_diff`.
+
+Optional `adjustText.adjust_text` is invoked when the `'best'` label position is selected, to repel overlapping annotations.
+
+**Reference lines.** Median `Q_contrib` (vertical) and median `abs_diff` (horizontal) split the plot into four quadrants when `show_median_lines_widget.value` is on.
+
+#### Module wiring
+
+Cell 20 registers the staleness banner `'loo'` (see § 1.2 and `ALL_DOWNSTREAM` on Cell 1 line 145). The Excel exporter dispatches on `report_type='loo'` (Cell 1 `export_analysis_report` line 2507) to ship the LOO iterations DataFrame, the baseline and range scalars, the influence threshold, and the publication-text fragment to a single workbook. Cells 21 and 22 do *not* register banners — they are pure visualisations that re-read `loo_results` on every render and so are implicitly invalidated whenever the LOO execution cell is re-run.
+
+```mermaid
+flowchart LR
+    DF["analysis_data + vcv_matrices<br/>(from §3.4)"]:::n --> BE["Cell 20<br/>BaselineEstimator.estimate_baseline<br/>full-model fit via<br/>_run_three_level_reml_for_subgroup"]
+    BE --> BL["OriginalEstimate<br/>(μ, SE, CI, τ², σ²)"]
+    DF --> IT["Cell 20<br/>LOOIterator.run_iterations<br/>for each study s:<br/>refit on df.id ≠ s<br/>compute diff, pct_change"]
+    BL --> IT
+    IT --> ID["Cell 20<br/>InfluenceDetector<br/>n_influential = (|pct_change| > 20%).sum()<br/>top_influential = top 5 by |Δμ|"]
+    ID --> RES["LOOResult"]
+    BL --> RES
+    RES --> SAVE["LOODataManager.save_loo_results<br/>→ ANALYSIS_CONFIG['loo_results']<br/>(dict-shaped legacy payload)"]:::g
+    SAVE --> V21["Cell 21<br/>generate_loo_plot<br/>horizontal forest + sig-change flag"]
+    SAVE --> V22["Cell 22<br/>generate_baujat_plot<br/>x = Σ wⱼ(yⱼ − μ_FE)²<br/>y = |μ_LOO − μ_baseline|"]
     classDef n fill:#dbeafe,stroke:#1d4ed8
     classDef g fill:#bbf7d0,stroke:#15803d
 ```
