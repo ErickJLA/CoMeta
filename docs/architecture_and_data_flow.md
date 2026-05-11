@@ -743,56 +743,120 @@ When Plan C fires, the function returns immediately with a `plan_c_result` dicti
    If `np.all(np.isfinite(se_betas_robust)) and np.all(se_betas_robust > 0)` the robust quantities supplant the naive ones; otherwise the naive `cov_beta` and a constant `df = max(1, M_studies − p_params)` vector are retained (graceful fallback, no exception).
 3. **Inference under Satterthwaite DF.** `t_stats = betas / se_betas; p_values = 2·(1 − t.cdf(|t_stats|, df)); crit_val = t.ppf(1 − α/2, df); ci_lower/upper = betas ∓ crit_val·se_betas`. The DF vector is **per-coefficient** (`df[j]`), so intercept and slope are tested against *different* t-distributions when their CR2 Satterthwaite DFs differ.
 
-#### `_compute_robust_var_betas` (Cell 1, lines 1899–2045)
+#### `_compute_robust_var_betas` (Cell 1, lines 1898–2155)
 
-Implements **CR2 (bias-reduced linearisation)** cluster-robust variance with **Satterthwaite degrees of freedom** following Pustejovsky & Tipton (2018, eq. 6). The function expects already-fitted `betas`, the per-study `y_all`, `vcv_all`, `X_all` lists, and the optimised variance components; it returns `(var_robust, df_vec)` — a `p × p` matrix and a length-`p` DF vector.
+Implements the **CR2 (bias-reduced linearisation)** cluster-robust variance estimator with **per-coefficient Satterthwaite degrees of freedom**, following Bell & McCaffrey (2002) for the small-sample adjustment and Pustejovsky & Tipton (2018) for the Satterthwaite calibration. The implementation deliberately tracks the `clubSandwich::vcovCR` reference code so that CoMeta's robust SEs and DFs are numerically reproducible against the R ecosystem (see Validation cells 30 and 31).
 
-**Phase 1 — Bread.** A first pass over studies builds the *bread* and caches per-study quantities for the second pass:
+**Scope.** The routine targets the **inverse-variance** branch of CR2 — i.e. the GLS weight matrix is taken equal to the inverse working covariance, `W_j = Φ_j^{−1}` — which is the configuration `metafor::rma.mv` uses when no user-supplied `W` is given. The "general target" branch that `clubSandwich` exposes (a working model different from the fitting weights) is *not* implemented, and **no fixed-effect absorption** is performed: the augmented matrix `M_U` is taken equal to the bread `M`, matching the no-augmentation branch of `vcovCR`. These restrictions are stated explicitly in the source docstring.
 
-```python
-Σ_i = V_i + σ²·I_k + τ²·1·1ᵀ
-inv_Σ_i = np.linalg.inv(Σ_i)   # pinv() fallback on LinAlgError
-sum_Xt_invS_X += X_iᵀ · (inv_Σ_i · X_i)
-e_i = y_i − X_i · betas
-```
-
-The bread is `bread_inv = inv(sum_Xt_invS_X)`. If *that* inversion fails the whole CR2 path emits a documented degenerate fallback: `fallback_var = np.eye(p_params) * 0.01` and `fallback_df = np.full(p_params, max(1.0, M_studies − p_params))`. (Defensive — surfaced as the "CR2 numerical failure" branch in § 4.5, item 5.)
-
-A subtle defence-in-depth move: the routine accepts `V_i.ndim == 1` and converts it on-the-fly to `np.diag(V_i)` before forming `Σ_i` (l. 1929–1930), so callers that pass per-row variance vectors instead of full matrices do not crash.
-
-**Phase 2 — CR2 adjustment and meat.** For each study, the hat-matrix block `H_ii = X_i · bread_inv · (inv_Σ_i · X_i)ᵀ` is formed. The CR2 adjustment matrix `A_i = D_i^{−1/2}` is obtained via *symmetrised eigendecomposition* of `D_i = (I − H_ii + (I − H_ii)ᵀ)/2`:
-
-```python
-eigvals, eigvecs = np.linalg.eigh(D_i)
-tol = max(1e-10, 1e-6 * np.max(np.abs(eigvals)))
-eigvals_safe = np.where(eigvals > tol, eigvals, tol)
-A_i = eigvecs @ np.diag(1.0 / np.sqrt(eigvals_safe)) @ eigvecs.T
-```
-
-The eigenvalue floor (`tol = max(1e-10, 1e-6·max|λ|)`) is what makes the routine numerically stable when `D_i` is rank-deficient — without it, `A_i` would diverge whenever a contrast lies in the null space of `D_i`. The adjusted residuals are `e* = A_i · e_i`; the meat accumulates `g_i = X_iᵀ · inv_Σ_i · e*` outer products: `meat += g_i g_iᵀ`.
-
-**Sandwich.** `var_robust = bread_inv · meat · bread_inv` (l. 1994).
-
-**Phase 3 — Satterthwaite DF per coefficient.** Implements Pustejovsky & Tipton (2018) eq. 6 in its scalar (per-contrast) form:
+**Working covariance.** For each cluster *j*, the marginal covariance under the three-level model is
 
 $$
-\hat{\nu}_j \;=\; \frac{\left(\sum_i g_{ij}\right)^{2}}{\sum_i (g_{ij})^{2}}
-\quad \text{with} \quad
-g_{ij} \;=\; q_i^{\top} B_i \, q_i, \quad
-B_i \;=\; A_i \, \Sigma_i \, A_i^{\top}, \quad
-q_i \;=\; \Sigma_i^{-1} X_i \, (X^{\top} \Sigma^{-1} X)^{-1} \, c_j
+\Phi_j \;=\; V_j \;+\; \sigma^2 \, I_{n_j} \;+\; \tau^2 \, \mathbf{1}_{n_j} \mathbf{1}_{n_j}^{\!\top}, \qquad W_j \;=\; \Phi_j^{-1}.
 $$
 
-The code precomputes `B_i = A_i · Σ_i · A_iᵀ` once per study (l. 2012–2015) so that the inner contrast loop reduces to a single quadratic form `q_iᵀ · B_i · q_i` (avoiding the `k × k` matrix multiplications `outer(q_i, q_i)` would imply). The final DF is **clipped** to `[1.0, M_studies − 1]` (l. 2040–2041) so that pathologically small values (e.g. when one cluster dominates the contrast) cannot drop below 1 or exceed the cluster count minus one. When `g_sq_sum == 0` (a contrast orthogonal to every study), the routine returns the conventional `max(1, M_studies − p_params)`.
+The function returns `(var_robust, df_vec)` — a `p × p` cluster-robust covariance matrix of `betas` and a length-`p` Satterthwaite DF vector.
+
+**Phase 1 — Bread and PD reconstruction.** A first pass over clusters builds the GLS information matrix `sum_XtWX = Σⱼ X_jᵀ W_j X_j` and caches every quantity needed by the two later passes. Crucially, `Φ_j` is **not** inverted via `np.linalg.inv`; instead, the routine symmetrises `Φ_j`, eigendecomposes it, and reconstructs both the inverse and the Cholesky factor from the same spectral decomposition, after applying an eigenvalue floor:
+
+```python
+Phi_i = V_i + sigma_sq * np.eye(n_i) + tau_sq * np.ones((n_i, n_i))
+Phi_i = 0.5 * (Phi_i + Phi_i.T)
+eigvals, eigvecs = np.linalg.eigh(Phi_i)
+floor      = max(1e-12, 1e-10 * float(eigvals.max()))
+eigvals_safe = np.maximum(eigvals, floor)
+Phi_i_pd   = (eigvecs * eigvals_safe)        @ eigvecs.T   # PD reconstruction
+W_i        = (eigvecs * (1.0 / eigvals_safe)) @ eigvecs.T  # spectral inverse
+L_i        = np.linalg.cholesky(Phi_i_pd)                  # falls back to eigvecs·√Λ
+XW_i       = X_i.T @ W_i                                    # p × n_j
+sum_XtWX  += XW_i @ X_i
+```
+
+The eigenvalue floor (`max(1e-12, 1e-10·λ_max)`) is *absolute-with-a-relative-guard*: it only perturbs eigenvalues that are already at or below machine precision relative to the largest eigenvalue of `Φ_j`, so the PD reconstruction is a no-op for well-conditioned clusters and a tiny, deterministic perturbation for degenerate ones. The cached per-cluster dictionary stores `X_i`, `Phi_i_pd`, `L_i`, `W_i`, `XW_i`, the GLS residual `e_i = y_i − X_i · betas`, and `n_i`.
+
+The bread itself is `M_bread = inv(sum_XtWX)` (symmetrised after inversion). If *that* inversion raises `LinAlgError`, the routine emits the documented degenerate fallback `var_robust = np.eye(p) * 0.01` together with `df_vec = max(1.0, M − p)·𝟙_p` — a last-resort branch that lets the caller still report a number rather than crash, and which signals a rank-deficient design (surfaced as the "CR2 numerical failure" branch in § 4.5, item 5). A second Cholesky factor `L_M = chol(M_bread)` is also computed (with an eigenvalue-floor fallback identical in spirit to the one applied to `Φ_j`); `L_M` enters Phase 3 as `clubSandwich`'s `M_U_ct`.
+
+A subtle defence-in-depth move: the routine reshapes `V_j.ndim == 0` to a `1 × 1` matrix and `V_j.ndim == 1` to `np.diag(V_j)` (l. 2016–2019), and reshapes `X_j.ndim == 1` to `(1, p)` (l. 2012–2013), so callers that pass scalar variances, per-row variance vectors, or singleton clusters do not crash.
+
+**Phase 2 — Cholesky-based CR2 adjustment and meat.** For each cluster, the **asymmetric** hat-matrix residualiser `I − H_j` is formed directly — *no symmetrisation step* — and the CR2 adjustment is built from the Cholesky factor of `Φ_j`:
+
+```python
+IH_i       = np.eye(n_i) - X_i @ M_bread @ XW_i     # asymmetric I - H_jj  (n_j × n_j)
+G_i        = L_i.T @ IH_i @ Phi_i @ L_i             # G_j = Rᵀ (I-H) Φ R,  R = chol(Φ)ᵀ
+G_i        = 0.5 * (G_i + G_i.T)                    # symmetrise G only
+
+eigvals, eigvecs = np.linalg.eigh(G_i)
+PINV_TOL   = 1e-12                                   # absolute, matches clubSandwich
+val_inv_sqrt = np.where(eigvals > PINV_TOL,
+                        1.0 / np.sqrt(np.maximum(eigvals, PINV_TOL)),
+                        0.0)
+G_inv_sqrt = (eigvecs * val_inv_sqrt) @ eigvecs.T   # Moore–Penrose G^{-1/2}
+A_i        = L_i @ G_inv_sqrt @ L_i.T               # A_j = Rᵀ G^{-1/2} R
+```
+
+Two design choices distinguish this implementation from the older symmetric `D_i = (I − H + (I − H)ᵀ)/2` formulation:
+
+1. **`R = chol(Φ)ᵀ` is included on both sides of `G`.** With `Φ = L Lᵀ` (NumPy returns lower-triangular `L`), `R = Lᵀ` and `Rᵀ = L`, so the line `G_i = L_i.T @ IH_i @ Phi_i @ L_i` realises `G_j = R (I − H_j) Φ_j Rᵀ`. The resulting `A_j = Rᵀ G_j^{−1/2} R` is the limiting form Bell & McCaffrey derive, and matches `clubSandwich::matrix_power(G, −1/2)` bracketed by `chol(Φ)`.
+2. **The pseudo-inverse-square-root uses an *absolute* tolerance `PINV_TOL = 1e-12`** (eigenvalues at or below `1e-12` map to zero, rather than to `1/√tol`), which is what clubSandwich's `matrix_power` does. This gives a Moore–Penrose pseudoinverse on the cluster's range space — the limiting behaviour required when a cluster is absorbed by the design (`h_jj → 1`), as happens for singleton clusters that uniquely carry a categorical moderator level. The older relative `tol = max(1e-10, 1e-6·max|λ|)` form is *not* used here.
+
+The cluster score and meat are then accumulated in their standard sandwich form, but evaluated through the cached `XW_i = X_jᵀ W_j` (avoiding a re-inversion of `Φ_j`):
+
+```python
+EA_i = XW_i @ A_i        # X_jᵀ W_j A_j   (p × n_j)
+g_i  = EA_i @ e_i        # cluster score   (p)
+meat += np.outer(g_i, g_i)
+```
+
+Note that there is **no separate `e* = A_j · e_j` intermediate** in the current code: the adjustment `A_j` is multiplied into the *score operator* `X_jᵀ W_j` once (yielding `EA_i`), and then applied to the raw residual. `EA_i` is itself cached on the per-cluster dictionary so that Phase 3 can re-use it without recomputation.
+
+**Sandwich.** `var_robust = M_bread @ meat @ M_bread`, symmetrised after multiplication (l. 2105–2106).
+
+**Phase 3 — Full P-matrix Satterthwaite DF.** The DF computation uses the **full** Pustejovsky–Tipton P-matrix formula — including the off-diagonal cross-cluster terms — not the simplified diagonal-only quadratic form. For each cluster *j*, two `p`-by-anything tensors are pre-computed (l. 2113–2126):
+
+```python
+ME_j     = M_bread @ EA_j            # p × n_j
+H_per_j  = ME_j @ X_j @ L_M          # p × p     — clubSandwich's H_array[:,:,j]
+G_per_j  = ME_j @ L_j                # p × n_j
+
+H_stack[j_idx]    = H_per_j
+G_norms[j_idx, i] = sum_k (G_per_j[i, k]) ** 2     # |g_{j,i}|²
+```
+
+For each coefficient *i*, the `M × p` matrix `H_mat = H_stack[:, i, :]` is assembled, together with its `M × M` Gram matrix `Gram = H_mat · H_matᵀ` and the column `G_norms[:, i]`. The Pustejovsky–Tipton P-matrix has the form
+
+$$
+P_i[j, j] \;=\; \|G_{j,i}\|^{2} - \|H_{j,i}\|^{2}, \qquad
+P_i[j, j'] \;=\; -\,\langle H_{j,i}, H_{j',i}\rangle \quad (j \neq j'),
+$$
+
+from which the Satterthwaite DF for coefficient *i* is
+
+$$
+\hat{\nu}_i \;=\; \frac{\operatorname{tr}(P_i)^{2}}{\sum_{j,j'} P_i[j, j']^{2}}.
+$$
+
+Both quantities are computed in closed form from `Gram`, `diag(Gram)` (= `|H_{j,i}|²`), and `G_norms[:, i]`:
+
+```python
+trace_P  = float(np.sum(gN - diag_G))                         # Σⱼ (|g_{j,i}|² − |h_{j,i}|²)
+sum_P_sq = float(np.sum(Gram * Gram)
+                 - 2.0 * np.sum(diag_G * gN)
+                 + np.sum(gN * gN))                            # Σ_{j,j'} P_i[j,j']²
+```
+
+The algebraic identity in the last line collapses the off-diagonal contribution `Σ_{j≠j'} Gram[j,j']²` and the corrected diagonal `Σⱼ (gN[j] − diag_G[j])²` into a three-term expression involving only sums over the precomputed tensors — there is no explicit `M × M` loop. **Cross-cluster off-diagonals are therefore retained**, distinguishing this from the simplified "diagonal-only" `g_ij = q_iᵀ B_i q_i` form.
+
+The final DF is **clipped** to `[1.0, M − 1]` so that pathologically small values (one cluster dominating the contrast) cannot drop below 1 and so that DF cannot exceed the cluster count minus one (l. 2149–2151). When either `trace_P` or `sum_P_sq` fails the strict positivity check (i.e. a contrast carrying *no* estimable information after CR2 adjustment), the routine returns the conventional fallback `df_fallback = max(1, M − p)`.
 
 ```mermaid
 flowchart LR
-    A["betas, y_all, vcv_all, X_all,<br/>τ², σ²"]:::n --> P1["Phase 1: Bread<br/>Σ_i = V_i + σ²I + τ²11ᵀ<br/>cache invΣ_i, e_i, invΣ_i·X_i"]
-    P1 --> BR{"bread_inv ok?"}
-    BR -->|No| FB["Fallback:<br/>var = 0.01·I<br/>df = max(1, M-p)"]:::f
-    BR -->|Yes| P2["Phase 2: CR2 + Meat<br/>D_i = sym(I-H_ii)<br/>A_i = D_i^(-1/2) (eigh)<br/>e* = A_i·e_i<br/>g_i = X_iᵀ·invΣ_i·e*<br/>meat += g_i g_iᵀ"]
-    P2 --> SW["Sandwich:<br/>var_robust = bread_inv·meat·bread_inv"]
-    SW --> P3["Phase 3: Satterthwaite<br/>B_i = A_i Σ_i A_iᵀ<br/>q_i = (invΣ_i X_i) bread_inv c_j<br/>g_ij = q_iᵀ B_i q_i<br/>df_j = (Σg_ij)² / Σg_ij²<br/>clip to [1, M-1]"]
+    A["betas, y_all, vcv_all, X_all,<br/>τ², σ²"]:::n --> P1["Phase 1: Bread + PD reconstruction<br/>Φ_j = V_j + σ²I + τ²11ᵀ<br/>eigh(Φ_j) → floor max(1e-12, 1e-10·λ_max)<br/>W_j = spectral inverse;  L_j = chol(Φ_j_pd)<br/>cache XW_j = X_jᵀW_j, e_j = y_j − X_j·β<br/>sum_XtWX += XW_j · X_j"]
+    P1 --> BR{"M_bread = inv(sum_XtWX)<br/>succeeds?"}
+    BR -->|No| FB["Fallback:<br/>var = 0.01·I<br/>df = max(1, M−p)"]:::f
+    BR -->|Yes| LM["L_M = chol(M_bread)<br/>(eig-floor fallback)"]
+    LM --> P2["Phase 2: Cholesky-form CR2 + Meat<br/>IH_j = I − X_j·M·XW_j  (asymmetric)<br/>G_j = L_jᵀ·IH_j·Φ_j·L_j   (symmetrise)<br/>eigh(G_j), abs tol PINV_TOL = 1e-12<br/>G⁻¹ᐟ² via Moore–Penrose pseudoinverse<br/>A_j = L_j·G⁻¹ᐟ²·L_jᵀ<br/>EA_j = XW_j·A_j;  g_j = EA_j·e_j<br/>meat += g_j g_jᵀ"]
+    P2 --> SW["Sandwich:<br/>var_robust = M·meat·M  (symmetrise)"]
+    SW --> P3["Phase 3: Full P-matrix Satterthwaite<br/>H_per_j = M·EA_j·X_j·L_M  (p×p)<br/>G_per_j = M·EA_j·L_j      (p×n_j)<br/>Gram = H_mat·H_matᵀ        (M×M)<br/>trace_P  = Σⱼ (|g_{j,i}|² − |h_{j,i}|²)<br/>sum_P_sq = Σ_{j,j'} P_i[j,j']²<br/>df_i = trace_P² / sum_P_sq, clip to [1, M−1]"]
     P3 --> OUT["(var_robust, df_vec)"]:::g
     classDef n fill:#dbeafe,stroke:#1d4ed8
     classDef g fill:#bbf7d0,stroke:#15803d
