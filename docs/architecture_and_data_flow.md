@@ -392,13 +392,13 @@ Because the off-diagonal entry is assigned symmetrically across both *(i, j)* an
 For the log response ratio, CoMeta uses the closed-form shared-control covariance derived in **Lajeunesse (2011)** (see Appendix B). For two effect sizes *i* and *j* within the same study that share a common control arm of size `nc`, control mean `xc`, and control standard deviation `sdc`, the covariance between their lnRR estimates is
 
 $$
-\operatorname{Cov}\!\bigl(\ln \mathrm{RR}_i,\, \ln \mathrm{RR}_j\bigr) \;=\; \frac{s_C^{2}}{n_C \, \bar X_C^{2}}
+\mathrm{Cov}\!\bigl(\ln \mathrm{RR}_i,\, \ln \mathrm{RR}_j\bigr) \;=\; \frac{s_C^{2}}{n_C \, \bar X_C^{2}}
 $$
 
 This identity follows directly from the delta-method linearisation of lnRR around the control mean. Recall that for treatment mean `xe` and control mean `xc`,
 $$
 \ln \mathrm{RR} \;=\; \ln \bar X_E - \ln \bar X_C, \qquad
-\operatorname{Var}(\ln \mathrm{RR}) \;=\; \frac{s_E^{2}}{n_E \bar X_E^{2}} + \frac{s_C^{2}}{n_C \bar X_C^{2}}.
+\mathrm{Var}(\ln \mathrm{RR}) \;=\; \frac{s_E^{2}}{n_E \bar X_E^{2}} + \frac{s_C^{2}}{n_C \bar X_C^{2}}.
 $$
 
 The first term is *idiosyncratic* to each treatment arm and is therefore independent across effect sizes *i* and *j* — even when those effect sizes are nested within the same study. The second term, however, is **identical** for every effect size that draws on the same control mean. Substituting two effect sizes that share `(xc, sdc, nc)` into the delta-method variance and retaining only the *common* terms yields the covariance formula above. In other words, the off-diagonal entry for a pair of lnRR effect sizes that share a control arm is exactly the *control-arm contribution* to their individual sampling variances — the part of the variance that would otherwise be double-counted if the effect sizes were naïvely treated as independent.
@@ -433,7 +433,7 @@ The resulting block has a particularly transparent interpretation. For a study c
 
 $$
 V_s^{\text{lnRR}} \;=\;
-\underbrace{\operatorname{diag}\!\bigl(v_1, v_2, \dots, v_k\bigr)}_{\text{independent treatment-arm contributions}}
+\underbrace{\mathrm{diag}\!\bigl(v_1, v_2, \dots, v_k\bigr)}_{\text{independent treatment-arm contributions}}
 \;+\;
 \underbrace{c \cdot \mathbf{1}\mathbf{1}^{\!\top} \;-\; c \cdot \mathbf{I}_k}_{\text{shared-control contribution (off-diagonal only)}},
 \qquad c \;=\; \tfrac{s_C^{2}}{n_C \, \bar X_C^{2}},
