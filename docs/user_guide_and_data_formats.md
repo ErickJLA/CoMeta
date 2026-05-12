@@ -294,3 +294,59 @@ To minimise manual mapping, CoMeta's column-mapping interface pre-fills each dro
 ### 2.7 Summary
 
 Cell 2 ingests the user's dataset via one of four pathways — Google Sheets, local file upload, restoration of a previously exported session, or a built-in example dataset — and translates it into one of three internal schemas (raw continuous, raw binary, or pre-calculated). When manual mapping is required, the user selects the data type, confirms the column assignments suggested by the synonym table, and clicks **✓ Confirm Mapping & Finalize Data**. Successful finalisation produces the green *Data Ready* banner together with a moderator summary table. The user may then proceed to Cell 3 (Global Filtering), which is described in Section 3.
+
+---
+
+## Section 3. Global Filtering
+
+Cell 3, titled **⚙️ 3. Global Filtering**, applies a single optional pre-filter that restricts the entire downstream pipeline to a user-specified subset of the dataset. The filter operates on a categorical moderator column — for example, a taxonomic group, biome, experimental design, or study quality flag — and removes all records whose value of that column is not included in the retained set. Because the filter is *global*, every subsequent cell (data cleaning, effect size calculation, model fitting, subgroup analyses, meta-regression, publication-bias diagnostics, and sensitivity analyses) operates exclusively on the filtered subset.
+
+The cell is executed by clicking its **▶ Run** button. Like all cells from Cell 2 onward, no analytical action is taken until the user interacts with the widget interface and presses the save button described below.
+
+### 3.1 When the cell is skipped
+
+If the data-type selected in Cell 2 is *Pre-calculated (Effect/SE)*, Cell 3 is bypassed automatically. In this case, the cell renders a grey informational banner:
+
+> ⏭️ **Skip This Step (Pre-calculated Mode)** — Global pre-filtering is bypassed because you imported pre-calculated effect sizes. **Please proceed directly to Cell 4 (Data Cleaning).**
+
+A minimal `ANALYSIS_CONFIG` record is initialised internally so that downstream cells receive the full dataset unchanged. The user does not need to take any further action in Cell 3 and may move on to Cell 4. Pre-filtering of pre-calculated datasets, if required, should be performed in the source spreadsheet before ingestion in Cell 2.
+
+For raw-continuous and raw-binary modes, the cell renders the full filtering interface described below.
+
+### 3.2 Interface
+
+The interface is preceded by a header reading **Step 3: Global Pre-Filtering** and a one-line summary stating the total number of records loaded from Cell 2 (e.g., *"Loaded dataset contains 102 total records."*). Below this, a panel titled **Global Subset Selection (Optional)** contains the following two controls:
+
+- **Filter Variable:** A dropdown listing every column of the dataset that is not part of the core analytical schema (i.e., not `id` and not one of the means, standard deviations, sample sizes, or event counts). The default value is *None*, which retains the full dataset unchanged.
+- **Value-selection checkboxes.** When a column is chosen from the *Filter Variable:* dropdown, a list of checkboxes is generated dynamically — one per unique value of that column — each labelled with the value and its record count in the form `<value> (n=<count>)`. All checkboxes are checked by default. The user unchecks the values that should be *excluded* from the analysis; only records whose value of the filter variable matches one of the checked options are retained.
+
+A header above the checkbox list reminds the user that *the checked values are the ones that will be retained* in the analysis.
+
+Below the panel, a single action button — **▶ Save Configuration** — applies the selection.
+
+### 3.3 Saving the configuration
+
+When **▶ Save Configuration** is clicked, CoMeta writes the filter selection into the global `ANALYSIS_CONFIG` dictionary (specifically, the `prefilter_col` and `prefilter_values` keys, together with the filtered `clean_dataframe`) and renders a green confirmation banner. The banner message depends on the selection:
+
+- If the *Filter Variable:* dropdown is left at *None*, the banner reads:
+  > ✅ **Configuration Saved** — No global filters applied. The entire dataset will be retained.
+- If a column has been chosen and one or more values have been checked, the banner reads:
+  > ✅ **Configuration Saved** — Filtered by **\<column\>**. Retaining *N* selected group(s).
+
+In both cases, the banner concludes with a directive to proceed to Cell 4.
+
+> **Re-saving after a change.** Any change to the *Filter Variable:* dropdown or to the value checkboxes requires re-clicking **▶ Save Configuration** to take effect. Downstream cells display a staleness banner whenever the filter selection is modified and re-saved.
+
+### 3.4 Behaviour under session restoration
+
+When Cell 2 has been populated by uploading a previously exported `analysis_settings.json` file (Restore Session pathway, §2.1.3), Cell 3 displays a blue **🔄 Reproducibility Mode Active** notice at the top of the interface, indicating either the column on which the original session was filtered or that no filter was applied. The *Filter Variable:* dropdown and the value checkboxes are then auto-populated from the saved configuration, and **▶ Save Configuration** is invoked automatically. No manual action is required.
+
+### 3.5 Practical guidance
+
+The global pre-filter is intended for *exclusion criteria that are common to every analysis in the manuscript* — for example, restricting the analysis to a single biome, a single taxonomic clade, or studies that satisfy a quality threshold encoded as a categorical flag. Filters intended to define *subgroup contrasts* (e.g., comparing nitrogen-fixing versus non-nitrogen-fixing species) should not be applied here; instead, the moderator column should be left untouched in Cell 3 and selected as a grouping variable in the subgroup-analysis configuration of Cell 8.
+
+Continuous moderators (numeric columns such as latitude, year of publication, or exposure duration) are not exposed in this interface, because filtering on a continuous variable would require an interval rather than a discrete value selection. Where such a restriction is required, it should be implemented in the source spreadsheet prior to ingestion. Continuous moderators remain fully available to the linear and spline meta-regression modules (Cells 12–15).
+
+### 3.6 Summary
+
+Cell 3 applies a single optional categorical pre-filter that propagates to every downstream cell. In pre-calculated mode the cell is skipped automatically; in raw modes, the user selects a *Filter Variable:* from the dropdown (or leaves it at *None*), unchecks any values that should be excluded, and clicks **▶ Save Configuration**. The green *Configuration Saved* banner confirms the action, after which the user proceeds to Cell 4 (Data Cleaning & Pre-processing), described in Section 4.
