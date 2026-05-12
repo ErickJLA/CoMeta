@@ -350,3 +350,111 @@ Continuous moderators (numeric columns such as latitude, year of publication, or
 ### 3.6 Summary
 
 Cell 3 applies a single optional categorical pre-filter that propagates to every downstream cell. In pre-calculated mode the cell is skipped automatically; in raw modes, the user selects a *Filter Variable:* from the dropdown (or leaves it at *None*), unchecks any values that should be excluded, and clicks **▶ Save Configuration**. The green *Configuration Saved* banner confirms the action, after which the user proceeds to Cell 4 (Data Cleaning & Pre-processing), described in Section 4.
+
+---
+
+## Section 4. Data Cleaning and Pre-processing
+
+Cell 4, titled **⚙️ 4. Data Cleaning & Pre-processing**, performs three operations that are required before effect sizes can be computed: (i) it removes records that are structurally unusable (missing essential values, sample sizes below one), (ii) it resolves missing or zero standard deviations through a user-selected imputation strategy, and (iii) it detects effect-size records that share a common control group within the same primary study, tagging them with an internal `shared_group_id` that is consumed by the variance-covariance matrix construction routine in Cell 6 (Gleser & Olkin, 2009; Lajeunesse, 2011). The cell also applies the global pre-filter saved in Cell 3 and renders a tabbed summary of the resulting clean dataset together with a record of every removed row.
+
+The cell is executed by clicking its **▶ Run** button. Depending on the contents of the dataset, the cell either completes automatically (Path A, §4.5) or presents an imputation interface that requires user input (Path B, §4.5).
+
+### 4.1 When the cell is skipped
+
+If the data-type selected in Cell 2 is *Pre-calculated (Effect/SE)*, Cell 4 is bypassed automatically and renders a grey informational banner:
+
+> ⏭️ **Skip This Step (Pre-calculated Mode)** — Data cleaning and SD imputation are bypassed because you imported pre-calculated effect sizes. *N* observations ready for analysis. **Please proceed directly to Cell 5 (Effect Size Selection).**
+
+Because pre-calculated effect sizes already incorporate the user's decisions about missing or implausible variances, no further cleaning is performed on them. Any record-level filtering of a pre-calculated dataset must be carried out upstream.
+
+For raw-continuous and raw-binary modes, the cell performs the operations described in §4.2–§4.6 below.
+
+### 4.2 Unconditional cleaning steps
+
+Before any user-controllable imputation is offered, Cell 4 unconditionally performs the following operations on the dataset received from Cell 3:
+
+1. **Identifier normalisation.** The `id` column is coerced to string and whitespace-trimmed.
+2. **Numeric coercion.** Each of `xe`, `sde`, `ne`, `xc`, `sdc`, `nc` (continuous mode) or `events_e`, `nonevents_e`, `events_c`, `nonevents_c` (binary mode) is coerced to numeric; non-parseable entries are treated as missing.
+3. **Removal of records missing essential values.** Rows in which any of the essential statistics (means and sample sizes for continuous mode; event and non-event counts for binary mode) is missing are removed and tagged with the reason *"Missing Essential Data (Mean or N)"*.
+4. **Removal of records with invalid sample sizes.** Rows in which `ne < 1` or `nc < 1` are removed and tagged with the reason *"Invalid Sample Size (N < 1)"*.
+5. **Application of the global pre-filter.** If a *Filter Variable:* and a non-empty set of retained values were saved in Cell 3, rows whose value of that column is not in the retained set are removed and tagged with the reason *"Filtered by User ('\<column\>')"*.
+
+These five operations apply to every dataset that passes through Cell 4 and are not user-configurable.
+
+### 4.3 Shared-control detection
+
+After the unconditional cleaning steps, CoMeta searches for effect-size records that share a common control group within the same primary study. Two records are considered to share a control group when:
+
+- they belong to the same study (identical `id`), and
+- for continuous data, they share identical values of `nc`, `xc`, and `sdc` (rounded to six decimal places); or
+- for binary data, they share identical values of `events_c` and `nonevents_c`.
+
+Each detected group is assigned a unique `shared_group_id` of the form `<study_id>_shared_grp_<k>`. This column is appended to the cleaned dataset and is consumed by the variance-covariance matrix construction routine in Cell 6, which uses the Gleser & Olkin (2009) closed-form expressions for Hedges' *g* and the Lajeunesse (2011) delta-method expressions for the log response ratio to populate the off-diagonal entries of the per-study **V**ᵢ block. Records that do not share a control group with any other record retain a null `shared_group_id` and are treated as having independent sampling variances.
+
+Shared-control detection is fully automatic; no user intervention is required, and the number of records found to share controls is reported in the *Data Summary* tab (§4.6). Manual override of the detection result is not exposed in the widget interface — if a shared-control structure is to be suppressed, the user should ensure that the relevant control-group statistics differ in the source dataset.
+
+### 4.4 Variance imputation strategies
+
+Once the unconditional steps have completed, Cell 4 inspects the cleaned dataset for missing or zero standard deviations in the `sde` or `sdc` columns. The cell's behaviour from this point onward depends on whether any such values are present.
+
+#### 4.4.1 Missing standard deviations
+
+When one or more rows have a missing `sde` or `sdc`, the user selects a strategy from the *Missing SDs:* dropdown. The four options are:
+
+| Option label | Internal code | Description |
+|---|---|---|
+| **Impute from nearest study (by sample size)** | `nearest` | For each missing SD, the SD of the row with the closest sample size that has a valid SD is borrowed. Recommended when variability is expected to scale with sample size rather than with the outcome mean. |
+| **Impute using median CV from available data** | `median_cv` | The median coefficient of variation, CV = SD ⁄ mean, is computed across all valid rows, and the missing SD is replaced by mean × median CV. This is the default strategy and is the convention most frequently adopted in ecological meta-analysis (cf. Lajeunesse, 2013). |
+| **Impute using a custom CV (enter below)** | `custom_cv` | The user supplies a coefficient of variation (e.g., based on prior domain knowledge or a published benchmark), and the missing SD is replaced by mean × CV. Selecting this option reveals an additional *Custom CV:* numeric input (default 0.10; range 0.001 – 10.0; step 0.01). |
+| **Drop rows with missing SD** | `drop` | Rows with a missing SD in either group are removed from the analysis. Tagged with the reason *"Missing Standard Deviation"*. |
+
+Below the dropdown, a short explanatory note is displayed for the currently selected strategy. The default selection is *Impute using median CV from available data*.
+
+#### 4.4.2 Zero standard deviations
+
+A reported SD of exactly zero would, if taken at face value, assign infinite weight to that record in the meta-analysis. Cell 4 therefore requires the user to choose one of three strategies via the *Zero SDs:* dropdown:
+
+| Option label | Internal code | Description |
+|---|---|---|
+| **Replace with smallest nonzero SD in dataset** | `global_min` | Each zero SD is replaced with the smallest strictly positive SD observed in the dataset. The affected records retain a finite but conservatively low weight. This is the default. |
+| **Apply same method as missing SDs** | `same_as_missing` | Zero SDs are first converted to missing, after which the strategy selected in §4.4.1 is applied uniformly to all missing entries. |
+| **Drop rows with zero SD** | `drop` | Rows in which either SD equals zero are removed from the analysis. Tagged with the reason *"Zero Standard Deviation"*. |
+
+As with the missing-SD dropdown, a short explanatory note for the currently selected strategy is shown beneath the widget.
+
+### 4.5 Two execution paths
+
+Cell 4 takes one of two paths depending on whether the dataset contains any missing or zero SDs after the unconditional cleaning steps:
+
+- **Path A — no SD issues detected.** The cell runs the full processing pipeline (steps in §4.2 plus shared-control detection from §4.3) immediately, without exposing the imputation widgets, and renders the *Data Summary* and *Removed Data* tabs described in §4.6. No user input is required beyond clicking **▶ Run** on the cell itself.
+- **Path B — SD issues detected.** Cell 4 first renders a yellow ⚠️ ***Variance Data Action Required*** panel listing the affected columns and their counts (e.g., *"Experimental SD (sde): 12 missing"*, *"Control SD (sdc): 3 equal to zero"*). Below this panel, the *Standard Deviation Imputation Settings* section exposes the *Missing SDs:* and/or *Zero SDs:* dropdowns described in §4.4 (only the dropdowns relevant to the detected issues are shown), followed by a **▶ Process Data** button. The pipeline runs only after the user clicks this button.
+
+In both paths, downstream cells are marked stale when Cell 4 completes, so that any subsequent re-execution of Cell 4 with new imputation choices is propagated correctly.
+
+### 4.6 Output
+
+On successful completion, Cell 4 displays a tabbed interface with two tabs:
+
+- **📊 Data Summary.** A green ✅ ***Data Successfully Prepared*** card showing three top-line counts — *Rows for Analysis*, *Unique Studies*, and *Total Removed* — followed by a three-row table summarising:
+  - the pre-filter status (column and number of rows dropped, if any);
+  - the variance imputation log, listing each imputation step performed together with the relevant numerical summary (e.g., the median CV applied, or the global minimum SD used to replace zeros);
+  - a hand-off directive instructing the user to proceed to Cell 5.
+- **🗑️ Removed Data.** Either a table of every removed row, with the reason for removal and the original means, sample sizes, and SDs, or a green confirmation that no rows were removed. The table is intended to support manuscript-level reporting of inclusion/exclusion decisions and should be inspected before proceeding.
+
+The processed dataset is stored internally as `data_filtered` together with the `shared_group_id` column and the imputation metadata, all of which are consumed by Cells 5 and 6.
+
+### 4.7 Behaviour under session restoration
+
+When the session has been restored from an exported `analysis_settings.json` file (§2.1.3), a blue **🔄 Reproducibility Mode Active** notice is displayed at the top of Cell 4, listing the missing-SD and zero-SD strategies recorded in the saved configuration. If the dataset contains SD issues, the *Missing SDs:* and *Zero SDs:* dropdowns are auto-populated from the saved values (including the *Custom CV:* field where applicable), and the processing pipeline is invoked automatically. No manual action is required.
+
+### 4.8 Practical guidance
+
+Three considerations are worth noting when configuring Cell 4:
+
+- **Disclosure of imputation choices.** All imputation choices made in this cell are recorded in the session configuration and surfaced in the automated *Materials and Methods* text generated by Cell 7. The choice between *median CV* and *custom CV* in particular should be made deliberately, since the resulting figure is reported alongside the model in the generated text.
+- **Sensitivity to the imputation strategy.** When a non-negligible proportion of records require SD imputation, the meta-analytic results may be sensitive to the choice of strategy. A standard sensitivity check is to refit the model under at least one alternative strategy (e.g., *median CV* and *drop*) and compare the pooled estimates; the leave-one-out and Baujat diagnostics in Cells 20–22 are complementary tools for this purpose.
+- **Shared-control structure.** Because the shared-control detector relies on exact matches in the control-group statistics, datasets in which the same control group has been re-entered with slightly different rounding across rows will fail to be recognised as shared. If the relevant records are known to share a control group, the user should reconcile the control-group entries in the source spreadsheet before ingestion to ensure that the VCV construction in Cell 6 accounts for the induced covariance.
+
+### 4.9 Summary
+
+Cell 4 finalises the analytic dataset. It removes structurally invalid rows, applies the global pre-filter from Cell 3, detects effect-size records sharing a common control group, and resolves missing or zero standard deviations through a user-selected imputation strategy. When no SD issues are present, the cell completes automatically; otherwise the user selects strategies from the *Missing SDs:* and *Zero SDs:* dropdowns and confirms via **▶ Process Data**. The resulting clean dataset, together with the `shared_group_id` column, is passed to Cell 5 (Effect Size Diagnostics), described in Section 5.
