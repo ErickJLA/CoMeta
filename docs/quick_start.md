@@ -112,35 +112,20 @@ If you use the column names below, CoMeta will detect every column automatically
 
 > **Don't worry if your existing spreadsheet uses different names.** CoMeta also recognises a wide range of synonyms (`mean_e`, `mean_exp`, `treatment_mean` for `xe`; `study`, `paper`, `author` for `id`; etc.) and will pre-fill its best guesses. You only need to correct the dropdowns where CoMeta got it wrong. The internal names above are simply the most reliable choice.
 
-### Load the data
+### Run the cell
 
-Run **Cell 2 (⚙️ 2. Data Ingestion)**. Four tabs appear at the top — pick the one that matches your data source:
-
-| Tab | When to use |
-|---|---|
-| **Google Sheets** | **Recommended.** Your data is in a Google Sheets spreadsheet. |
-| **Upload Excel/CSV** | You have a local `.csv` or `.xlsx` file. |
-| **Restore Session** | You are reproducing a previous analysis from a saved `.json` file. |
-| **Built-in Examples** | You want to try CoMeta first with one of five canonical datasets. |
-
-**Google Sheets pathway (three clicks):**
+Run **Cell 2 (⚙️ 2. Data Ingestion)**, then follow these steps in the **Google Sheets** tab:
 
 1. Click **1. Connect Google Account** and grant access in the popup. The button turns green.
-2. Type the *exact* name of your Google Sheets file into the **Sheet Name:** box and click **2. Find Worksheets**. The *Worksheet:* dropdown fills with the sheets in your file.
-3. Pick the relevant worksheet and click **3. Load Data**.
+2. Type the *exact* name of your Google Sheets file into the **Sheet Name:** box and click **2. Find Worksheets**.
+3. Pick the relevant worksheet from the dropdown and click **3. Load Data**.
+4. In the **Step 2** panel that opens below, select the **Data Type:** matching your dataset — *Raw Data — Continuous*, *Raw Data — Binary*, or *Pre-calculated*. Verify the auto-filled column mapping (it will be correct if you used the recommended names).
+5. *(Optional)* In the **🌍 Geographic Columns** section, map *Latitude:*, *Longitude:*, and / or *Country / Region:* to enable the map in Cell 24.
+6. Click **✓ Confirm Mapping & Finalize Data**.
 
-A green confirmation banner appears, the data are loaded, and the **Step 2: Select Data Type & Map Columns** panel opens automatically below.
+A green **✅ Data Ready** banner appears with a moderator summary table.
 
-### Confirm the data type and column mapping
-
-In the **Step 2** panel:
-
-1. Select the **Data Type:** that matches your dataset — *Raw Data — Continuous*, *Raw Data — Binary*, or *Pre-calculated*.
-2. Check that the auto-filled column-mapping dropdowns are correct. If you used the recommended column names, they will all be right.
-3. *(Optional)* In the **🌍 Geographic Columns** section, map latitude, longitude, and / or country if you want the geographic map in Cell 24.
-4. Click **✓ Confirm Mapping & Finalize Data**.
-
-A green **✅ Data Ready** banner appears with a moderator summary table listing every additional column CoMeta detected.
+> If your data are in a local `.csv` / `.xlsx` file, in a previously exported CoMeta session, or you want to test CoMeta first on a canonical dataset, Cell 2 offers three additional tabs — **Upload Excel/CSV**, **Restore Session**, and **Built-in Examples**. See [`user_guide_and_data_formats.md`](user_guide_and_data_formats.md) §2 for those workflows; the rest of this quick-start guide applies unchanged.
 
 ### Tips and common pitfalls
 
@@ -148,7 +133,6 @@ A green **✅ Data Ready** banner appears with a moderator summary table listing
 - **Avoid duplicate column names.** Excel and Google Sheets occasionally end up with two columns called *"x"* after copy-paste; CoMeta will reject the load with an explicit error. Rename them in the source.
 - **No `n/a`, `N.D.`, or `-` in numeric columns.** Leave those cells empty instead, or CoMeta will count them as non-numeric and drop the rows. Truly missing standard deviations are fine — Cell 4 will offer imputation strategies.
 - **Sample sizes must be ≥ 1.** Rows with `ne = 0` or `nc = 0` are dropped automatically with an explicit reason in the *Removed Data* tab.
-- **Use the built-in examples first.** If you want to see what a successful end-to-end CoMeta run looks like before touching your own data, the **Built-in Examples → Ecology Continuous (Curtis 1998 — Plant CO₂)** dataset takes about five minutes to walk through.
 
 ---
 
