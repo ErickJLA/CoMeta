@@ -1150,3 +1150,109 @@ Both cells render a **📝 Caption** tab containing a publication-ready figure c
 ### 10.6 Summary
 
 Cells 10 and 11 produce the two principal visualisations of the subgroup analysis: a conventional forest plot of the pooled per-subgroup estimates (Cell 10) and the orchard plot of Nakagawa et al. (2021) showing the per-record distribution within each subgroup (Cell 11). Both cells share a common architecture: a multi-tab customisation interface (*🎨 Style*, *📝 Text*, annotation, axes, *💾 Export*, *✏️ Labels*, *📝 Caption*, plus the orchard-specific *🍎 Orchard* tab in Cell 11), a single **Generate Plot** action button, automatic export to PDF / PNG (and SVG, for Cell 11) when the corresponding checkboxes are enabled, and a dynamically generated figure caption. Both cells read the fitted subgroup result of Cell 9 without modifying it, so users may iterate freely on aesthetic choices without affecting the model. The next analytical step, meta-regression on continuous moderators, is described in Section 11.
+
+---
+
+## Section 11. Linear Meta-Regression
+
+Cells 12 and 13 implement linear meta-regression on a single continuous moderator. Cell 12 fits the regression model and reports the slope, the test of its significance, and a battery of model-quality diagnostics; Cell 13 produces the publication-ready bubble plot of the fitted relationship. Together, they extend the categorical subgroup analysis of Cells 8 – 11 to moderators whose values lie on a continuous scale (e.g., latitude, year of publication, mean exposure duration, body mass) and to ordinal moderators whose levels carry meaningful numerical distance.
+
+The inferential engine is the same three-level REML framework used throughout the pipeline: the regression coefficients are estimated by inverse-Σᵢ-weighted least squares with Σᵢ = τ²_between **J**ᵢ + τ²_within **I**ᵢ + **V**ᵢ, and the standard errors and *p*-values are based on the CR2 cluster-robust estimator (Pustejovsky & Tipton, 2018) with Satterthwaite-approximated degrees of freedom. The Knapp–Hartung adjustment is applied where it was enabled in Cell 7. As elsewhere in CoMeta, when the fitted τ²_within collapses to the lower boundary, the engine reverts transparently to a two-level random-effects regression.
+
+### 11.1 Cell 12 — 📈 12. Meta-Regression: Configuration & Execution
+
+Cell 12 exposes a minimal configuration interface and a single action button. After Cell 7 has been executed, the user clicks **▶ Run** on Cell 12, selects the moderator of interest from the *Moderator:* dropdown, and clicks **▶ Run Meta-Regression**. The cell fits the model and renders five output tabs.
+
+#### 11.1.1 Moderator detection
+
+Cell 12 automatically populates the *Moderator:* dropdown with every column of `ANALYSIS_CONFIG['analysis_data']` that satisfies all of the following:
+
+- the column is **not** one of the core analytical columns (`id`, the chosen effect-size column, its variance, its standard error, the fixed-effect weight `w_fixed`, or the random-effects weight `w_random`);
+- the column is either numeric *or* parses to numeric with at least three non-missing values; and
+- the column has at least two distinct numeric values.
+
+Categorical moderators (which would be analysed by Cells 8–11) are excluded automatically; an ordinal column coded numerically (e.g., a 1–5 disturbance severity index) is detected and treated as continuous. If the dataset contains no columns satisfying these conditions, the dropdown reads *No numeric moderators found* and the analysis cannot be run; the user should return to Cell 2 and ensure that the relevant continuous variable was retained as a moderator column.
+
+#### 11.1.2 The interface
+
+The configuration panel contains exactly two widgets:
+
+| Widget | Type | Description |
+|---|---|---|
+| **Moderator:** | Dropdown | The continuous moderator to regress the effect size on. |
+| **▶ Run Meta-Regression** | Button | Executes the regression with the current moderator selection. |
+
+The two widgets are deliberately minimal: all other settings (α, distribution type, τ² estimator, Knapp–Hartung adjustment) are inherited from the global configuration saved by Cell 7, ensuring that the regression is consistent with the pooled model.
+
+#### 11.1.3 The model and the columns reported
+
+CoMeta fits the model
+
+$$ y_{ij} \;=\; \beta_0 \;+\; \beta_1 \, x_{ij} \;+\; u_i \;+\; \nu_{ij} \;+\; \varepsilon_{ij}, $$
+
+where *y*ᵢⱼ is the effect size for record *j* in study *i*, *x*ᵢⱼ is the moderator value, *u*ᵢ ∼ 𝒩(0, τ²_between), *ν*ᵢⱼ ∼ 𝒩(0, τ²_within), and *ε*ᵢⱼ is the sampling error with the per-study **V**ᵢ from Cell 6. Inference on the regression coefficients (*β*₀, *β*₁) uses CR2 cluster-robust standard errors and Satterthwaite degrees of freedom. The pseudo-*R* ² is computed as the relative reduction in the residual variance components from the intercept-only model fitted in Cell 7.
+
+#### 11.1.4 Output: five tabs
+
+| Tab | Title | Contents |
+|---|---|---|
+| 1 | **📊 Results** | The headline slope estimate $\hat{\beta}_1$ together with its confidence interval and *p*-value; an automatic plain-language interpretation paragraph (e.g., *"For every 1-unit increase in latitude, the effect size decreases by 0.0123 units. This relationship is statistically significant."*); a coefficient table reporting *β*₀ and *β*₁ with their standard errors, *p*-values, confidence intervals, and the residual degrees of freedom; and a model summary box reporting the model type, *k*, the number of studies, the residual degrees of freedom, τ², σ², pseudo-*R* ², and the residual *I* ². |
+| 2 | **🔍 Diagnostics** | A residual-analysis card reporting the residual range, mean, and standard deviation; influence diagnostics flagging observations with Cook's *D* exceeding the conventional 4 / *n* threshold (the indices of any flagged points are listed); the residual *I* ² and pseudo-*R* ², with a brief interpretation note; and an assumption table summarising the regression assumptions and their applicability to the fitted model. |
+| 3 | **⚙️ Model Details** | The model specification, the moderator column name, the effect-size and variance columns used, the estimation method, the convergence status, and the timestamp. |
+| 4 | **📝 Publication Text** | Manuscript-ready *Materials and Methods* and *Results* paragraphs describing the regression, the inference machinery (CR2, Satterthwaite, Knapp–Hartung as applicable), the coefficient estimates, the test of the slope, and the heterogeneity decomposition. |
+| 5 | **💾 Export** | An export button that writes an Excel workbook containing the coefficient table, the residuals and influence diagnostics, and the model summary. |
+
+When the analysis completes, downstream cells dependent on the regression (Cell 13 — plotting; Cells 14 – 15 — spline meta-regression as an alternative non-linear specification) are marked stale.
+
+### 11.2 Cell 13 — 📈 13. Meta-Regression: Visualization
+
+Cell 13 produces the bubble plot of the fitted regression. Each record is drawn as a point whose horizontal coordinate is the moderator value, whose vertical coordinate is the effect size, and whose area is proportional to the inverse-variance weight (so that small-variance records are visually weighted in proportion to their statistical contribution). The regression line and an optional confidence band are overlaid. Cell 13 follows the same generate-on-click architecture as the subgroup plotting cells (Section 10) and exposes six customisation tabs.
+
+#### 11.2.1 Tabs
+
+| Tab | Title | Contents |
+|---|---|---|
+| 1 | **🎨 Style** | Plot title (with show/hide toggle), *x*- and *y*-axis labels, plot width and height in inches. |
+| 2 | **⚫ Points** | *Color By:* — an optional categorical moderator on which the bubble colour is conditioned (defaults to *None*); fall-back single colour (gray / blue / red / green / purple / orange); minimum and maximum bubble sizes; bubble transparency. |
+| 3 | **📈 Regression** | Show 95 % confidence band; regression-line colour and width; CI band transparency; show / hide the regression equation and *p*-value annotation; show / hide the pseudo-*R* ² annotation. |
+| 4 | **💾 Layout/Export** | Grid visibility; null-effect reference line (*y* = 0); legend location and font size; *Save as PDF* and *Save as PNG* checkboxes; PNG DPI (default 300); filename prefix (default *MetaRegression_Plot*); transparent background. |
+| 5 | **✏️ Labels** | A label-editor pane for renaming the levels of the *Color By:* moderator without modifying the source data, exactly as in the subgroup-plotting cells. |
+| 6 | **📝 Caption** | The dynamically generated figure caption, refreshed on every plot regeneration. |
+
+#### 11.2.2 Key widgets
+
+| Widget | Type | Range | Default |
+|---|---|---|---|
+| **Plot Width (in):** | FloatSlider | 5.0 – 14.0 | 8.0 |
+| **Plot Height (in):** | FloatSlider | 4.0 – 12.0 | 6.0 |
+| **Color By:** | Dropdown | *None* + any auto-detected categorical column | *None* |
+| **Min Bubble Size:** | IntSlider | 0 – 200 | 20 |
+| **Max Bubble Size:** | IntSlider | 100 – 2000 | 800 |
+| **Transparency:** | FloatSlider | 0.1 – 1.0 | 0.6 |
+| **Show 95% Confidence Band** | Checkbox | — | enabled |
+| **Line Width:** | FloatSlider | 0.5 – 5.0 | 2.0 |
+| **CI Transparency:** | FloatSlider | 0.1 – 0.8 | 0.3 |
+| **Show Regression Equation & P-value** | Checkbox | — | enabled |
+| **Show R² Value** | Checkbox | — | enabled |
+| **PNG DPI:** | IntSlider | 150 – 600 | 300 |
+
+Clicking **Generate Plot** renders the bubble plot in the cell's output area. When the export checkboxes are enabled, PDF and PNG files are written to the Colab session's filesystem with the configured filename prefix.
+
+#### 11.2.3 The autogenerated caption
+
+The **📝 Caption** tab in Cell 13 produces a figure-legend draft describing the bubble convention (size proportional to inverse-variance weight), the moderator and effect-size metric, the model used, the meaning of the confidence band, and — when the *Color By:* widget is set — the colouring scheme. The caption is regenerated on every plot render and should be copied immediately after the final render.
+
+### 11.3 Behaviour under session restoration
+
+When the session has been restored from an `analysis_settings.json` file, Cell 12's *Moderator:* dropdown is auto-populated from the saved configuration and the regression is fitted automatically; Cell 13's customisation widgets are likewise restored and the plot is rendered without user intervention. The blue **🔄 Reproducibility Mode Active** notice is displayed at the top of each cell during restoration.
+
+### 11.4 Practical guidance
+
+- **Choose the moderator deliberately.** The regression fitted by Cell 12 is *univariate*: each call to the cell tests a single moderator. When several candidate moderators are of substantive interest, the recommended workflow is to refit the regression once per moderator and to interpret the resulting coefficients in the light of the corresponding pseudo-*R* ² values. Naive multiple testing across moderators is the user's responsibility; CoMeta does not adjust *p*-values for it.
+- **Check the Diagnostics tab before interpreting the slope.** A non-trivial residual *I* ² indicates that the moderator does not fully explain the heterogeneity; Cook's *D* values exceeding 4 / *n* identify records that exert undue leverage on the fitted slope. Both quantities should be inspected before the slope is reported.
+- **Consider the spline alternative for non-linear relationships.** Cells 14 and 15 fit a restricted-cubic-spline meta-regression of the same moderator on the same effect-size column. When the bubble plot of Cell 13 displays curvature that the linear fit fails to capture — a common finding for dose-response, threshold, and saturation relationships — the spline regression is the appropriate non-linear extension and is described in Section 12.
+- **Categorical moderators belong in Cells 8 – 11.** Cell 12 deliberately refuses to operate on a column that is not numeric, because treating a nominal variable as continuous is rarely defensible. When the moderator of interest has a small number of unordered levels, the subgroup analysis described in Sections 8 – 10 is the appropriate device.
+
+### 11.5 Summary
+
+Cell 12 fits a univariate linear meta-regression of the chosen effect-size metric on a single continuous moderator, using the same three-level REML framework, the same CR2 cluster-robust inference, and the same global settings as Cell 7. The user selects the moderator from the *Moderator:* dropdown and clicks **▶ Run Meta-Regression**; the resulting slope, confidence interval, *p*-value, residual diagnostics (Cook's *D*, residual *I* ²), pseudo-*R* ², and autogenerated manuscript text are presented across five tabs. Cell 13 then produces the corresponding bubble plot with inverse-variance-weighted point sizing, an overlaid regression line and optional confidence band, and an autogenerated caption, exported on demand as PDF or PNG. The non-linear extension of the same analysis — restricted-cubic-spline meta-regression — is described in Section 12.
