@@ -730,3 +730,109 @@ These objects, together with the unchanged moderator columns retained from Cell 
 ### 6.9 Summary
 
 Cell 6 computes, per record, the effect size and sampling variance for the metric chosen in Cell 5, applying the metric-specific cleaning rules required to keep the calculation well-defined (lnRR zero-offset; binary double-zero drop and Haldane–Anscombe correction). For every primary study, it builds the variance–covariance matrix that encodes within-study sampling dependence among effect sizes that share a control group, using the Gleser & Olkin (2009) and Lajeunesse (2011) closed-form expressions. The cell renders a five-tab diagnostic interface — **📊 Summary**, **📉 Diagnostics**, **📏 Detailed Stats**, **🧠 Interpretation**, **🗑️ Removed Data** — that should be inspected before proceeding to Cell 7 (Overall Meta-Analysis), described in Section 7.
+
+---
+
+## Section 7. Overall Meta-Analysis
+
+Cell 7, titled **📊 7. Overall Meta-Analysis**, fits the pooled meta-analytical model. It is the central analytical cell of CoMeta: every subsequent cell — subgroup analysis, meta-regression, publication-bias diagnostics, sensitivity analyses, and the complementary modules — operates on the model fitted here. Cell 7 estimates three candidate models in parallel (fixed-effect, two-level random-effects, and three-level hierarchical), compares them by the Akaike Information Criterion (AIC), reports the pooled effect together with cluster-robust inference and a heterogeneity decomposition, generates a manuscript-ready *Materials and Methods* and *Results* paragraph adapted to the chosen configuration, and exports the complete session to either an Excel audit workbook or a JSON reproducibility file.
+
+The cell is executed by clicking its **▶ Run** button. It performs an initial fit with default settings and renders the six output tabs immediately, so that the user sees a complete result on the first execution. Any change to the analytical settings is applied by editing the widgets in the **⚙️ Settings** tab and clicking **Re-Run Analysis**.
+
+### 7.1 The model
+
+For each primary study *i* with *k*ᵢ effect-size records, CoMeta represents the vector of observed effect sizes **y**ᵢ as
+
+$$ \mathbf{y}_i \;=\; \mathbf{1}_{k_i}\,\mu \;+\; u_i\,\mathbf{1}_{k_i} \;+\; \mathbf{e}_i^{(w)} \;+\; \boldsymbol{\varepsilon}_i, $$
+
+where *μ* is the pooled effect, *u*ᵢ ∼ 𝒩(0, τ²_between) is the between-study random effect, **e**ᵢ⁽ʷ⁾ ∼ 𝒩(**0**, τ²_within **I**) is the between-effect-sizes-within-studies random effect, and **ε**ᵢ ∼ 𝒩(**0**, **V**ᵢ) is the vector of sampling errors with the per-study variance–covariance matrix **V**ᵢ constructed by Cell 6 (Section 6.4). The marginal covariance of **y**ᵢ is therefore
+
+$$ \boldsymbol{\Sigma}_i \;=\; \tau^{2}_{\mathrm{between}}\,\mathbf{J}_i \;+\; \tau^{2}_{\mathrm{within}}\,\mathbf{I}_i \;+\; \mathbf{V}_i, $$
+
+where **J**ᵢ is the *k*ᵢ × *k*ᵢ matrix of ones and **I**ᵢ is the identity. The variance components are estimated by restricted maximum likelihood (REML) by default; profile-likelihood confidence intervals for τ² and σ² are computed by one-dimensional Brent root-finding over the profile log-likelihood. When τ²_within is estimated at the lower boundary (≈ 0), the three-level model is automatically reverted to a two-level random-effects model and the user is informed in the *Model Selection* tab.
+
+Three candidate models are fitted simultaneously: (i) the **fixed-effect** model (τ²_between = τ²_within = 0); (ii) the **two-level random-effects** model (τ²_within = 0, with τ²_between estimated by the user-selected method); and (iii) the **three-level** model. The model with the lower AIC is reported as the *winner* in the **📊 Primary Result** and **⚖️ Model Selection** tabs; the user may override the AIC selection with the *Model Selection:* dropdown (Section 7.4).
+
+### 7.2 Inference
+
+Pooled-effect inference uses the inverse-Σᵢ-weighted least-squares estimator
+
+$$ \hat{\mu} \;=\; \Bigl(\sum_i \mathbf{1}_{k_i}^{\top}\,\boldsymbol{\Sigma}_i^{-1}\,\mathbf{1}_{k_i}\Bigr)^{-1} \sum_i \mathbf{1}_{k_i}^{\top}\,\boldsymbol{\Sigma}_i^{-1}\,\mathbf{y}_i, $$
+
+and reports a **CR2 cluster-robust standard error** (Pustejovsky & Tipton, 2018) with Satterthwaite-approximated degrees of freedom for the *t*-statistic. The CR2 estimator is robust to mis-specification of the working **Σ**ᵢ — in particular to incorrect choices of the within-study correlation structure — and is the default for every coefficient reported by Cells 7, 8, 12, and 14.
+
+A **95 % prediction interval** for the true effect of a future, exchangeable study is reported alongside the confidence interval. For the two-level model it follows Higgins, Thompson, and Spiegelhalter (2009); for the three-level model it incorporates both variance components. The **Knapp–Hartung small-sample adjustment** is applied to the standard error of the pooled estimate when the corresponding checkbox is enabled (default).
+
+Inversion of **Σ**ᵢ uses a Sherman–Morrison path whenever **V**ᵢ is diagonal and a full Cholesky decomposition otherwise; this ensures numerical stability when the user's dataset includes shared control groups and **V**ᵢ contains off-diagonal entries.
+
+### 7.3 Heterogeneity
+
+Cell 7 reports the conventional decomposition: the Cochran *Q* statistic with its degrees of freedom and *p*-value, the Higgins *I* ² index, and the variance components themselves with profile-likelihood confidence intervals. For the three-level model, both τ²_between (between-studies) and σ² ≡ τ²_within (between-effect-sizes-within-studies) are reported with their respective intervals. The narrative interpretation surfaced in the **📉 Heterogeneity** tab follows Higgins et al. (2003): *I* ² < 25 % is labelled negligible, 25–50 % low, 50–75 % moderate, and > 75 % substantial.
+
+### 7.4 Analytical settings
+
+The **⚙️ Settings** tab exposes six widgets that control every user-tunable aspect of the model. The defaults correspond to the convention most frequently adopted in the ecological meta-analysis literature.
+
+| Widget label | Type | Options | Default | Effect |
+|---|---|---|---|---|
+| **Confidence Level:** | dropdown | *95 % CI (α = 0.05)*, *99 % CI (α = 0.01)*, *90 % CI (α = 0.10)* | 95 % CI | Sets the nominal coverage of every confidence and prediction interval reported in the cell. |
+| **Model Selection:** | dropdown | *Auto-Select (Best AIC)*, *Force 2-Level*, *Force 3-Level* | Auto-Select | Determines which model is reported in the *Primary Result* tab. Auto-select compares AIC values and reports the lower; the forced options bypass the comparison. |
+| **τ² Method:** | dropdown | *REML*, *DL*, *ML* | REML | Estimator for the between-study variance: restricted maximum likelihood, DerSimonian–Laird, or maximum likelihood. |
+| **Knapp-Hartung Correction** | checkbox | — | enabled | Applies the Knapp–Hartung adjustment to the standard error of the pooled effect for improved small-sample inference. |
+| **Inference:** | dropdown | *t-distribution (Robust/Small Sample)*, *Normal distribution (z) (Match R)* | *t* | Controls whether *p*-values and confidence intervals are derived from a *t*-distribution with Satterthwaite degrees of freedom or from the standard normal distribution. |
+| **Use Full Log-Likelihood** | checkbox | — | disabled | Switches the REML log-likelihood from the restricted form to the full form, which matches certain alternative implementations in R. |
+
+Every widget is observed: any change is recorded in `ANALYSIS_CONFIG['global_settings']` immediately, but the model is *not* refitted until the user clicks the **Re-Run Analysis** button at the bottom of the tab. This deferred-refit pattern is intentional: it allows the user to adjust several settings together (for example, switching to DL with the *z*-distribution to reproduce a literature analysis) before incurring the cost of refitting.
+
+When **Re-Run Analysis** is clicked, the model is refitted under the new settings, all six tabs are re-rendered, and every downstream cell that depends on the overall model (subgroup analysis, meta-regression, spline regression, publication-bias diagnostics, leave-one-out, cumulative) is marked stale.
+
+### 7.5 Output: six tabs
+
+#### 7.5.1 📊 Primary Result
+
+The first tab displays the headline result of the analysis. It comprises:
+
+- a header naming the winning model (e.g., *"3-Level REML"* or *"Random-Effects (REML)"*), with a green *AIC WINNER 🏆* badge if the AIC selection was used;
+- a large gradient card displaying the pooled effect-size estimate $\hat{\mu}$ together with conventional significance asterisks (*** *p* < 0.001, ** *p* < 0.01, * *p* < 0.05, *ns* otherwise);
+- a three-element information grid showing the confidence interval (at the user-selected level), the prediction interval for a future exchangeable study, and the *p*-value;
+- a short model note stating the model description, the total number of observations *k* and the number of primary studies.
+
+#### 7.5.2 📉 Heterogeneity
+
+The second tab reports the heterogeneity assessment. A coloured badge classifies *I* ² according to the Higgins et al. (2003) bins. A table beneath the badge gives, with profile-likelihood CIs where applicable, *Q*, df(*Q*), *p*(*Q*); *I* ²; the estimated variance components (τ², τ, σ²) of the winning model; and the τ² estimation method (REML / DL / ML).
+
+#### 7.5.3 ⚖️ Model Selection
+
+The third tab supports model comparison and sensitivity. It displays a side-by-side table of the three candidate models — fixed-effect, two-level random-effects, three-level — each with its pooled estimate, confidence interval, and (for the latter two) the AIC. The model whose AIC is lowest is flagged as the AIC winner. Below the table, a small forest-plot-style visual sensitivity panel shows the pooled estimates from each model on a common axis, with the winner highlighted in green; this is the appropriate place to verify that the pooled estimate is not strongly sensitive to the choice of variance structure.
+
+#### 7.5.4 ⚙️ Settings
+
+The fourth tab contains the six configuration widgets described in Section 7.4 and the **Re-Run Analysis** button. An informational box at the bottom of the tab restates the effect-size column, variance column, number of observations, and number of primary studies that the model is operating on.
+
+#### 7.5.5 📝 Publication Text
+
+The fifth tab contains the automatically generated *Materials and Methods* and *Results* paragraphs, formatted to journal conventions (e.g., *d* = 0.42, 95 % CI [0.18, 0.66], *p* = .003). The text is conditional on the configuration: it adapts automatically to the model selected (two-level vs. three-level, including the τ²_within = 0 fallback narrative), the τ² estimator chosen, the use or non-use of the Knapp–Hartung adjustment, the imputation strategy applied in Cell 4 (where relevant), and the presence of shared-control VCV corrections from Cell 6. Cohen (1988) and Higgins et al. (2003) interpretation bins are applied automatically to the effect size and *I* ², respectively.
+
+The generated text is provided for direct copy-and-paste into a manuscript draft. It should nevertheless be read carefully and edited for substantive narrative; CoMeta's responsibility is limited to ensuring numerical and methodological accuracy.
+
+#### 7.5.6 💾 Export
+
+The sixth tab exposes two download buttons:
+
+- **📥 Download Excel Audit Report** writes a multi-sheet Excel workbook containing the full audit trail: the model settings, the heterogeneity statistics, the exclusion log accumulated by Cells 4 and 6, and the row-level effect-size table.
+- **📥 Download Settings JSON** writes an `analysis_settings.json` file encoding the complete `ANALYSIS_CONFIG` dictionary. This file may be uploaded to a fresh Colab runtime via the *Restore Session* pathway of Cell 2 (§2.1.3) to reproduce the analysis exactly. Deposition of this file as supplementary material alongside a manuscript provides one-click reproducibility for any reader.
+
+### 7.6 Behaviour under session restoration
+
+When the session has been restored from an `analysis_settings.json` file, the six Settings widgets are auto-populated from the saved configuration on cell load, and **Re-Run Analysis** is invoked automatically. The Primary Result, Heterogeneity, and Model Selection tabs therefore reproduce the original analysis without any manual interaction.
+
+### 7.7 Practical guidance
+
+- **Default settings reflect a defensible convention, not a universal one.** REML with the Knapp–Hartung adjustment and *t*-based inference is the conventional default for ecological meta-analyses with a modest number of studies. Where the user's literature follows a different convention (e.g., DL with *z*-based inference for comparability with older syntheses), the relevant widgets should be adjusted before the result is reported.
+- **The AIC winner is the model that the manuscript should report.** When the three-level structure is selected automatically, both τ² components and the prediction interval that incorporates them should be reported; this is done automatically in the generated *Results* text. When the data do not support a non-zero τ²_within, CoMeta reverts to the two-level model transparently and reports only τ²_between.
+- **Refit before interpreting.** When any upstream change is made (e.g., a different imputation strategy in Cell 4 or a different effect-size metric in Cell 5), Cell 7 displays a staleness banner. The cell should be re-executed before any of the results in its tabs are read, and the corresponding downstream cells should likewise be refreshed.
+- **Export the JSON file.** Regardless of whether the analysis is reported in a manuscript, the JSON session file is the only object that records every analytical decision (imputation, filtering, metric, model, knot placement, etc.) in a single human-readable artefact. Exporting it after every substantive change provides a safeguard against the Colab runtime timing out and losing the configuration.
+
+### 7.8 Summary
+
+Cell 7 fits three candidate meta-analytical models (fixed-effect, two-level random-effects, three-level hierarchical) by REML and reports the AIC-selected model with CR2 cluster-robust inference, Satterthwaite degrees of freedom, profile-likelihood confidence intervals for the variance components, and a prediction interval for a future exchangeable study. The user controls the analysis through six widgets in the **⚙️ Settings** tab (*Confidence Level:*, *Model Selection:*, *τ² Method:*, *Knapp-Hartung Correction*, *Inference:*, *Use Full Log-Likelihood*) and refits the model with **Re-Run Analysis**. Results are presented in six tabs — **📊 Primary Result**, **📉 Heterogeneity**, **⚖️ Model Selection**, **⚙️ Settings**, **📝 Publication Text**, **💾 Export** — and exported either as an Excel audit workbook or as a JSON session file. The fitted model is then consumed by Cells 8 – 25, beginning with the subgroup analyses described in Section 8.
