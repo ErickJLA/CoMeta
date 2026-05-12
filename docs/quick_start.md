@@ -280,17 +280,63 @@ Both cells export to PDF and PNG (Cell 11 also exports SVG). Both auto-generate 
 
 ### When to skip subgroups
 
-If your *I*² in Cell 7 is below ~25 %, the heterogeneity is negligible and there is little to explain — a subgroup analysis adds little. Likewise, if no biologically meaningful categorical moderator was recorded, the right tool is the linear or spline meta-regression on a continuous moderator (Cells 12 – 15).
+If your *I*² in Cell 7 is below ~25 %, the heterogeneity is negligible and there is little to explain — a subgroup analysis adds little. Likewise, if no biologically meaningful categorical moderator was recorded, the right tool is the linear or spline meta-regression on a continuous moderator (next section, and Cells 14 – 15).
 
 ---
 
-## 10. Other optional analyses
+## 10. Test continuous predictors with meta-regression (Cells 12 – 13)
+
+Where subgroup analysis (Section 9) asks *does the effect differ between categories?*, meta-regression asks the parallel question for continuous variables: **does the effect change systematically along a numerical gradient?** Common examples in ecology are latitude, elevation, mean annual temperature, exposure duration, body mass, soil moisture, or year of publication. If your dataset contains a moderator like these and you suspect it drives part of the across-study variation in your effect size, this is the cell to use.
+
+### Why this matters
+
+Like a subgroup analysis, meta-regression is a tool for *explaining* the heterogeneity you saw in Cell 7's **📉 Heterogeneity** tab. A high *I*² is rarely a defect — it is a hint that studies disagree because they were conducted under different conditions. Linear meta-regression formally tests whether one of those conditions (the continuous moderator you choose) tracks the differences in the reported effect, and reports the pseudo-*R*² as the proportion of heterogeneity the moderator accounts for. A significant slope means you have a more nuanced story than "the average effect is X" — you have a *rate of change* of the effect with the moderator.
+
+### Configure and run (Cell 12)
+
+Run **Cell 12 (📈 12. Meta-Regression: Configuration & Execution)**. The interface is minimal:
+
+1. From the **Moderator:** dropdown, choose your continuous predictor. CoMeta automatically lists every numeric (or numeric-coercible) column in the dataset.
+2. Click **▶ Run Meta-Regression**.
+
+The model uses the same statistical machinery as Cell 7 — three-level REML, CR2 cluster-robust inference, Knapp–Hartung where enabled — so the result is directly comparable to the pooled estimate.
+
+### Read the result
+
+Five tabs are populated. The two you will rely on most are:
+
+- **📊 Results** — the slope **β₁** with its confidence interval and *p*-value, displayed as a large gradient card. A significant slope means the moderator explains variation in the effect size. CoMeta also writes a plain-language interpretation paragraph (e.g., *"For every 1-unit increase in latitude, the effect size decreases by 0.0123 units. This relationship is statistically significant."*) and a coefficient table.
+- **🔍 Diagnostics** — the **residual *I*²** (how much heterogeneity remains unexplained *after* including the moderator), the **pseudo-*R*²** (how much the moderator explained), and the **Cook's *D*** influence diagnostics that flag records with outsized leverage on the slope. Inspect these before reporting the slope.
+
+The **📝 Publication Text** tab again writes adaptive *Methods* and *Results* paragraphs ready for the manuscript.
+
+> **One moderator at a time.** CoMeta's meta-regression is univariate by design — re-run Cell 12 once per candidate moderator. The convenience makes it tempting to try many moderators in succession; if you do, be conservative about reporting and discuss the multiple-testing issue explicitly.
+
+### Visualise (Cell 13)
+
+Run **Cell 13 (📈 13. Meta-Regression: Visualization)**. The classical companion figure is a **bubble plot**:
+
+- Each effect-size record is drawn at its (moderator, effect-size) coordinates.
+- The **bubble area is proportional to the inverse-variance weight**, so high-precision studies visually dominate — just as they statistically dominate the fit.
+- The fitted regression line is overlaid, optionally with a 95 % confidence band.
+- The optional **Color By:** dropdown lets you condition bubble colours on a *categorical* moderator (e.g., functional group), which is useful for showing that the continuous trend holds — or not — across qualitative categories.
+
+Customise across six tabs (🎨 Style, ⚫ Points, 📈 Regression, 💾 Layout/Export, ✏️ Labels, 📝 Caption), then click **Generate Plot**. The figure is exported as PDF and PNG, and the **📝 Caption** tab provides a publication-ready figure legend.
+
+### When to skip linear meta-regression
+
+- **Non-linear relationships** (threshold, plateau, dose-response, saturation) are not captured by a straight line; use the **spline meta-regression (Cells 14 – 15)** instead. If your bubble plot in Cell 13 shows obvious curvature, the spline cells are the right next step.
+- **Categorical moderators** belong in the **subgroup analysis (Section 9)**, not here.
+- **Very small datasets** (~10 studies or fewer) yield unstable slopes; in that regime, report only the pooled estimate from Cell 7.
+
+---
+
+## 11. Other optional analyses
 
 The remaining cells extend the analysis further. Run only those relevant to your manuscript.
 
 | Cells | Module | When to run |
 |---|---|---|
-| **12 – 13** | **Linear meta-regression** | You have a continuous moderator (e.g., latitude, year, body mass) and expect a monotone relationship. |
 | **14 – 15** | **Spline meta-regression** | You have a continuous moderator and expect a non-linear relationship (threshold, dose-response, saturation). |
 | **16 – 19** | **Publication-bias diagnostics** | You should run all four (Egger, trim-and-fill, PET-PEESE, funnel plot) for any manuscript reporting a meta-analysis. |
 | **20 – 22** | **Sensitivity analysis** | Strongly recommended — leave-one-out and Baujat influence plots demonstrate that the pooled estimate is robust to any single study. |
@@ -301,7 +347,7 @@ Each of these cells follows the same pattern: run, configure widgets, click the 
 
 ---
 
-## 11. Export your session
+## 12. Export your session
 
 In **Cell 7's 💾 Export tab**, click **📥 Download Settings JSON**. The downloaded `analysis_settings.json` file:
 
@@ -330,7 +376,7 @@ Also click **📥 Download Excel Audit Report** for a full multi-sheet audit wor
 
 **For most manuscripts:** the minimum reportable pipeline is **Cells 1 – 7** for the pooled estimate, **Cells 16 – 19** for publication-bias diagnostics, and **Cells 20 – 22** for the sensitivity analysis. That covers the core numerical claims any reviewer will look for.
 
-**When heterogeneity is non-trivial** (the typical ecological case): add the **subgroup analysis (Cells 8 – 11)** to identify which categorical moderators explain the variation, or the **linear or spline meta-regression (Cells 12 – 15)** for continuous moderators. These are what turn a flat "average effect" into a substantive ecological story.
+**When heterogeneity is non-trivial** (the typical ecological case): use the **subgroup analysis (Cells 8 – 11)** for categorical moderators or the **linear meta-regression (Cells 12 – 13)** for continuous moderators. Both turn a flat "average effect" into a substantive ecological story by explaining *why* studies disagree. For non-linear relationships along a continuous gradient, the **spline meta-regression (Cells 14 – 15)** is the right tool.
 
 **For additional descriptive figures:** the cumulative analysis (Cells 23, 25) and the geographic map (Cell 24).
 
