@@ -1552,3 +1552,128 @@ When the session has been restored from an `analysis_settings.json` file, **▶ 
 ### 14.6 Summary
 
 Cells 20 – 22 provide the per-study influence diagnostics that accompany the pooled analysis in any rigorous meta-analytical manuscript. Cell 20 executes the leave-one-out procedure under the same inferential settings as Cell 7 and produces a two-tab summary highlighting the studies whose removal materially changes the pooled estimate. Cell 21 renders the corresponding forest-style figure with configurable row ordering, optional significance-flipping highlights, and reference lines for the all-studies estimate and its confidence band. Cell 22 produces the Baujat (2002) influence plot, identifying records that are simultaneously high contributors to total heterogeneity and high influencers on the pooled effect, with a four-option labelling method that controls which studies are annotated. The three cells share their input with Cell 7 and do not modify the underlying model, so customisation choices may be iterated freely. The complementary analyses described in Section 15 — cumulative meta-analysis, geographic distribution, and temporal trends — extend the diagnostic picture beyond per-study influence.
+
+---
+
+## Section 15. Complementary Analyses: Cumulative Meta-Analysis and Geographic Distribution
+
+Cells 23, 24, and 25 implement CoMeta's *complementary* analyses — analyses that supplement the pooled, subgroup, and meta-regression results with additional perspectives on the evidence base. The three cells fall into two functional pairs:
+
+- **Cumulative meta-analysis** (Cells 23 and 25). Cell 23 refits the pooled model after the cumulative addition of each study in chronological order; Cell 25 visualises the resulting trajectory of the pooled estimate (with its confidence band) and of the *I*² statistic across the temporal sequence. The pair is the appropriate device for assessing whether the literature has "stabilised" around the present pooled estimate or whether recent additions are still materially shifting it.
+- **Geographic distribution** (Cell 24). Cell 24 renders an interactive Plotly map of the studies, either as latitude/longitude bubbles, as a country-level choropleth, or both side-by-side, depending on which geographic columns were mapped in Cell 2. The map is the appropriate device for reporting the geographic representativeness of the synthesis.
+
+Like the diagnostic cells of Sections 13 and 14, the three complementary cells operate downstream of Cell 7 and do not modify the fitted model. They are independent of each other; the user may run any subset.
+
+### 15.1 Cell 23 — Cumulative Meta-Analysis
+
+Cell 23, titled **📈 23. Complementary: Cumulative Meta-Analysis**, refits the pooled REML model after sequentially adding studies in chronological order (or in reverse-chronological order). The *k*-th refit pools the first *k* studies; the trajectory of the *k* pooled estimates exposes how the synthesis has accumulated evidence over time. The cell uses the same inferential machinery as Cell 7 (REML estimation, CR2 cluster-robust inference, Satterthwaite degrees of freedom, optional Knapp–Hartung adjustment).
+
+#### 15.1.1 Interface
+
+Cell 23 exposes two configuration widgets and a single action button:
+
+| Widget | Type | Options | Default | Effect |
+|---|---|---|---|---|
+| **Sort Order:** | Dropdown | *Chronological (Oldest → Newest)*, *Reverse Chronological (Newest → Oldest)* | Chronological | The order in which studies are accumulated. Reverse-chronological accumulation, less commonly reported, can highlight the residual contribution of recent studies. |
+| **Aggregation:** | Dropdown | *By Study (Recommended)*, *By Observation (Ignore nesting)* | By Study | Whether each step of the cumulative sequence adds an entire primary study (one row per `id`, the recommended approach for three-level datasets) or a single effect-size record (one row at a time, ignoring the within-study nesting). |
+| **▶ Run Cumulative Analysis (REML)** | Button | — | — | Executes the cumulative refits. |
+
+The temporal ordering requires a publication-year column. CoMeta searches the analytical dataset for a column named `year`, `Year`, or any common synonym; if no such column is found, the cell reports a configuration error and the analysis cannot be run.
+
+#### 15.1.2 Output: four tabs
+
+| Tab | Title | Contents |
+|---|---|---|
+| 1 | **📊 Analysis Summary** | A baseline panel restating the all-studies pooled estimate; a discussion of whether the cumulative trajectory has stabilised, with a quantitative comparison between the early and late portions of the sequence; and a *Next Step* pointer to Cell 25 for the corresponding figure. |
+| 2 | **📋 Step-by-Step Data** | The full cumulative table: one row per step of the sequence, with the added study's identifier, the recomputed pooled estimate, its confidence interval, the running heterogeneity statistics (*Q*, *I* ², τ²), and the *k* studies included up to that step. This table is the appropriate object to include as a supplementary item in a manuscript reporting a cumulative analysis. |
+| 3 | **📝 Publication Text** | Manuscript-ready *Materials and Methods* and *Results* paragraphs describing the cumulative procedure, the sort order, the aggregation choice, and the principal qualitative finding (stabilisation, trend, or oscillation). |
+| 4 | **💾 Export** | An export button that writes the step-by-step table to an Excel workbook. |
+
+### 15.2 Cell 25 — Cumulative Trend Plot
+
+Cell 25, titled **📊 25. Complementary: Cumulative Trends**, renders the publication-ready figure that visualises the trajectory produced by Cell 23. The *x*-axis is the cumulative number of studies (or, equivalently, the running publication year); the left *y*-axis is the cumulative pooled effect size with its confidence band; an optional right-hand *y*-axis displays the trajectory of the *I*² statistic. The figure is the standard companion to a cumulative meta-analysis and is widely reproduced in published syntheses.
+
+Cell 25 follows CoMeta's generate-on-click pattern and exposes five tabs:
+
+| Tab | Title | Contents |
+|---|---|---|
+| 1 | **🎨 Style** | Plot width and height, title and label font sizes, grid visibility. |
+| 2 | **📝 Text** | Show / hide the plot title; edit the title, *x*-axis label, and *y*-axis label. |
+| 3 | **📈 Effect** | Line colour and width for the cumulative-effect trajectory; marker style (*Circle*, *Square*, *Diamond*, or *None*); show / hide the 95 % confidence band and its opacity; show / hide the null-effect (*y* = 0) reference line. |
+| 4 | **📉 I²** | Show / hide the *I*² trajectory on the right-hand axis; line colour, style (*Dashed*, *Dotted*, *Solid*), and opacity. The default is to show the *I*² trajectory in dashed orange. |
+| 5 | **💾 Export** | *Save as PDF* / *Save as PNG* checkboxes, PNG DPI (default 300), filename (default *Cumulative_Trend_Plot*). |
+
+The action button is **📊 Generate Cumulative Plot**. The default settings produce a figure showing the cumulative effect with a 95 % confidence band, the *I*² trajectory in dashed orange on the right axis, and the null-effect reference line at *y* = 0 — the four elements most frequently reproduced in published cumulative figures.
+
+### 15.3 Cell 24 — Geographic Distribution of Studies
+
+Cell 24, titled **🗺️ 24. Complementary: Geographic Distribution of Studies**, renders an interactive Plotly map of the analytical dataset. The cell adapts to the geographic columns mapped in Cell 2 (Section 2.3): when latitude and longitude are present, a bubble map is offered; when a country column is present, a country-level choropleth is offered; when both are present, the user may render the two side-by-side. The figure is the appropriate device for the *Geographic representativeness* paragraph of a manuscript's *Methods* section.
+
+Cell 24 follows the generate-on-click pattern and exposes five tabs:
+
+#### 15.3.1 Tab 1 — 🗺️ Map Type
+
+The **Map Type:** radio group exposes only the options that are compatible with the geographic columns available:
+
+| Option | Available when |
+|---|---|
+| **Bubble Map (Coordinates)** | Latitude and longitude were mapped in Cell 2. |
+| **Choropleth Map (Country)** | A country/region column was mapped in Cell 2. |
+| **Both (Side by Side)** | Both coordinate and country columns were mapped. |
+
+The user additionally selects the cartographic **Projection:** from eight standard options: *Robinson (recommended)*, *Natural Earth*, *Equirectangular*, *Mollweide*, *Winkel Tripel*, *Eckert IV*, *Mercator*, and *Orthographic (Globe)*. The **Base Map:** dropdown controls the visual style — *Light Gray Land* (default), *White Land*, *Blue Ocean*, or *Minimal (Outlines Only)* — and three checkboxes (*Show Coastlines*, *Show Country Borders*, *Show Map Frame*) toggle the corresponding cartographic elements.
+
+#### 15.3.2 Tab 2 — 🎨 Style
+
+The Style tab controls the dimensions of the rendered map (default 900 × 500 px, configurable up to 1600 × 1000 px) and the visual encoding of the data:
+
+| Widget | Type | Options / range | Default |
+|---|---|---|---|
+| **Color Scale:** | Dropdown | RdBu (diverging, recommended), Viridis, Plasma, Cividis, RdYlGn, Spectral, Blues (sequential), YlOrRd (sequential), Grays (B & W) | RdBu_r |
+| **Center Color at Zero (diverging)** | Checkbox | — | enabled |
+| **Bubble Opacity:** | FloatSlider | 0.1 – 1.0 | 0.80 |
+| **Max Bubble Size:** | IntSlider | 5 – 50 | 22 |
+| **Bubble Edge Width:** | FloatSlider | 0 – 2 | 0.5 |
+| **Edge Color:** | Dropdown | Black, Dark Gray, White, None | Black |
+| **Jitter (°):** | FloatSlider | 0.0 – 2.0 | 0.0 |
+
+The *RdBu_r* diverging colour scale centred at zero is the default because, for log-scale and standardised effect-size metrics, the meaningful axis runs from negative (study favours control) through zero (null) to positive (study favours treatment). The jitter widget displaces overlapping coordinate bubbles in degrees of latitude/longitude, which is useful when many studies cluster at the same nominal location (e.g., a single field station).
+
+#### 15.3.3 Tab 3 — 📝 Text
+
+The Text tab controls the figure's textual elements: title, optional subtitle (with an *Auto-generate subtitle* toggle that emits a description such as *"n = 87 studies across 14 countries"*), the colour-bar label and length, an optional study-count annotation with configurable position, and the font family and base font size.
+
+#### 15.3.4 Tab 4 — 📊 Data
+
+The Data tab controls how the analytical data are mapped to the visual encoding:
+
+| Widget | Effect |
+|---|---|
+| **Color By:** | The column whose value determines the bubble or country colour. The default is the chosen effect-size column. |
+| **Size By:** | The column whose value determines the bubble size. The default is the inverse-variance weight, which sizes bubbles by their statistical contribution. |
+| **Size Transform:** | A transformation applied to *Size By* before mapping to bubble area (linear, log, square root). |
+| **Choropleth aggregation:** | When a choropleth is selected, the statistic aggregated per country (mean, median, weighted mean, count). |
+
+#### 15.3.5 Tab 5 — 💾 Export
+
+PDF, PNG, and HTML export of the Plotly figure with a configurable filename (default *Geographic_Map*). The HTML export preserves the interactivity (zoom, pan, tooltips on each bubble) and is useful for supplementary online material; the PDF and PNG exports are the appropriate artefacts for the printed manuscript.
+
+The action button is **Generate Map**; rendering takes a few seconds because the map is a fully interactive Plotly figure rather than a static matplotlib image.
+
+### 15.4 Behaviour under session restoration
+
+When the session has been restored from an `analysis_settings.json` file, Cell 23's *Sort Order:* and *Aggregation:* widgets are auto-populated and **▶ Run Cumulative Analysis (REML)** is invoked automatically; Cells 24 and 25 are rendered with their customisation widgets restored. As elsewhere in CoMeta, no manual action is required.
+
+### 15.5 Practical guidance
+
+- **The cumulative analysis is not a temporal trend in the moderator sense.** A non-flat trajectory of the cumulative pooled estimate need not imply that the *true* effect has changed over time; it can equally reflect changes in the methodology, the precision, or the topical focus of the literature. A formal test of a time-trend in the effect size is the linear meta-regression of Cells 12 – 13 with the publication-year column as the moderator; the cumulative figure of Cell 25 is the appropriate visual companion but is not itself a hypothesis test.
+- **Choose "By Study" aggregation when in doubt.** For three-level datasets, accumulating an entire primary study per step is the convention; accumulating one effect-size record at a time tends to produce visually noisier trajectories that are harder to interpret in narrative form.
+- **Map type follows the data mapping in Cell 2.** When neither coordinates nor a country column were mapped in Cell 2, Cell 24 cannot render any map and reports a configuration error. The pertinent action is to return to Cell 2, re-finalise with the geographic columns enabled in the *Geographic Columns* section (Section 2.3), and re-execute the downstream cells.
+- **Diverging colour scales align with effect-size convention.** The default *RdBu_r* scale centred at zero is appropriate for the four effect-size metrics centred at zero (Hedges' *g*, Cohen's *d*, lnRR, log OR, log RR). For sequential outcomes (counts, percentages) a sequential scale (Viridis, Blues) is more appropriate; the user should set this consciously rather than relying on the diverging default.
+- **Export the HTML map.** For online supplementary material, the interactive HTML export of Cell 24 is substantially more informative than the static PDF/PNG renderings, because the reader can inspect each study's identifier, coordinates, and effect-size value via the Plotly tooltips. The static formats remain appropriate for the printed manuscript figure.
+
+### 15.6 Summary
+
+Cells 23, 24, and 25 provide CoMeta's complementary analyses. Cell 23 refits the pooled model cumulatively in chronological (or reverse-chronological) order, using either *By Study* or *By Observation* aggregation, and reports the step-by-step trajectory in four output tabs; Cell 25 then renders the corresponding cumulative trend figure with configurable effect-size and *I*² overlays. Cell 24 renders an interactive Plotly map — bubble, choropleth, or both — of the geographic distribution of the studies, with five customisation tabs covering map type, style, text, data encoding, and export. The three cells operate independently of each other and downstream of Cell 7, and may be run in any combination.
+
+This concludes the cell-by-cell tour of the CoMeta analytical pipeline. The *Materials and Methods* text generated by Cell 7 and the *analysis_settings.json* file produced by Cell 7's export tab together provide a complete record of the analysis, which — when deposited as supplementary material alongside a manuscript — enables one-click reproduction of every figure, table, and numerical claim in the present user guide.
