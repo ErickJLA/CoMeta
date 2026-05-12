@@ -1470,3 +1470,85 @@ When the session has been restored from an `analysis_settings.json` file, Cell 1
 ### 13.7 Summary
 
 Cells 16, 17, 18, and 19 implement CoMeta's publication-bias diagnostic suite. Cell 16 runs Egger's regression test and the Duval & Tweedie trim-and-fill adjustment in a single call, presents both in dedicated tabs together with a combined-assessment summary, and exports the result. Cell 17 produces a dedicated trim-and-fill figure that overlays the observed and imputed studies on a funnel and shows the original and adjusted pooled estimates as reference lines. Cell 18 runs the Stanley & Doucouliagos (2014) PET-PEESE procedure under a user-tunable *P-threshold:* (default 0.10), reports the PET and PEESE intercepts, and selects the bias-corrected estimate accordingly. Cell 19 produces the canonical funnel plot with optional significance contours, an Egger's-test annotation, and a user-controlled categorical *Color By:* dimension. The four cells are complementary: a defensible publication-bias assessment combines the inferential outcomes of Cells 16 and 18 with the visual evidence of Cells 17 and 19. The next analytical step, sensitivity analysis (leave-one-out and Baujat influence diagnostics), is described in Section 14.
+
+---
+
+## Section 14. Sensitivity Analysis: Leave-One-Out and Baujat Diagnostics
+
+Cells 20 – 22 implement CoMeta's per-study influence diagnostics. The leave-one-out analysis (Cells 20 and 21) refits the pooled model with each study removed in turn, exposing the sensitivity of the headline estimate to the inclusion of any single primary study. The Baujat plot (Cell 22) summarises, for every study, the joint pattern of its contribution to total heterogeneity and its influence on the pooled effect, identifying records that are simultaneously outlying and pivotal.
+
+Both diagnostics operate on the same fitted model as Cell 7 and are routinely reported together in ecological meta-analyses. They are downstream of Cells 4, 6, and 7; any change to the imputation strategy, the effect-size calculation, or the analytical settings requires the upstream cells to be re-saved and these diagnostics to be re-executed.
+
+### 14.1 Cell 20 — Leave-One-Out Execution
+
+Cell 20, titled **📉 20. Sensitivity Analysis: Leave-One-Out: Execution**, refits the pooled model *k* times (where *k* is the number of primary studies in the analytical dataset), removing one study on each pass and recording the resulting pooled estimate, confidence interval, *p*-value, and the magnitude of the change relative to the all-studies baseline. The cell uses the same three-level REML engine and the same global settings (α, distribution type, τ² estimator, Knapp–Hartung flag) as Cell 7, so that each leave-one-out fit is directly comparable to the headline estimate.
+
+#### 14.1.1 Interface
+
+Cell 20 exposes a single action button — **▶ Run Sensitivity Analysis** — together with a progress bar that fills as the *k* refits are completed. No other configuration is required; the analysis inherits its inferential setup from Cell 7.
+
+#### 14.1.2 Output: two tabs
+
+| Tab | Title | Contents |
+|---|---|---|
+| 1 | **📊 Sensitivity Summary** | A baseline panel restating the all-studies pooled estimate from Cell 7; a *Most Influential Studies* table listing the studies that produce the largest change in the pooled estimate when removed, with columns for the excluded study identifier, the recomputed pooled estimate (`mu`), the absolute change (`diff`), and the percentage change (`pct_change`); a plain-language interpretation note that distinguishes the *robust* case (no individual study produces an influential change) from the *non-robust* case (one or more studies produce changes exceeding the conventional 20 % threshold); and a *Next Steps* panel pointing the user to the leave-one-out plot (Cell 21) for the full per-study sequence. |
+| 2 | **📝 Publication Text** | Manuscript-ready *Materials and Methods* and *Results* paragraphs describing the leave-one-out procedure, the threshold used to declare influence (20 % by default), the number of studies flagged, and — where applicable — the identifiers of those studies. |
+
+The full per-study table — one row per excluded study, with its recomputed estimate and *p*-value — is stored internally for consumption by Cell 21. Cell 20 itself displays only the *Most Influential* subset to keep the summary tab readable; manuscripts reporting a leave-one-out analysis typically reproduce the full table as supplementary material.
+
+### 14.2 Cell 21 — Leave-One-Out Visualization
+
+Cell 21 produces the publication-ready forest-style figure of the leave-one-out result. Each row of the figure corresponds to one study being omitted; the recomputed pooled estimate and its confidence interval are plotted on the row, together with reference lines for the all-studies pooled estimate and (optionally) its confidence band. Records whose omission flips the statistical significance of the pooled effect can be highlighted in colour, drawing the reader's eye to the pivotal studies.
+
+Cell 21 follows CoMeta's generate-on-click pattern and exposes five customisation tabs:
+
+| Tab | Title | Contents |
+|---|---|---|
+| 1 | **🎨 Style** | Plot title (with show / hide toggle), *x*- and *y*-axis labels, plot width, and either auto-determined height or a manually specified height. |
+| 2 | **📊 Data** | *Sort By:* — the row order of the figure, choosing among *Effect Size (Low to High)*, *Influence (Diff from Original)*, and *Study ID*; *Highlight Significance Changers (Red)* — colours the rows whose recomputed pooled estimate has a different significance status from the all-studies baseline; point colour and point size for the recomputed estimates. |
+| 3 | **📐 Lines** | Show / hide and style the original-pooled-effect reference line; show / hide the original 95 % confidence band (with adjustable transparency); show / hide the null-effect line. |
+| 4 | **💾 Export** | *Save as PDF* / *Save as PNG* checkboxes; PNG DPI (default 300); filename prefix (default *LOO_Plot*). |
+| 5 | **📝 Caption** | Dynamically generated figure caption, refreshed on every plot regeneration. |
+
+The action button is **📊 Generate LOO Plot**. Default settings produce a manuscript-ready figure: rows sorted by effect size, significance changers highlighted in red, the all-studies estimate and its 95 % CI band shown as reference lines, and the null line marked at *y* = 0.
+
+### 14.3 Cell 22 — Baujat Influence Plot
+
+Cell 22, titled **📊 22. Sensitivity Analysis: Baujat Plot**, produces the Baujat (2002) diagnostic: a two-dimensional scatter in which each study is plotted at coordinates (*x*ᵢ, *y*ᵢ), where *x*ᵢ is the study's contribution to the total heterogeneity statistic *Q* and *y*ᵢ is the study's influence on the pooled estimate. The plot identifies four qualitatively distinct regions:
+
+- **High Q-contribution, low influence:** studies that diverge from the pooled effect but carry little weight; they drive heterogeneity but not the headline estimate.
+- **Low Q-contribution, high influence:** studies that are consistent with the pooled effect but carry sufficient weight to move the estimate; they pin down the pooled value.
+- **High Q-contribution, high influence:** studies that are both outlying and pivotal; these warrant the closest scrutiny.
+- **Low Q-contribution, low influence:** the majority of records in a well-behaved dataset.
+
+The plot is conventionally annotated with the identifiers of the most extreme studies, sorted by a user-selected method.
+
+#### 14.3.1 Interface
+
+Cell 22 follows the generate-on-click pattern and exposes five tabs:
+
+| Tab | Title | Contents |
+|---|---|---|
+| 1 | **🎨 Style** | Plot width, height, point size, point colour, opacity, and an optional pair of median reference lines that quadrant the plot. |
+| 2 | **📝 Labels** | Title, *x*-axis label (default *"Contribution to Heterogeneity (Q)"*), *y*-axis label (default *"Influence on Pooled \<effect label\>"*), and font sizes for the title and the axis labels. |
+| 3 | **🏷️ Labels** | *Show Study Labels* — toggles the per-point study-ID labels; *Labeling Method:* — selects which studies receive a label (*Top Outliers (Combined Score)* [default], *Top by Heterogeneity Only*, *Top by Influence Only*, or *All Studies*); *Max Labels:* — limits the number of labelled points (default 5); *Label Position:* — *Auto (Best)*, *Right*, *Left*, *Top*, or *Bottom*; and the label font size. |
+| 4 | **💾 Export** | *Save as PDF* / *Save as PNG* checkboxes; PNG DPI (default 300); filename prefix (default *Baujat_Plot*); optional timestamp suffix. |
+| 5 | **📝 Caption** | Dynamically generated figure caption, refreshed on every plot regeneration. |
+
+The action button is **📊 Generate Baujat Plot**. With the default *Top Outliers (Combined Score)* labelling method and *Max Labels:* set to 5, the figure annotates the five studies whose joint Q-contribution and influence rank place them furthest from the origin — exactly the records that warrant closer inspection in the manuscript's narrative.
+
+### 14.4 Behaviour under session restoration
+
+When the session has been restored from an `analysis_settings.json` file, **▶ Run Sensitivity Analysis** is invoked automatically in Cell 20, and Cells 21 and 22 are rendered with their customisation widgets restored. No manual action is required.
+
+### 14.5 Practical guidance
+
+- **Choose an influence threshold before running.** The default 20 % threshold for flagging an influential study in the leave-one-out summary is a conservative convention; the appropriate threshold depends on the size of the pooled effect and on the precision with which the manuscript intends to communicate it. Pre-specifying the threshold (and reporting it explicitly in the *Materials and Methods*) is the recommended practice.
+- **Sort the leave-one-out plot by influence for reporting.** The default *Sort By: Effect Size (Low to High)* produces a forest-plot-like ordering that is most useful when scanning for outlying recomputed estimates. For the figure that accompanies a manuscript-level claim of robustness, *Sort By: Influence (Diff from Original)* places the most influential studies at the extremes of the plot, which more directly communicates the magnitude of the largest perturbation.
+- **Combine leave-one-out with Baujat.** The two diagnostics are designed to be read together. A study flagged as influential by the leave-one-out procedure should appear in the upper-right region of the Baujat plot; a study that the Baujat plot identifies as both outlying and pivotal should be among the largest |diff| entries in the leave-one-out table. When the two diagnostics disagree, the discrepancy itself is informative and should be discussed.
+- **Influential studies are not necessarily errors.** A single study that perturbs the pooled estimate may reflect a transcription mistake, but it may equally reflect a genuine but under-replicated experimental finding. The pertinent action is to inspect the study and to report the analysis with and without it; silent removal is inappropriate.
+- **Cell 20 is computationally proportional to *k*.** Datasets with several hundred primary studies will take longer to run than the model fit of Cell 7, and the progress bar is intended to provide reassurance during this wait. The leave-one-out result is cached in `ANALYSIS_CONFIG`, so subsequent renders of Cell 21 do not trigger refits.
+
+### 14.6 Summary
+
+Cells 20 – 22 provide the per-study influence diagnostics that accompany the pooled analysis in any rigorous meta-analytical manuscript. Cell 20 executes the leave-one-out procedure under the same inferential settings as Cell 7 and produces a two-tab summary highlighting the studies whose removal materially changes the pooled estimate. Cell 21 renders the corresponding forest-style figure with configurable row ordering, optional significance-flipping highlights, and reference lines for the all-studies estimate and its confidence band. Cell 22 produces the Baujat (2002) influence plot, identifying records that are simultaneously high contributors to total heterogeneity and high influencers on the pooled effect, with a four-option labelling method that controls which studies are annotated. The three cells share their input with Cell 7 and do not modify the underlying model, so customisation choices may be iterated freely. The complementary analyses described in Section 15 — cumulative meta-analysis, geographic distribution, and temporal trends — extend the diagnostic picture beyond per-study influence.
