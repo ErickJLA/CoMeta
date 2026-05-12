@@ -1,86 +1,77 @@
 # CoMeta — User Guide and Data Formats
 
-*A practical companion for ecologists and conservation researchers running rigorous three-level meta-analyses through the CoMeta widget interface. No programming experience is required at any point.*
+*A reference manual for ecologists and conservation researchers conducting three-level meta-analyses through the CoMeta widget interface.*
 
 ---
 
 ## Section 1. Getting Started
 
-Welcome to CoMeta. If you have ever run a meta-analysis on paper, in a spreadsheet, or with a statistical package and felt that the *statistics* were tractable but the *software* was the barrier, this guide is for you. CoMeta runs entirely in your web browser through Google Colaboratory. You will never need to install anything, type a single line of code, or manage package versions. Everything you do happens through point-and-click widgets — dropdowns, buttons, checkboxes, and sliders.
+CoMeta is distributed as a single Google Colaboratory notebook, `CoMeta_1.ipynb`, and is operated entirely through a sequence of widget interfaces. This section describes how to open the notebook, initialise the runtime environment, and navigate the notebook's cell-based workflow. Subsequent sections of this guide assume that the environment has been initialised as described below.
 
-This first section walks you through the two things you need to do before any analysis begins: **opening the notebook in Google Colab** and **initialising the environment** so that the widget interface comes to life.
+### 1.1 Requirements
 
-### 1.1 What you need before you start
+To run CoMeta, the user requires:
 
-- A free **Google account** (the same kind you would use for Gmail or Google Drive). This is required by Google Colab; CoMeta itself does not collect or store anything.
-- A modern web browser (Chrome, Firefox, Safari, or Edge — any recent version is fine).
-- An internet connection. Once the notebook is loaded, all computation happens on Google's servers, so the speed of your own computer is irrelevant.
+- A Google account, used solely for authenticating with Google Colaboratory.
+- A current version of a standard web browser (Chrome, Firefox, Safari, or Edge).
+- An active internet connection. All computation is executed on Google's remote runtime; local hardware specifications are therefore not a limiting factor.
 
-You do **not** need Python, R, conda, Anaconda, Jupyter, a terminal, administrator rights on your machine, or any prior exposure to programming. If you have ever opened a Google Doc, you already know enough to use Colab.
+No local installation of Python, R, or any scientific computing environment is required. All dependencies are resolved at runtime by Cell 1 (Section 1.3).
 
-### 1.2 Launching the notebook in Google Colab
+### 1.2 Opening the notebook in Google Colab
 
-There are two equally easy ways to open CoMeta:
+The notebook may be opened by either of the following routes:
 
-**Option A — Click the "Open in Colab" badge.**
-On the project's GitHub page (or in the project README), you will see a coloured badge that reads **Open In Colab**. Click it. A new browser tab opens, and a few seconds later you are looking at the CoMeta notebook.
+**Option A.** Click the *Open in Colab* badge displayed in the project README on GitHub.
 
-**Option B — Paste the direct link into your browser.**
+**Option B.** Navigate directly to the following URL:
 
 ```
 https://colab.research.google.com/github/ErickJLA/CoMeta/blob/main/CoMeta_1.ipynb
 ```
 
-Either route brings you to the same notebook, titled **CoMeta_1.ipynb**, displayed inside the Google Colab editor.
+Both routes load the canonical version of `CoMeta_1.ipynb` into the Google Colab editor.
 
-> **Tip — save your own copy.** The notebook you open from the badge is a *read-only view* of the official version. If you want to keep your widget selections, your uploaded data, and your results between sessions, immediately go to the Colab menu bar and choose **File → Save a copy in Drive**. Colab will create a private, editable copy in your own Google Drive (in a folder called *Colab Notebooks*) and switch you over to it automatically. From that point on, every change you make is saved to your Drive, exactly the way Google Docs saves itself as you type. If you prefer not to use Drive, you can instead use **File → Download → Download .ipynb** at any time to keep a local copy on your computer.
+> **Saving a working copy.** The notebook opened from GitHub is a read-only view. To preserve widget selections, uploaded datasets, and computed results across sessions, the user should select **File → Save a copy in Drive** from the Colab menu bar. This creates a private, editable copy in the user's Google Drive (under the `Colab Notebooks` folder) and redirects the active session to it. Subsequent edits are then auto-saved to Drive. A local copy may also be retained at any time via **File → Download → Download .ipynb**.
 
-When the notebook first loads you will see a long, vertically-scrolling page made up of *cells*. Each cell is one self-contained step of the analysis pipeline — there are 38 of them in total — and each one is clearly numbered and labelled with a gear icon ⚙️ and a descriptive title, for example:
+The notebook is organised as a linear sequence of 38 *cells*, each corresponding to one self-contained step of the analytical pipeline. Cells are numbered and titled in the order in which they should be executed, e.g.:
 
 - **⚙️ 1. Environment Setup & Core Functions**
 - **⚙️ 2. Data Ingestion**
 - **⚙️ 3. Global Filtering**
-- … and so on, in order, all the way through publication-bias diagnostics and sensitivity analyses.
 
-You will work through these cells *from top to bottom*, one at a time. You never need to read the code inside them; you simply need to *run* each one and then interact with the widget interface it reveals.
+The remaining cells implement data cleaning, effect size calculation, model fitting, subgroup and meta-regression analyses, publication bias diagnostics, sensitivity analyses, and report generation, in that order. Each cell exposes its functionality through a dedicated widget interface; no inspection or modification of the underlying source code is required for any analytical task.
 
-### 1.3 Running Cell 1 — the one-time initialisation step
+### 1.3 Initialising the environment (Cell 1)
 
-The very first cell, **⚙️ 1. Environment Setup & Core Functions**, is the only cell that does not display a widget interface. Its job is to prepare the Colab session: it checks that the correct versions of the underlying scientific libraries (NumPy, pandas, SciPy, matplotlib, ipywidgets, and a handful of others) are installed, and it loads CoMeta's internal statistical engine into memory. You only need to run it **once per session**.
+Cell 1, titled **⚙️ 1. Environment Setup & Core Functions**, prepares the Colab runtime for analysis. It verifies that the required versions of CoMeta's scientific dependencies (NumPy, pandas, SciPy, matplotlib, ipywidgets, statsmodels, patsy, and related packages) are installed, installs any that are missing or version-mismatched, and loads CoMeta's statistical engine into memory. Cell 1 is the only cell in the notebook that does not present a widget interface, and is executed once per Colab session.
 
-To run Cell 1:
+To execute Cell 1:
 
-1. Hover your mouse over the left-hand edge of the cell. A small **▶ (Play / Run)** button appears in a circular frame.
-2. Click it.
-3. *(Equivalent keyboard shortcut: select the cell and press* **Shift + Enter** *.)*
+1. Position the cursor over the left-hand margin of the cell. A circular **▶ Run** button appears.
+2. Click the button. Alternatively, with the cell selected, press **Shift + Enter**.
 
-The first time you run Cell 1 in a new Colab session, expect it to take **roughly 30–90 seconds**. Colab is downloading and pinning a small set of packages to known-good versions so that every CoMeta user, on every machine, gets identical numerical results. While this is happening, the play button shows a spinning circle and a small running-time counter ticks up beside the cell.
-
-When Cell 1 finishes, the output area underneath it clears itself and displays a tidy confirmation banner with a small green dot:
+Initial execution typically completes in 30–90 seconds. During execution, a spinner is displayed in place of the run button, and an elapsed-time counter is shown alongside the cell. On successful completion, the cell output is replaced with the following confirmation banner:
 
 > 🟢 **Environment Verified** — *Core engine initialised*
 
-That banner is your green light. The statistical engine is loaded, the widget framework is active, and you are ready to move on.
+Display of this banner indicates that the statistical engine and widget framework are loaded and that the user may proceed to Cell 2.
 
-> **If something looks wrong.** On rare occasions, Colab assigns you a runtime that is missing a dependency or has hit a transient network hiccup. The symptom is usually a red error message instead of the green banner. The fix is almost always the same: in the Colab menu bar, choose **Runtime → Restart session** (or **Runtime → Restart runtime**), and then re-run Cell 1. You do not need to re-open the notebook or do anything else.
+> **Recovering from initialisation errors.** If Cell 1 returns a Python traceback or other error in place of the confirmation banner — most commonly the result of an intermittent network failure during package installation — the runtime should be reset via **Runtime → Restart session** (or **Runtime → Restart runtime**) from the Colab menu bar, after which Cell 1 should be re-executed. Reopening the notebook is not necessary.
 
-### 1.4 Running the rest of the cells
+### 1.4 Executing subsequent cells
 
-From Cell 2 onward, every cell follows the same simple pattern, and once you have seen one you have seen them all:
+From Cell 2 onward, the operational pattern is uniform across the notebook:
 
-1. **Click the ▶ Run button on the cell** (or press **Shift + Enter**).
-2. **The widget interface appears** directly beneath the cell — dropdowns, file-upload boxes, radio buttons, sliders, checkboxes, and clearly labelled action buttons such as *Confirm*, *Apply Filters*, *Calculate Effect Sizes*, *Fit Model*, and so on.
-3. **Make your selections.** Nothing happens until *you* click an action button — you can change your mind freely, toggle options on and off, and re-select dropdowns without any risk of corrupting the analysis.
-4. **Move on to the next cell** when you are satisfied with the results displayed by the current one.
+1. Execute the cell by clicking its **▶ Run** button (or pressing **Shift + Enter**).
+2. The associated widget interface is rendered immediately below the cell. Interfaces consist of standard controls — dropdowns, radio buttons, checkboxes, sliders, file-upload dialogs, and labelled action buttons such as *Confirm*, *Apply Filters*, *Calculate Effect Sizes*, and *Fit Model*.
+3. Configure the desired options. Settings may be changed freely before triggering an action; no computation is performed until the corresponding action button is pressed.
+4. Inspect the cell's output (tables, figures, diagnostic text, or generated report material) and proceed to the next cell.
 
-Crucially, **the code inside each cell never has to be edited**. You never type Python. You never edit a configuration file. The play button is the only piece of "code" you ever press.
+> **Cells must be executed in order.** CoMeta implements a strictly linear pipeline: each cell consumes objects produced by upstream cells. On a first pass, all cells should therefore be executed from top to bottom. When an upstream cell is subsequently re-executed (for example, to re-import a dataset in Cell 2 or change an imputation strategy in Cell 4), CoMeta displays a *staleness banner* on every downstream cell whose results are no longer consistent with the new upstream configuration. The user re-executes each flagged cell in order, and the banners are cleared as the corresponding outputs are refreshed.
 
-> **Cells run in order.** CoMeta is a linear pipeline: Cell 3 expects the data that Cell 2 produced, Cell 7 expects the effect sizes that Cell 6 produced, and so on. Always run the cells top-to-bottom on your first pass. If you later go back and change something upstream — say, you re-import your dataset in Cell 2 or change an imputation strategy in Cell 4 — CoMeta will automatically display an orange *staleness banner* on every downstream cell that now needs to be re-run. You simply press ▶ on each flagged cell again, in order, and the banners clear themselves as the analyses refresh.
+> **Colab session lifetime.** Google Colab terminates idle runtimes after a period of inactivity (typically two to three hours), and may also disconnect long-running sessions. When this occurs, the widget interfaces become unresponsive but the notebook itself is preserved in Google Drive. The session is restored by clicking **Connect** in the upper-right of the Colab interface and re-executing Cell 1; analyses can then be reproduced from this point. CoMeta additionally provides a session export facility (described in a later section) that serialises the complete analytical configuration to a JSON file, enabling exact one-click restoration of an analysis in a fresh runtime.
 
-> **Sessions are temporary.** Google Colab disconnects idle sessions after a period of inactivity (typically a couple of hours). If that happens, your widget interface will go grey and unresponsive. Don't worry — your *notebook* is safe in Google Drive; only the *running session* has ended. Reconnect by clicking the **Connect** button in the top-right of Colab, then re-run Cell 1, and then continue from where you left off. (We will see in a later section how CoMeta's **session export to JSON** feature lets you save your entire analytical configuration and reload it with a single click, so that long analyses never have to be reconstructed from memory.)
+### 1.5 Summary
 
-### 1.5 You are ready
-
-That is genuinely all there is to launching CoMeta. Open the notebook, click ▶ on Cell 1, wait for the green *Environment Verified* banner, and you are looking at a fully-prepared, no-code meta-analysis environment running on Google's servers. Everything from here on — uploading your data, choosing an effect size, fitting a three-level random-effects model, running publication-bias diagnostics, generating a manuscript-ready Methods paragraph — happens entirely through the widgets you are about to meet.
-
-In the next section, we will pick up where we left off and walk through **Cell 2: Data Ingestion**, where you bring your own dataset into CoMeta (or load one of the built-in example datasets to follow along).
+Launching CoMeta consists of three steps: opening `CoMeta_1.ipynb` in Google Colab, optionally saving a copy of the notebook to Google Drive, and executing Cell 1 to initialise the environment. Once the *Environment Verified* banner is displayed, the user may proceed to Cell 2 (Data Ingestion), which is described in Section 2.
