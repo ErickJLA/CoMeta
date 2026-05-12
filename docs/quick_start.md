@@ -445,13 +445,75 @@ The convention is to report Egger's test as the primary inferential test, the tr
 
 ---
 
-## 13. Other optional analyses
+## 13. Check that no single study is driving the result (Cells 20 – 22)
+
+A pooled estimate is more trustworthy when it does not depend on any *single* study. Sensitivity analyses formalise that intuition: they ask, *what would the pooled estimate look like if any one study were missing from the dataset?* If the answer is "essentially the same", the result is robust. If the answer is "noticeably different", the manuscript needs to acknowledge — and ideally explain — that fragility. For most ecological meta-analyses these diagnostics are expected alongside the publication-bias suite.
+
+CoMeta provides two complementary sensitivity diagnostics across three cells.
+
+### Why this matters
+
+A pooled estimate is mathematically a precision-weighted average of the individual study estimates. If one study has unusually high precision (large sample, low variance), or its effect lies far from the others, it can disproportionately move the pooled value — and in extreme cases, can be solely responsible for whatever statistical significance the result has. The two diagnostics in this section ask that question from different angles:
+
+- **Leave-one-out (Cells 20 – 21).** Refits the pooled meta-analysis *k* times, each time omitting one study. The trajectory of the *k* recomputed estimates exposes which studies — if any — push the headline value around. The most important kind of finding is a study whose removal *flips* the statistical significance of the pooled effect: when that happens, the headline result depends materially on that one study.
+- **Baujat plot (Cell 22).** Plots every study in a two-dimensional space defined by *(a)* its contribution to the heterogeneity statistic *Q* and *(b)* its influence on the pooled estimate. Studies in the upper-right corner are simultaneously outlying *and* pivotal: those are the records that warrant the closest scrutiny in your manuscript.
+
+The two diagnostics are designed to be read together: a study flagged as influential by leave-one-out should appear in the upper-right region of the Baujat plot, and *vice versa*. When they disagree, the discrepancy itself is informative and worth discussing.
+
+### Run the leave-one-out analysis (Cell 20)
+
+Run **Cell 20 (📉 20. Sensitivity Analysis: Leave-One-Out: Execution)**. The interface is a single button — **▶ Run Sensitivity Analysis** — and a progress bar. The cell refits your model *k* times (once per primary study), using exactly the same inferential settings as Cell 7. Expect runtime proportional to the number of studies.
+
+Two tabs are populated:
+
+- **📊 Sensitivity Summary** — a baseline panel restating the all-studies pooled estimate, a *Most Influential Studies* table listing the studies that produce the largest absolute or percentage change in the pooled estimate when removed, and a plain-language verdict (*robust* if no study exceeds the conventional 20 % change threshold; *non-robust* otherwise).
+- **📝 Publication Text** — auto-generated *Methods* and *Results* paragraphs, including the threshold used and the identifiers of any flagged studies.
+
+The full per-study table is stored internally and consumed by Cell 21 for the figure.
+
+### Visualise the leave-one-out result (Cell 21)
+
+Run **Cell 21 (📉 21. Sensitivity Analysis: Leave-One-Out: Visualization)**. The figure is a forest-style display: one row per *excluded* study, showing the recomputed pooled estimate and its CI, with reference lines for the all-studies pooled estimate and (optionally) its confidence band.
+
+Two settings deserve attention:
+
+- **Sort By:** — *Effect Size (Low to High)* (default), *Influence (Diff from Original)*, or *Study ID*. For the figure that accompanies a manuscript-level claim of robustness, **Influence** places the most disruptive removals at the extremes, which is the most direct visual communication of robustness — or fragility.
+- **Highlight Significance Changers (Red)** — colours the rows whose recomputed pooled estimate has a different significance status from the all-studies baseline. If any rows turn red, those are the studies your conclusion *depends on*.
+
+Customise across five tabs (🎨 Style, 📊 Data, 📐 Lines, 💾 Export, 📝 Caption) and click **📊 Generate LOO Plot**.
+
+### Generate the Baujat plot (Cell 22)
+
+Run **Cell 22 (📊 22. Sensitivity Analysis: Baujat Plot)**. The figure scatters every study at coordinates (*x* = contribution to heterogeneity, *y* = influence on pooled estimate). With optional median reference lines turned on, four interpretive regions emerge:
+
+| Region | What it means |
+|---|---|
+| **High Q, high influence** (upper right) | Outlying *and* pivotal — closest scrutiny warranted. |
+| **High Q, low influence** (upper left) | Outlying but not pivotal — drives heterogeneity, not the pooled estimate. |
+| **Low Q, high influence** (lower right) | Consistent with the pool but pivotal — pins the pooled value down by sheer precision. |
+| **Low Q, low influence** (lower left) | The majority of records in a well-behaved dataset. |
+
+The **🏷️ Labels** tab controls which studies are annotated on the figure:
+
+- **Labeling Method:** — *Top Outliers (Combined Score)* (default), *Top by Heterogeneity Only*, *Top by Influence Only*, or *All Studies*. The combined-score default labels the records that are simultaneously extreme on both axes, usually the most informative choice.
+- **Max Labels:** — caps the number of annotated points (default 5).
+
+Click **📊 Generate Baujat Plot**.
+
+### How to report it and what to do about flagged studies
+
+- **Quote the leave-one-out conclusion alongside the pooled estimate.** E.g., *"The pooled effect was robust to the exclusion of any single study; no leave-one-out estimate departed from the baseline by more than 14 %."* If studies were flagged: *"Removal of study X reduced the pooled estimate to Y, a change of Z %."*
+- **Include both figures.** The leave-one-out plot (Cell 21) and the Baujat plot (Cell 22) belong at least in the supplementary material. Manuscripts whose central claim is one of robustness should consider them main-text figures.
+- **Influential studies are not necessarily errors.** A pivotal study may reflect a transcription mistake (return to your source data and check), but equally may represent a genuine but under-replicated experimental finding. The pertinent action is to inspect, document, and discuss in your *Results* section — *not* to remove the study silently.
+
+---
+
+## 14. Other optional analyses
 
 The remaining cells extend the analysis further. Run only those relevant to your manuscript.
 
 | Cells | Module | When to run |
 |---|---|---|
-| **20 – 22** | **Sensitivity analysis** | Strongly recommended — leave-one-out and Baujat influence plots demonstrate that the pooled estimate is robust to any single study. |
 | **23, 25** | **Cumulative meta-analysis** | Optional. Shows the trajectory of the pooled estimate over publication time. |
 | **24** | **Geographic map** | If your dataset has coordinates or country labels (mapped in Cell 2), this produces the geographic-representativeness figure. |
 
@@ -459,7 +521,7 @@ Each of these cells follows the same pattern: run, configure widgets, click the 
 
 ---
 
-## 14. Export your session
+## 15. Export your session
 
 In **Cell 7's 💾 Export tab**, click **📥 Download Settings JSON**. The downloaded `analysis_settings.json` file:
 
