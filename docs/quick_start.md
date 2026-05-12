@@ -25,7 +25,21 @@ You do **not** need Python, R, or any local installation.
 
 CoMeta is one notebook (`CoMeta_1.ipynb`) made up of numbered *cells*. You execute them top-to-bottom, once each. Every cell from Cell 2 onward presents a widget interface — dropdowns, buttons, sliders — that you configure and then confirm with a button click. The output of each cell flows automatically into the next.
 
-**Universal pattern:** click the **▶ Run** button on the cell, configure the widgets, click the cell's confirmation button (e.g., *Confirm Mapping*, *Save Configuration*, *Run Analysis*), inspect the result, move to the next cell.
+### A two-minute primer on Google Colab
+
+Google Colab is the cloud environment that runs CoMeta. If you have never used it, you only need to know three things:
+
+- **A notebook is a vertical stack of cells.** Each cell is a self-contained block. You scroll down through the notebook the way you would scroll through a long document.
+- **To run a cell, click its ▶ button.** When you hover over the left-hand edge of a cell, a circular play button appears. Click it — or, with the cell selected, press **Shift + Enter** — and the cell executes. A spinning circle and a small timer indicate progress; the spinner disappears and the cell's output appears below it when it finishes.
+- **Cells must be run in order, top to bottom.** Each cell of CoMeta depends on the output of the cells above it. On your first pass, run every cell in sequence. If you later go back and change something in an earlier cell, CoMeta will display an **orange staleness banner** on every downstream cell that now needs to be re-run; press ▶ on each flagged cell again, in order, to refresh the analysis.
+
+Colab also disconnects idle sessions after a few hours. If your widgets become unresponsive, click **Connect** in the upper-right of the Colab window, re-run Cell 1, and continue from where you left off. To save your work between sessions, immediately after opening the notebook choose **File → Save a copy in Drive** — your edits then auto-save to Google Drive just like a Google Doc.
+
+### Universal cell pattern in CoMeta
+
+**Click the ▶ Run button on the cell → configure the widgets → click the cell's confirmation button (e.g., *Confirm Mapping*, *Save Configuration*, *Run Analysis*) → inspect the result → move to the next cell.**
+
+That is the entire interaction model. Every cell follows it.
 
 ---
 
@@ -45,35 +59,96 @@ Immediately save your own working copy: **File → Save a copy in Drive**.
 
 Click **▶ Run** on **Cell 1 (⚙️ 1. Environment Setup & Core Functions)**. Wait 30 – 90 seconds for the green **🟢 Environment Verified — Core engine initialised** banner.
 
-That's the only cell that has no widget interface; it just prepares the runtime.
-
 ---
 
 ## 3. Load your data (Cell 2)
 
-Run **Cell 2 (⚙️ 2. Data Ingestion)**. You will see four tabs at the top:
+**The easiest workflow is Google Sheets.** Keep your dataset in a Google Sheets spreadsheet under the same Google account you use to open Colab. CoMeta then reads the worksheet directly — no file uploads, no version-mismatch confusion, and the data update automatically the next time you re-run the cell.
+
+### Name your columns so CoMeta recognises them
+
+If you use the column names below, CoMeta will detect every column automatically and the mapping step will pre-fill itself with no manual intervention.
+
+**Required — for continuous data (means, SDs, sample sizes):**
+
+| Column name | Meaning |
+|---|---|
+| `id` | Study identifier (paper, author, or any label shared by all effect-size rows from the same study). |
+| `xe` | Mean of the experimental / treatment group. |
+| `sde` | Standard deviation of the experimental group. |
+| `ne` | Sample size of the experimental group. |
+| `xc` | Mean of the control group. |
+| `sdc` | Standard deviation of the control group. |
+| `nc` | Sample size of the control group. |
+
+**Required — for binary data (2 × 2 contingency-table counts):**
+
+| Column name | Meaning |
+|---|---|
+| `id` | Study identifier. |
+| `events_e` | Events (e.g., deaths, successes) in the treatment group. |
+| `nonevents_e` | Non-events in the treatment group. |
+| `events_c` | Events in the control group. |
+| `nonevents_c` | Non-events in the control group. |
+
+**Required — for pre-calculated effect sizes:**
+
+| Column name | Meaning |
+|---|---|
+| `id` | Study identifier. |
+| `yi` | The effect size (e.g., Hedges' *g*, lnRR). |
+| `variance` *or* `se` | The sampling variance, **or** the standard error (CoMeta accepts either). |
+| `n_total` | *(optional)* Total sample size — helpful for some publication-bias diagnostics. |
+
+**Optional — for the geographic-distribution map (Cell 24):**
+
+| Column name | Meaning |
+|---|---|
+| `latitude` | Decimal latitude (−90 to 90). |
+| `longitude` | Decimal longitude (−180 to 180). |
+| `country` | Country or region name. |
+
+**Any other column** in the spreadsheet — taxonomic clade, biome, year, exposure duration, anything — is automatically retained as a candidate *moderator* for the subgroup analyses (Cells 8 – 11) and meta-regressions (Cells 12 – 15). Just give it a clear, machine-readable name (no spaces, no special characters).
+
+> **Don't worry if your existing spreadsheet uses different names.** CoMeta also recognises a wide range of synonyms (`mean_e`, `mean_exp`, `treatment_mean` for `xe`; `study`, `paper`, `author` for `id`; etc.) and will pre-fill its best guesses. You only need to correct the dropdowns where CoMeta got it wrong. The internal names above are simply the most reliable choice.
+
+### Load the data
+
+Run **Cell 2 (⚙️ 2. Data Ingestion)**. Four tabs appear at the top — pick the one that matches your data source:
 
 | Tab | When to use |
 |---|---|
-| **Google Sheets** | Your data is in a Google Sheets spreadsheet. |
+| **Google Sheets** | **Recommended.** Your data is in a Google Sheets spreadsheet. |
 | **Upload Excel/CSV** | You have a local `.csv` or `.xlsx` file. |
 | **Restore Session** | You are reproducing a previous analysis from a saved `.json` file. |
-| **Built-in Examples** | You want to try CoMeta with a canonical dataset (recommended for first use). |
+| **Built-in Examples** | You want to try CoMeta first with one of five canonical datasets. |
 
-**First-time users — try a built-in example.** Click *Built-in Examples*, choose **Ecology Continuous (Curtis 1998 — Plant CO₂)**, click **📥 Load Example Dataset**, and skip ahead to Cell 3 — built-in datasets are pre-mapped.
+**Google Sheets pathway (three clicks):**
 
-**Loading your own data:**
+1. Click **1. Connect Google Account** and grant access in the popup. The button turns green.
+2. Type the *exact* name of your Google Sheets file into the **Sheet Name:** box and click **2. Find Worksheets**. The *Worksheet:* dropdown fills with the sheets in your file.
+3. Pick the relevant worksheet and click **3. Load Data**.
 
-1. Click *Upload Excel/CSV*, choose your file, and click **Load Data File** (for multi-sheet Excel, pick the worksheet first).
-2. Below, select the **Data Type:** that matches your dataset:
-   - **Raw Data — Continuous (Means/SDs/N)** — you have *x̄*, SD, and *n* for treatment and control.
-   - **Raw Data — Binary (Events/Non-Events)** — you have 2 × 2 contingency-table counts.
-   - **Pre-calculated (Effect/SE)** — you have already computed effect sizes and their variances.
-3. CoMeta will auto-fill the column-mapping dropdowns from a synonym table; correct any wrong guesses.
-4. Optionally map *Latitude:*, *Longitude:*, and *Country / Region:* in the **🌍 Geographic Columns** section for the map in Cell 24.
-5. Click **✓ Confirm Mapping & Finalize Data**. A green **✅ Data Ready** banner with a moderator summary table appears.
+A green confirmation banner appears, the data are loaded, and the **Step 2: Select Data Type & Map Columns** panel opens automatically below.
 
-> **Tip.** If CoMeta rejects your data, the error message names the offending column. Common causes are non-numeric values in a numeric field (e.g., `n/a`) and duplicate column names. Fix in the source file and re-upload.
+### Confirm the data type and column mapping
+
+In the **Step 2** panel:
+
+1. Select the **Data Type:** that matches your dataset — *Raw Data — Continuous*, *Raw Data — Binary*, or *Pre-calculated*.
+2. Check that the auto-filled column-mapping dropdowns are correct. If you used the recommended column names, they will all be right.
+3. *(Optional)* In the **🌍 Geographic Columns** section, map latitude, longitude, and / or country if you want the geographic map in Cell 24.
+4. Click **✓ Confirm Mapping & Finalize Data**.
+
+A green **✅ Data Ready** banner appears with a moderator summary table listing every additional column CoMeta detected.
+
+### Tips and common pitfalls
+
+- **Keep one row per effect-size record.** When a single study contributes several effect sizes (e.g., multiple treatments, multiple time points), give each its own row and use the same `id` value for all of them — CoMeta handles the within-study nesting automatically.
+- **Avoid duplicate column names.** Excel and Google Sheets occasionally end up with two columns called *"x"* after copy-paste; CoMeta will reject the load with an explicit error. Rename them in the source.
+- **No `n/a`, `N.D.`, or `-` in numeric columns.** Leave those cells empty instead, or CoMeta will count them as non-numeric and drop the rows. Truly missing standard deviations are fine — Cell 4 will offer imputation strategies.
+- **Sample sizes must be ≥ 1.** Rows with `ne = 0` or `nc = 0` are dropped automatically with an explicit reason in the *Removed Data* tab.
+- **Use the built-in examples first.** If you want to see what a successful end-to-end CoMeta run looks like before touching your own data, the **Built-in Examples → Ecology Continuous (Curtis 1998 — Plant CO₂)** dataset takes about five minutes to walk through.
 
 ---
 
@@ -147,10 +222,23 @@ The cell fits three candidate models (fixed-effect, two-level random-effects, th
 | **📉 Heterogeneity** | *I*², *Q*, τ², σ² with profile-likelihood CIs. |
 | **⚖️ Model Selection** | Side-by-side comparison of all three candidate models. Verify the AIC winner is the three-level model in three-level datasets. |
 | **⚙️ Settings** | Six widgets to change α, model selection, τ² estimator, Knapp–Hartung, distribution, etc. Defaults are appropriate for most analyses. |
-| **📝 Publication Text** | Manuscript-ready *Methods* and *Results* paragraphs. Copy these directly. |
+| **📝 Publication Text** | **Auto-generated, manuscript-ready *Methods* and *Results* paragraphs** — see below. |
 | **💾 Export** | **📥 Download Settings JSON** here — do this now to safeguard against Colab session timeouts. |
 
 If you change any setting in **⚙️ Settings**, click **Re-Run Analysis** to refit.
+
+### The autogenerated Methods and Results text
+
+The **📝 Publication Text** tab is one of CoMeta's most useful outputs. Every time the model is fitted, CoMeta writes — in plain prose — a *Materials and Methods* paragraph and a *Results* paragraph describing what it just did, formatted to journal conventions (e.g., *g* = 0.42, 95 % CI [0.18, 0.66], *p* = .003). The text is **adaptive**: it changes automatically when you change the configuration. It correctly reflects:
+
+- whether the AIC selected the two-level or three-level model (including the *"τ²_within collapsed to zero, reverted to two-level"* fallback when applicable);
+- the τ² estimator you chose (REML / DL / ML);
+- whether the Knapp–Hartung adjustment was applied;
+- the SD imputation strategy used in Cell 4 (if any);
+- the shared-control variance–covariance correction from Cell 6 (if any);
+- the Cohen (1988) interpretation bin for the effect size and the Higgins et al. (2003) interpretation bin for *I*².
+
+You can copy the text directly into your manuscript draft. The downstream cells (subgroup analysis, meta-regression, publication-bias diagnostics, sensitivity analysis) each produce their own *Publication Text* tab in the same format, so by the time you finish the pipeline you have a draft *Methods* section and a draft *Results* section assembled from cell-level paragraphs — every numerical claim consistent with the figures and tables in the same notebook.
 
 > **You can stop here** if all you want is the pooled estimate and the autogenerated text. Everything below is optional.
 
