@@ -47,6 +47,7 @@
 - **CR2 cluster-robust inference** with per-coefficient Satterthwaite degrees of freedom — valid *t*-based inference even under model misspecification.
 - **Non-linear spline meta-regression** for dose-response and threshold modelling, without arbitrary binning of continuous moderators.
 - **Multiple publication bias diagnostics**: Egger's regression, trim-and-fill, and PET-PEESE — side by side.
+- **Knapp-Hartung adjustment** for improved small-sample inference on pooled effects.
 - **Effect size flexibility**: lnRR, Hedges' *g*, log OR, log RR, or user-supplied pre-calculated effects, with a rule-based recommendation engine.
 - **One-click reproducibility**: every analytical choice is encoded in a shareable JSON session file.
 - **Automated report generator** that produces manuscript-ready *Materials and Methods* and *Results* text adapted to the model actually fitted.
@@ -98,16 +99,7 @@ CoMeta implements a linear pipeline of **44 notebook cells**. The standard analy
 
 ## 🔬 Statistical Methods & Validation
 
-CoMeta is designed to be **rigorous enough for journal submission and transparent enough for peer review**. The summary below lists the methodological commitments; expand the sections for full formal detail.
-
-**At a glance:**
-
-- Three-level random-effects models fitted by **Restricted Maximum Likelihood (REML)**.
-- **Exact closed-form VCV** for shared controls (Gleser & Olkin, 2009; Lajeunesse, 2011).
-- **CR2 cluster-robust** standard errors with Satterthwaite *d.f.* (Pustejovsky & Tipton, 2018).
-- **Knapp-Hartung adjustment** for improved small-sample inference.
-- **Restricted cubic splines** via `patsy` for non-linear meta-regression.
-- **Validated against `metafor` and `clubSandwich`** to ≥ 4 decimal places, plus Monte Carlo coverage tests.
+CoMeta is designed to be **rigorous enough for journal submission and transparent enough for peer review**. Expand any section below for the underlying formulas, references, and validation results.
 
 <details>
 <summary><strong>Click to expand: Three-Level REML Optimisation</strong></summary>
