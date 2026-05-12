@@ -458,3 +458,128 @@ Three considerations are worth noting when configuring Cell 4:
 ### 4.9 Summary
 
 Cell 4 finalises the analytic dataset. It removes structurally invalid rows, applies the global pre-filter from Cell 3, detects effect-size records sharing a common control group, and resolves missing or zero standard deviations through a user-selected imputation strategy. When no SD issues are present, the cell completes automatically; otherwise the user selects strategies from the *Missing SDs:* and *Zero SDs:* dropdowns and confirms via **▶ Process Data**. The resulting clean dataset, together with the `shared_group_id` column, is passed to Cell 5 (Effect Size Diagnostics), described in Section 5.
+
+---
+
+## Section 5. Effect Size Selection and Diagnostics
+
+Cell 5, titled **🔬 5. Effect Size Selection & Diagnostics**, is the decision point at which the user fixes the effect-size metric that will be computed in Cell 6 and used throughout the rest of the pipeline. The cell operates in two distinct modes depending on the data type chosen in Cell 2:
+
+- In **raw mode** (`raw_continuous` or `raw_binary`), the cell inspects the cleaned dataset, audits its statistical topology, and applies a rule-based scoring engine that produces a recommended effect-size metric together with a stated confidence level. The user accepts the recommendation or selects a different metric from the supported list, subject to data-type compatibility checks.
+- In **pre-calculated mode**, the recommendation engine is not available (the raw data are not present); the user instead declares the metric that the supplied effect sizes already represent, so that downstream cells can label and interpret them correctly.
+
+In both modes, the cell's output is a `ANALYSIS_CONFIG['effect_size_type']` entry together with an `es_config` record specifying the internal column names that Cell 6 will create.
+
+### 5.1 Raw mode: the recommendation engine
+
+When the data type is `raw_continuous` or `raw_binary`, Cell 5 first classifies the dataset into one of three topologies:
+
+| Topology | Trigger | Initial recommendation |
+|---|---|---|
+| **Pure binary** | All four binary columns (`events_e`, `nonevents_e`, `events_c`, `nonevents_c`) are present; continuous columns are absent. | **log Odds Ratio (log OR)** with *High* confidence. |
+| **Mixed** | Both binary and continuous columns are present. | A yellow ⚠️ ***Ambiguous Data Types Detected*** panel is displayed, advising the user to confirm the data type manually. Initial recommendation: **Hedges' *g*** with *Low* confidence. |
+| **Pure continuous** | Continuous columns (`xe`, `xc`, and at least one SD column) are present. | Output of the rule-based scoring engine (§5.2). |
+
+The cell renders its output in three tabs:
+
+| Tab | Label | Content |
+|---|---|---|
+| 1 | **💡 Recommendation** | The recommended metric, the rationale, the *Select Type:* radio group, and the **✓ Confirm Selection** button. |
+| 2 | **📊 Data Patterns** | A diagnostic audit of the dataset's statistical topology: normalisation, negative values, zero values, scale heterogeneity, SD availability, and distribution shape. |
+| 3 | **🧠 Decision Logic** | The row-by-row scoring table produced by the recommendation engine, together with the final per-metric point totals. |
+
+### 5.2 The rule-based scoring engine (R1–R6)
+
+For pure-continuous datasets, the recommendation engine compares two candidate metrics — log Response Ratio (lnRR) and Hedges' *g* — by accumulating weighted points across six rules. The dataset's diagnostic features are computed first, and each rule contributes to one or both metric scores. The final winner is the metric with the higher total; the difference in points determines the stated confidence.
+
+| Rule | Diagnostic | Decision threshold | Points awarded | Rationale |
+|---|---|---|---|---|
+| **R1** | Negative values present in `xe` or `xc` | any negative | Hedges' *g* +10 | Log-ratio metrics are mathematically undefined for negative values. This rule operates as a near-hard constraint. |
+|  | All values strictly positive | otherwise | lnRR +2 | Data are compatible with ratio-based metrics. |
+| **R2** | Control values clustered at unity | > 50 % of `xc` exactly 1.0 | lnRR +5 | Pre-normalised fold-change data are already a ratio scale. |
+|  |  | > 30 % of `xc` in [0.95, 1.05] | lnRR +3 | Strong evidence of normalisation. |
+|  |  | mean(`xc`) ∈ (0.8, 1.2) | lnRR +1 | Weak evidence of a unity baseline. |
+| **R3** | Scale heterogeneity (ratio of `xe` and `xc` ranges) | ratio > 100 | lnRR +3 | Heterogeneous scales are handled naturally by ratios. |
+|  |  | ratio > 10 | lnRR +2 | Moderate scale variance still favours ratios. |
+|  |  | otherwise | Hedges' *g* +1 | Comparable scales support standardised mean differences. |
+| **R4** | Zero values present in `xe` or `xc` | any zero | Hedges' *g* +2 | log(0) is undefined; lnRR would require an additive constant. |
+| **R5** | SD coverage | > 80 % of rows with valid SDs | Hedges' *g* +1 | Hedges' *g* requires complete SDs. |
+|  |  | < 20 % | (no points; warning recorded) | SD imputation has unstable consequences. |
+| **R6** | Maximum skewness of `xe` and `xc` | skew > 1.5 | lnRR +2 | Strong right-skew typical of multiplicative biological processes. |
+|  |  | skew ∈ (−0.5, 0.5) | Hedges' *g* +1 | Approximately symmetric data fit the SMD assumptions. |
+
+**Tie-breaker.** If the two totals are equal after R1–R6, the engine awards one additional point to lnRR when the dataset contains neither negative nor zero values (lnRR is preferred for strictly-positive ecological data because of its direct percentage-change interpretation), and to Hedges' *g* otherwise.
+
+**Confidence level.** Let *Δ* be the absolute difference between the lnRR and Hedges' *g* totals. The reported confidence is:
+
+| Confidence | Condition |
+|---|---|
+| **High** | *Δ* ≥ 5 |
+| **Moderate** | 3 ≤ *Δ* < 5 |
+| **Low** | *Δ* < 3 |
+
+The full scoring table — each rule that fired, the metric it favoured, the weight (encoded as plus-signs), and a one-line educational note — is displayed in the **🧠 Decision Logic** tab. The final point totals are shown beneath the table.
+
+### 5.3 The Data Patterns audit
+
+The **📊 Data Patterns** tab is intended both to justify the recommendation and to serve as a record of the dataset's properties for the methods section of a manuscript. For pure-continuous datasets, the audit reports six diagnostics in plain language:
+
+1. **Control group normalisation** — the percentage of control means exactly equal to 1.0.
+2. **Negative values** — the total count of negative entries in `xe` and `xc`.
+3. **Zero values** — the total count of zero entries in `xe` and `xc`.
+4. **Scale heterogeneity** — the ratio of the larger to the smaller of the `xe` and `xc` ranges.
+5. **Data completeness** — the percentage of rows with valid SDs in both groups.
+6. **Distribution shape (skewness)** — the maximum of skewness(`xe`) and skewness(`xc`).
+
+For pure-binary datasets, the audit instead reports that complete 2 × 2 contingency-table data were detected and notes that the Haldane–Anscombe continuity correction (+ 0.5 to all cells) will be applied automatically by Cell 6 in studies containing a zero cell.
+
+### 5.4 Selecting an effect-size metric
+
+The **💡 Recommendation** tab displays a coloured banner naming the recommended metric and a one-sentence rationale, followed by a *Select Type:* radio group containing the five effect sizes supported in raw mode:
+
+| Option label | Internal code | Compatible data |
+|---|---|---|
+| **log Response Ratio (lnRR) — for ratio/fold-change data** | `lnRR` | Continuous |
+| **Hedges' *g* — for standardized mean differences (corrected)** | `hedges_g` | Continuous |
+| **Cohen's *d* — for standardized mean differences (uncorrected)** | `cohen_d` | Continuous |
+| **log Odds Ratio (log OR) — for binary outcome data** | `log_or` | Binary |
+| **log Risk Ratio (log RR) — for binary outcome data** | `log_rr` | Binary |
+
+The radio button is pre-selected to the engine's recommendation. The user may switch freely between options; CoMeta runs a compatibility check on every change and reacts as follows:
+
+- If the chosen metric is compatible with the dataset's topology, the *About* panel beneath the radio group describes the metric in one short paragraph (e.g., for Hedges' *g*: *"A variation of Cohen's d that includes a correction factor (J) for small sample sizes …"*), and the action button remains enabled and labelled **✓ Confirm Selection**.
+- If the chosen metric is incompatible with the dataset (for example, *log OR* selected on a continuous-only dataset, or *Hedges' *g** selected on a pure-binary dataset), a red ❌ ***INCOMPATIBLE DATA*** panel is displayed, the action button is disabled, and its label switches to **✗ Invalid Selection**. The user must choose a compatible metric before proceeding.
+
+Clicking **✓ Confirm Selection** writes the choice to `ANALYSIS_CONFIG['effect_size_type']` together with the corresponding `es_config` record (internal column names that Cell 6 will create — for example, `lnRR`, `var_lnRR`, `SE_lnRR`, `CI_lower_lnRR`, `CI_upper_lnRR`). A green ✅ ***Configuration Saved*** banner confirms the action and directs the user to Cell 6. Downstream cells are marked stale.
+
+### 5.5 Pre-calculated mode: manual declaration
+
+When the data type is `pre_calculated`, the cell does not perform a topology audit. Instead, it renders a yellow informational panel — ***📊 Pre-calculated Effect Size Mode*** — and exposes a single *Effect Size Type:* dropdown containing the five metrics that the pipeline can interpret as already computed:
+
+| Option label | Internal code |
+|---|---|
+| **Hedges' g (Standardized Mean Difference)** | `hedges_g` |
+| **log Response Ratio (lnRR)** | `lnRR` |
+| **log Odds Ratio (logOR)** | `log_or` |
+| **Fisher's z (Correlation)** | `fisher_z` |
+| **Cohen's d (Uncorrected SMD)** | `cohen_d` |
+
+Below the dropdown, an *About* panel describes the currently selected metric. Clicking **✓ Confirm Effect Size Type** writes the user's declaration to `ANALYSIS_CONFIG` (together with the `variance_type` value — `variance`, `se`, or `both` — recorded by Cell 2) and renders the green confirmation banner.
+
+The user is responsible for ensuring that the metric declared here corresponds to the column supplied as `yi` in Cell 2. Mis-declaration of the metric will not be flagged by CoMeta but will lead to incorrect labelling of every subsequent figure, table, and automatically-generated text block.
+
+### 5.6 Behaviour under session restoration
+
+In reproducibility mode, a blue **🔄 Reproducibility Mode Active** notice is displayed at the top of the cell, reporting the metric being restored. The *Select Type:* (raw mode) or *Effect Size Type:* (pre-calculated mode) widget is auto-populated from the saved configuration, and the corresponding confirmation action is invoked automatically. No manual interaction is required.
+
+### 5.7 Practical guidance
+
+Three considerations are worth noting at this step:
+
+- **The recommendation is advisory, not prescriptive.** The rule-based engine encodes a defensible default for ecological datasets, but it does not supersede domain knowledge. When the recommendation conflicts with the conventional metric in the user's literature (for example, when reviewers expect Hedges' *g* despite the data being strongly right-skewed), the user should override the recommendation and proceed with the field-standard metric.
+- **Cohen's *d* is exposed for completeness.** Hedges' *g* is the small-sample-corrected analogue of Cohen's *d* and is the appropriate default for meta-analysis. *Cohen's d* is provided primarily for reproducing analyses from earlier literature that pre-dates the widespread adoption of the *J* correction.
+- **Mixed data deserve explicit justification.** When the *Ambiguous Data Types Detected* panel appears, the user should decide whether the binary and continuous portions of the dataset can be meaningfully combined under a single metric, or whether they constitute distinct meta-analyses that should be performed separately. CoMeta will compute the chosen metric on every row for which it is mathematically defined, but the interpretability of the pooled estimate is the user's responsibility.
+
+### 5.8 Summary
+
+Cell 5 fixes the effect-size metric for the remainder of the pipeline. In raw mode, a rule-based scoring engine evaluates six topological diagnostics and proposes either lnRR or Hedges' *g* (or, for binary datasets, log OR), with the reasoning surfaced in the **📊 Data Patterns** and **🧠 Decision Logic** tabs; the user accepts or overrides the recommendation via the *Select Type:* radio group, subject to a compatibility check, and clicks **✓ Confirm Selection**. In pre-calculated mode, the user declares the metric via the *Effect Size Type:* dropdown and clicks **✓ Confirm Effect Size Type**. In both cases, successful confirmation hands off to Cell 6 (Effect Size Calculation), described in Section 6.
