@@ -25,7 +25,7 @@
 
 4. All dependencies install automatically at runtime — there is nothing to configure locally.
 
-> 💡 **Tip:** New users should start with the [Truly Quick Start](docs/quick_start.md) for a 5-minute guided walkthrough.
+> 💡 **Tip:** New users should start with the [Truly Quick Start](docs/truly_quick_start.md) — a 3-minute click-through checklist that gets you from the notebook to manuscript-ready text with no theory upfront.
 
 ---
 
@@ -33,7 +33,8 @@
 
 | Document | What it covers |
 |---|---|
-| [**Quick Start**](docs/quick_start.md) | A 5-minute hands-on walkthrough — open the notebook, load data, get your first pooled effect size. |
+| [**Truly Quick Start**](docs/truly_quick_start.md) | A 3-minute, click-through checklist. Run each cell, accept the defaults, and collect manuscript-ready text. |
+| [**Quick Start**](docs/quick_start.md) | A longer hands-on walkthrough with the rationale behind each step. |
 | [**User Guide & Data Formats**](docs/user_guide_and_data_formats.md) | Detailed reference for supported inputs, required columns, synonym tables, and the widget interface. |
 | [**Architecture & Data Flow**](docs/architecture_and_data_flow.md) | Internal design of the statistical engine and an extension guide for developers adding new modules. |
 
@@ -252,8 +253,7 @@ And the core methodological references:
 - Pustejovsky, J. E., & Tipton, E. (2018). Small-sample methods for cluster-robust variance estimation and hypothesis testing in fixed effects models. *Journal of Business & Economic Statistics*, 36(4), 672–683.
 - Nakagawa, S., Lagisz, M., O'Dea, R. E., Rutkowska, J., Yang, Y., Noble, D. W. A., & Senior, A. M. (2021). The orchard plot: Cultivating a forest plot for use in ecology, evolution, and beyond. *Research Synthesis Methods*, 12(1), 4–12.
 
-<details>
-<summary><strong>Click to expand: Full reference list</strong></summary>
+### Full reference list
 
 - Curtis, P. S., & Wang, X. (1998). A meta-analysis of elevated CO₂ effects on woody plant mass, form, and physiology. *Oecologia*, 113(3), 299–313.
 - Duval, S., & Tweedie, R. (2000). Trim and fill: A simple funnel-plot-based method of testing and adjusting for publication bias in meta-analysis. *Biometrics*, 56(2), 455–463.
@@ -266,8 +266,6 @@ And the core methodological references:
 - Pustejovsky, J. E. (2022). *clubSandwich: Cluster-robust (sandwich) variance estimators with small-sample corrections* (R package version 0.5.8).
 - Stanley, T. D., & Doucouliagos, H. (2014). Meta-regression approximations to reduce publication selection bias. *Research Synthesis Methods*, 5(1), 60–78.
 - Viechtbauer, W. (2010). Conducting meta-analyses in R with the metafor package. *Journal of Statistical Software*, 36(3), 1–48.
-
-</details>
 
 ### License
 
