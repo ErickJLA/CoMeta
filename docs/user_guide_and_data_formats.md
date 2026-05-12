@@ -583,3 +583,150 @@ Three considerations are worth noting at this step:
 ### 5.8 Summary
 
 Cell 5 fixes the effect-size metric for the remainder of the pipeline. In raw mode, a rule-based scoring engine evaluates six topological diagnostics and proposes either lnRR or Hedges' *g* (or, for binary datasets, log OR), with the reasoning surfaced in the **📊 Data Patterns** and **🧠 Decision Logic** tabs; the user accepts or overrides the recommendation via the *Select Type:* radio group, subject to a compatibility check, and clicks **✓ Confirm Selection**. In pre-calculated mode, the user declares the metric via the *Effect Size Type:* dropdown and clicks **✓ Confirm Effect Size Type**. In both cases, successful confirmation hands off to Cell 6 (Effect Size Calculation), described in Section 6.
+
+---
+
+## Section 6. Effect Size Calculation
+
+Cell 6, titled **🧮 6. Effect Size Calculation**, executes the numerical work of the meta-analytical pipeline. It (i) computes the per-record effect size and its sampling variance using the metric chosen in Cell 5, (ii) applies the metric-specific cleaning rules required to keep the calculation mathematically well-defined, (iii) constructs the variance–covariance (VCV) matrices that encode the dependence between effect sizes sharing a common control group within the same study, and (iv) populates a five-tab diagnostic interface that should be inspected before proceeding to the model in Cell 7.
+
+The cell has no user-input widgets. It runs in full when the user clicks its **▶ Run** button, and its output reflects the configuration produced by Cells 2–5 verbatim. If any analytical choice needs to be revised, the user returns to the relevant upstream cell, re-saves, and re-executes Cell 6.
+
+### 6.1 Inputs and execution paths
+
+Cell 6 consumes the cleaned dataset `data_filtered` (from Cell 4) and the configuration dictionary `ANALYSIS_CONFIG` (populated by Cells 3 – 5). Depending on `ANALYSIS_CONFIG['data_type']`, one of two execution paths is taken:
+
+- **Raw path** (`data_type == 'raw'`): the cell computes the effect sizes from the raw means, standard deviations, and sample sizes (or event/non-event counts).
+- **Pre-calculated path** (`data_type == 'pre_calculated'`): the cell standardises the user-supplied effect sizes and variances into the internal schema, validates them, and derives the remaining columns (standard errors, confidence intervals, inverse-variance weights, back-transformed quantities).
+
+Both paths conclude by constructing the per-study VCV matrices (§6.4) and rendering the same tabbed output (§6.5).
+
+### 6.2 Metric-specific cleaning (raw path only)
+
+Before any effect size is computed, Cell 6 applies the cleaning rules required by the metric selected in Cell 5. These rules complement, but do not duplicate, the SD imputation already performed in Cell 4.
+
+**Log Response Ratio (lnRR).** lnRR is undefined for non-positive values:
+
+- Rows in which `xe < 0` or `xc < 0` are removed.
+- For rows in which `xe == 0` or `xc == 0`, a small additive offset is applied to both means. The offset is set to 1 % of the smallest strictly positive value observed across `xe` and `xc` (or 0.001 if no positive values are available). This data-driven offset preserves the relative ordering of effects across studies of differing scales.
+
+**Log odds ratio (log OR) and log risk ratio (log RR).** For 2 × 2 contingency-table data:
+
+- **Double-zero studies** — studies in which both `events_e == 0` and `events_c == 0` — are uninformative for relative effects and are removed; the reason recorded is *"Double-Zero Event Count (Uninformative)"*.
+- **Single-zero studies** — studies in which any one of `events_e`, `nonevents_e`, `events_c`, `nonevents_c` equals zero — are corrected by the standard **Haldane–Anscombe continuity correction**: 0.5 is added to all four cells of the affected 2 × 2 table.
+
+**Hedges' *g*, Cohen's *d***. No additional row-level cleaning is performed; rows that produce NaN effect sizes or non-finite variances after the calculation in §6.3 are removed and tagged with the reason *"Calculation Failed (Missing Data/NaN)"* or *"Zero or Negative Variance"*.
+
+### 6.3 Effect-size and variance formulae
+
+The formulae implemented in Cell 6 are summarised below. All formulae operate row-wise on the cleaned dataset. Symbols: *x̄*ₑ, *x̄*_c are the experimental and control means; *s*ₑ, *s*_c the corresponding standard deviations; *n*ₑ, *n*_c the sample sizes; *a*, *b*, *c*, *d* the cells of the 2 × 2 contingency table (events_e, nonevents_e, events_c, nonevents_c).
+
+**Log Response Ratio (lnRR).**
+
+$$ \mathrm{lnRR} = \ln\!\bigl(\bar{x}_e / \bar{x}_c\bigr), \qquad \mathrm{Var}(\mathrm{lnRR}) = \frac{s_e^{2}}{n_e\,\bar{x}_e^{2}} + \frac{s_c^{2}}{n_c\,\bar{x}_c^{2}}. $$
+
+The cell additionally reports the back-transformed *Response Ratio* (exp lnRR), a signed *fold change*, and the *Percent Change* (Response Ratio − 1) × 100, all stored as separate columns for interpretation.
+
+**Hedges' *g*.** The cell computes the pooled standard deviation
+
+$$ s_p = \sqrt{\frac{(n_e - 1)\,s_e^{2} + (n_c - 1)\,s_c^{2}}{n_e + n_c - 2}}, $$
+
+Cohen's *d* = (*x̄*ₑ − *x̄*_c) ⁄ *s*_p, and the exact small-sample correction factor *J* via the gamma function,
+
+$$ J(m) = \frac{\Gamma(m/2)}{\sqrt{m/2}\;\Gamma\!\bigl((m-1)/2\bigr)}, \qquad m = n_e + n_c - 2, $$
+
+so that Hedges' *g* = *J* · *d*. The variance uses the large-sample approximation matching *metafor* and Borenstein et al.,
+
+$$ \mathrm{Var}(g) = \frac{1}{n_e} + \frac{1}{n_c} + \frac{g^{2}}{2\,(n_e + n_c)}. $$
+
+**Cohen's *d* (uncorrected).** Same as Hedges' *g* but without the *J* factor:
+
+$$ d = \frac{\bar{x}_e - \bar{x}_c}{s_p}, \qquad \mathrm{Var}(d) = \frac{n_e + n_c}{n_e\,n_c} + \frac{d^{2}}{2\,(n_e + n_c)}. $$
+
+**Log odds ratio (log OR).**
+
+$$ \mathrm{logOR} = \ln\!\bigl(a\,d / (b\,c)\bigr), \qquad \mathrm{Var}(\mathrm{logOR}) = \tfrac{1}{a} + \tfrac{1}{b} + \tfrac{1}{c} + \tfrac{1}{d}. $$
+
+The back-transformed *Odds Ratio* (exp logOR) and its confidence bounds are stored alongside.
+
+**Log risk ratio (log RR).**
+
+$$ \mathrm{logRR} = \ln\!\Bigl(\tfrac{a/(a+b)}{c/(c+d)}\Bigr), \qquad \mathrm{Var}(\mathrm{logRR}) = \tfrac{1}{a} - \tfrac{1}{a+b} + \tfrac{1}{c} - \tfrac{1}{c+d}. $$
+
+The back-transformed *Risk Ratio* is stored alongside.
+
+**Derived quantities (all metrics).** For every retained row, Cell 6 computes:
+
+| Quantity | Formula | Internal column |
+|---|---|---|
+| Standard error | $\sqrt{\mathrm{Var}}$ | metric-specific (e.g., `SE_lnRR`, `SE_g`) |
+| 95 % Wald confidence interval | effect ± 1.96 · SE | metric-specific `CI_lower_*`, `CI_upper_*` |
+| Fixed-effect weight | 1 ⁄ Var | `w_fixed` |
+
+The Wald interval is used for record-level diagnostics only; the pooled estimate reported by Cell 7 uses the appropriate model-based interval (Knapp–Hartung-adjusted, profile-likelihood, or CR2 cluster-robust) and is not the row-wise Wald CI.
+
+### 6.4 Construction of the variance–covariance (VCV) matrices
+
+For each primary study (level-3 unit identified by `id`), Cell 6 constructs a per-study variance–covariance matrix **Σ**ᵢ that encodes the sampling covariance between effect-size records sharing a common control group within that study. The matrix is initialised as the diagonal of sampling variances. For every set of two or more rows sharing the same `shared_group_id` (assigned by Cell 4, §4.3), the corresponding off-diagonal entries are filled using metric-specific closed-form expressions:
+
+| Metric | Shared-control covariance | Source |
+|---|---|---|
+| **lnRR** | $s_c^{2} / (n_c\,\bar{x}_c^{2})$ | Lajeunesse (2011) delta-method expression. |
+| **Cohen's *d*** | $\tfrac{1}{n_c} + \tfrac{d_i\,d_j\,n_c}{2\,N_i\,N_j}$ with $N_k = n_{e,k} + n_c$ | Gleser & Olkin (2009), Table 4. |
+| **Hedges' *g*** | $J_i\,J_j\,\bigl[\tfrac{1}{n_c} + \tfrac{d_i\,d_j\,n_c}{2\,N_i\,N_j}\bigr]$, with *d* back-derived from *g* via *J* | Gleser & Olkin (2009); the *J* factor uses exact log-gamma. |
+| **log OR** | $\tfrac{1}{c} + \tfrac{1}{d}$ (where *c*, *d* are the control-arm event and non-event counts) | Gleser & Olkin (2009). |
+| **log RR** | $\tfrac{1}{c} - \tfrac{1}{n_c}$, with $n_c = c + d$ | Gleser & Olkin (2009). |
+
+The resulting dictionary of matrices is stored as `ANALYSIS_CONFIG['vcv_matrices']` and consumed by the three-level REML engine in Cell 7 to populate the off-diagonal entries of the marginal variance Σᵢ = τ²_between · **J**ᵢ + τ²_within · **I**ᵢ + **V**ᵢ. Studies that contain no shared-control records receive a purely diagonal matrix; their sampling variances are therefore treated as independent, exactly as they would be in a conventional fixed-V meta-analysis. No user action is required to enable the VCV correction — it is applied automatically wherever Cell 4 detected a shared control group.
+
+### 6.5 Output: five diagnostic tabs
+
+On completion, Cell 6 renders a tabbed interface comprising the following five tabs:
+
+- **📊 Summary.** Three top-line counts (Observations, Studies, Removed) are displayed as coloured cards, followed by a descriptive table (mean, median, min, max, standard deviation of the effect-size column) and a histogram of the effect-size distribution with a vertical dashed line at the sample mean and a thin reference line at the null value.
+- **📉 Diagnostics.** A processing log enumerates every cleaning step performed (SD handling carried forward from Cell 4, metric-specific cleaning from §6.2, VCV construction). Below the log, an **Outlier Analysis (IQR Method)** identifies effect sizes lying outside the standard 1.5 × interquartile range fences and presents them in a sortable table together with the originating `id`, `xe`, `xc`, `ne`, `nc` (and `year`, where available). The intended use is the detection of transcription errors in the source spreadsheet; biologically extreme but genuine values should be retained.
+- **📏 Detailed Stats.** A descriptive table reporting *N*, mean, median, standard deviation, skewness, and kurtosis of the effect size, standard error, and variance; a *Normality Check (Shapiro–Wilk)* card (test omitted for *N* > 5000); a brief *What should I do?* advisory panel that flags small-sample non-normality, high skewness (|skew| > 1), and high kurtosis (|kurt| > 3); a Q–Q plot of the effect-size column against the normal quantiles; and a five-row preview of the analytical dataset.
+- **🧠 Interpretation.** Three headline cards report the *Direction* of the typical effect (Favors Treatment / Favors Control / Ambiguous, based on the proportion of studies whose individual 95 % CI excludes the null), the *Significance Rate* (% of records with a 95 % CI excluding the null), and the *Dominant Magnitude* (the most common magnitude bin, see below). A pie chart summarises the vote-counting classification (significant positive / significant negative / non-significant), and a horizontal bar chart reports the count of records in each magnitude bin. A brief automated narrative summarises these results in prose. The magnitude bins follow Cohen's conventional benchmarks for standardised mean differences and approximate benchmarks for ratio-scale metrics:
+
+  | Metric class | Negligible | Small | Medium | Large |
+  |---|---|---|---|---|
+  | Hedges' *g*, Cohen's *d* | < 0.2 | 0.2 – 0.5 | 0.5 – 0.8 | > 0.8 |
+  | lnRR, log OR, log RR | < 0.1 | 0.1 – 0.3 | 0.3 – 0.5 | > 0.5 |
+
+  The vote-counting and magnitude classifications in this tab are *record-level* descriptive aids; they do **not** substitute for the model-based pooled inference reported by Cell 7.
+- **🗑️ Removed Data.** A table listing every row removed by Cell 6, together with the reason for removal (*"Double-Zero Event Count (Uninformative)"*, *"Calculation Failed (Missing Data/NaN)"*, *"Zero or Negative Variance"*, *"Missing Effect Size or Variance"*, etc.) and the originating means, sample sizes (or event counts), and effect size / variance columns. A green confirmation banner is shown if no rows were removed.
+
+### 6.6 Pre-calculated path
+
+When the data type is `pre_calculated`, the metric-specific calculations of §6.3 are bypassed. The cell instead performs the following operations:
+
+1. The user-supplied effect size column (`yi`) and variance column are coerced to numeric and renamed to the internal schema (e.g., `lnRR`, `var_lnRR`). When only a standard error was mapped in Cell 2, it is squared to yield the variance; when both `variance` and `se` were mapped, the explicit variance column is preferred.
+2. Rows with a missing effect size or variance are removed (reason *"Missing Effect Size or Variance"*); rows with zero variance are removed (reason *"Zero Variance (Infinite Weight)"*); the presence of any negative variance triggers a critical error and the pipeline halts.
+3. The standard error, 95 % Wald confidence interval, and inverse-variance weight are derived using the same formulae as the raw path.
+4. For ratio-scale metrics (lnRR, log OR, log RR), the back-transformed Response Ratio / Odds Ratio / Risk Ratio and the corresponding confidence-interval columns are computed.
+5. The VCV matrices are constructed exactly as in §6.4. Because the raw control-group statistics are not available, only the metrics that require nothing beyond the variance column itself yield a diagonal **Σ**ᵢ; off-diagonal entries can be populated only where the relevant raw columns (`nc`, `xc`, `sdc`, or `events_c`, `nonevents_c`) are present in the pre-calculated dataset and a `shared_group_id` has been assigned.
+
+The same five-tab output is rendered, with the Pre-calculated mode flagged in the Summary tab. The Diagnostics tab reports the validation steps performed; the Detailed Stats and Interpretation tabs apply identically to pre-calculated and raw datasets.
+
+### 6.7 Outputs handed to downstream cells
+
+Cell 6 writes the following keys to `ANALYSIS_CONFIG` for consumption by Cell 7 onwards:
+
+| Key | Contents |
+|---|---|
+| `analysis_data` | The cleaned, per-record analytical DataFrame, with the effect size, variance, SE, CI bounds, fixed-effect weight, and back-transformed columns. |
+| `effect_col`, `var_col`, `se_col`, `ci_lower_col`, `ci_upper_col` | The internal column names for the chosen metric. |
+| `vcv_matrices` | A dictionary keyed by `id` containing the per-study VCV matrix. |
+
+These objects, together with the unchanged moderator columns retained from Cell 2, constitute the full input to the three-level REML engine in Cell 7.
+
+### 6.8 Practical guidance
+
+- **Inspect the Removed Data tab before modelling.** Records dropped at this stage do not appear in the model fit. The number and reason for each removal should be reported in the manuscript's Methods section; CoMeta's automated *Materials and Methods* generator in Cell 7 will surface these counts, but the user is responsible for verifying that the removals are scientifically defensible.
+- **Outliers are advisory, not prescriptive.** The 1.5 × IQR rule flags candidates for inspection. Ecological data routinely contain genuine extreme values, and silent removal of such records is inappropriate; the cumulative, leave-one-out, and Baujat diagnostics in Cells 20 – 22 are the appropriate tools for assessing the influence of extreme records on the pooled estimate.
+- **The record-level Wald CIs are not the model output.** The 95 % CIs displayed in this cell are based on the asymptotic normal approximation around each record and are intended for visualising the per-study distribution. The pooled estimate, the heterogeneity statistics, and the inference reported in Cell 7 use the three-level REML model with CR2 cluster-robust standard errors and Satterthwaite degrees of freedom; these are the values that should be reported.
+- **The zero-offset for lnRR is a fallback, not a remedy.** If a non-trivial proportion of records require the zero offset described in §6.2, the appropriateness of lnRR for the dataset should be reconsidered. Hedges' *g* is the appropriate alternative for outcomes that legitimately attain zero values.
+
+### 6.9 Summary
+
+Cell 6 computes, per record, the effect size and sampling variance for the metric chosen in Cell 5, applying the metric-specific cleaning rules required to keep the calculation well-defined (lnRR zero-offset; binary double-zero drop and Haldane–Anscombe correction). For every primary study, it builds the variance–covariance matrix that encodes within-study sampling dependence among effect sizes that share a control group, using the Gleser & Olkin (2009) and Lajeunesse (2011) closed-form expressions. The cell renders a five-tab diagnostic interface — **📊 Summary**, **📉 Diagnostics**, **📏 Detailed Stats**, **🧠 Interpretation**, **🗑️ Removed Data** — that should be inspected before proceeding to Cell 7 (Overall Meta-Analysis), described in Section 7.
