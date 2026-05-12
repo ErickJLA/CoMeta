@@ -325,19 +325,70 @@ Customise across six tabs (🎨 Style, ⚫ Points, 📈 Regression, 💾 Layout/
 
 ### When to skip linear meta-regression
 
-- **Non-linear relationships** (threshold, plateau, dose-response, saturation) are not captured by a straight line; use the **spline meta-regression (Cells 14 – 15)** instead. If your bubble plot in Cell 13 shows obvious curvature, the spline cells are the right next step.
+- **Non-linear relationships** (threshold, plateau, dose-response, saturation) are not captured by a straight line; use the **spline meta-regression (next section)** instead. If your bubble plot in Cell 13 shows obvious curvature, the spline cells are the right next step.
 - **Categorical moderators** belong in the **subgroup analysis (Section 9)**, not here.
 - **Very small datasets** (~10 studies or fewer) yield unstable slopes; in that regime, report only the pooled estimate from Cell 7.
 
 ---
 
-## 11. Other optional analyses
+## 11. Capture non-linear relationships with spline meta-regression (Cells 14 – 15)
+
+Ecology is full of non-linear relationships. Photosynthesis saturates at high CO₂. Thermal performance peaks at an optimum and collapses on either side. Many stress responses are flat below a threshold and steep above it. Dose-response curves rarely march in a straight line. Whenever you suspect a curve like these in your effect-size data, the **spline meta-regression (Cells 14 – 15)** is the appropriate tool — and the bubble plot from Cell 13 is the typical hint, showing curvature that the linear fit clearly fails to capture.
+
+### Why this matters
+
+A straight line through curved data hides exactly the biology you care about: where the threshold lies, where the plateau begins, where the optimum sits. Spline meta-regression fits a flexible *non-linear* curve through the (moderator, effect-size) cloud — formally, a **restricted (natural) cubic spline** — and asks whether that curve is significantly more informative than a straight line. Like linear meta-regression, it is fundamentally a tool for *explaining* the heterogeneity from Cell 7, but it admits curvature into the explanation.
+
+### Configure and run (Cell 14)
+
+Run **Cell 14 (📈📈 14. Non-Linear Spline Model Meta-Regression: Configuration & Execution)**. The interface has only two settings:
+
+1. From the **Moderator:** dropdown, pick your continuous predictor (the same kind of column you would use in linear meta-regression).
+2. Set **Spline df:** — the flexibility of the curve. Keep it at **3** (the default) for most analyses; this fits a four-knot natural cubic spline with enough flexibility to reveal thresholds, plateaus, and single optima while remaining easy to interpret. Raise it to 4 – 6 only if you have a large dataset and a genuinely complex shape to capture.
+3. Click **▶ Run Spline Analysis**.
+
+The fit uses a plug-in τ² from Cell 7, which keeps the optimisation stable even when the spline basis introduces correlated columns.
+
+### Read the result
+
+The headline output is in the **📊 Results** tab: an **omnibus test of non-linearity** displayed as a large card with the *p*-value and significance asterisks. The test is a Wald χ² on the joint significance of the spline terms; an adaptive interpretation paragraph translates the outcome into plain English:
+
+- *Significant p:* the relationship has genuine curvature — a flexible spline fits better than a straight line. Examine the curve in Cell 15 to identify thresholds or plateaus.
+- *Non-significant p:* there is no evidence of non-linearity; the linear meta-regression of Cell 12 is the parsimonious choice.
+
+The **🔍 Diagnostics** tab includes a **Boundary Diagnostics** check that you should always read. If fewer than three records fall in the lower or upper 10 % decile of your moderator range, you will see a yellow ⚠️ ***Sparse Data at Boundaries*** warning: the spline curve can "whip" upwards or downwards at those tails, and inferences about the extremes of your moderator range should be qualified.
+
+The **⚙️ Model Details** tab reports the knot locations and the raw spline coefficients — these are provided for reproducibility, **not** for interpretation. Individual spline coefficients have no direct biological meaning; the substantive findings are the omnibus *p*-value and the shape of the curve in Cell 15.
+
+The **📝 Publication Text** tab again writes adaptive *Methods* and *Results* paragraphs.
+
+> **Report the omnibus *p*, not the individual coefficients.** This is the single most common mistake when reporting spline meta-regressions.
+
+### Visualise the curve (Cell 15)
+
+Run **Cell 15 (📈📈 15. Non-Linear Spline Model Meta-Regression: Visualization)**. The figure is the natural companion to the omnibus test and the centrepiece of any manuscript reporting a non-linear meta-regression:
+
+- Each effect-size record is drawn at its (moderator, effect-size) coordinates.
+- The fitted spline curve is overlaid, with an optional 95 % confidence band that visually communicates where the curve is well-estimated and where it is not.
+- The omnibus *p*-value can be annotated directly on the figure (the *Show Stats (P-value)* toggle in the **🌊 Curve** tab).
+- The optional **Color By:** dropdown lets you condition point colour on a categorical moderator (e.g., taxonomic group), useful for showing that the non-linear pattern holds across qualitative categories.
+
+Customise across six tabs (🎨 Style, ⚫ Points, 🌊 Curve, 💾 Layout, ✏️ Labels, 📝 Caption), then click **Generate plot**. As elsewhere, PDF and PNG exports are produced on demand and the **📝 Caption** tab supplies a publication-ready figure legend.
+
+### When to skip spline meta-regression
+
+- **A clearly linear relationship.** If the linear-regression *p*-value in Cell 12 is small and the bubble plot looks straight, the spline adds complexity without insight — report the linear fit. (A common, defensible alternative is to pre-specify the spline as a sensitivity check on the linear model.)
+- **Very small datasets** (~15 studies or fewer along the moderator range). Splines need points to anchor the curve; below that threshold the omnibus test is under-powered and the curve is dominated by the natural-cubic boundary constraints.
+- **Sparse data at the moderator extremes.** When the *Sparse Data at Boundaries* warning fires, keep the analysis but explicitly limit your interpretation to the central part of the moderator range.
+
+---
+
+## 12. Other optional analyses
 
 The remaining cells extend the analysis further. Run only those relevant to your manuscript.
 
 | Cells | Module | When to run |
 |---|---|---|
-| **14 – 15** | **Spline meta-regression** | You have a continuous moderator and expect a non-linear relationship (threshold, dose-response, saturation). |
 | **16 – 19** | **Publication-bias diagnostics** | You should run all four (Egger, trim-and-fill, PET-PEESE, funnel plot) for any manuscript reporting a meta-analysis. |
 | **20 – 22** | **Sensitivity analysis** | Strongly recommended — leave-one-out and Baujat influence plots demonstrate that the pooled estimate is robust to any single study. |
 | **23, 25** | **Cumulative meta-analysis** | Optional. Shows the trajectory of the pooled estimate over publication time. |
@@ -347,7 +398,7 @@ Each of these cells follows the same pattern: run, configure widgets, click the 
 
 ---
 
-## 12. Export your session
+## 13. Export your session
 
 In **Cell 7's 💾 Export tab**, click **📥 Download Settings JSON**. The downloaded `analysis_settings.json` file:
 
@@ -376,7 +427,7 @@ Also click **📥 Download Excel Audit Report** for a full multi-sheet audit wor
 
 **For most manuscripts:** the minimum reportable pipeline is **Cells 1 – 7** for the pooled estimate, **Cells 16 – 19** for publication-bias diagnostics, and **Cells 20 – 22** for the sensitivity analysis. That covers the core numerical claims any reviewer will look for.
 
-**When heterogeneity is non-trivial** (the typical ecological case): use the **subgroup analysis (Cells 8 – 11)** for categorical moderators or the **linear meta-regression (Cells 12 – 13)** for continuous moderators. Both turn a flat "average effect" into a substantive ecological story by explaining *why* studies disagree. For non-linear relationships along a continuous gradient, the **spline meta-regression (Cells 14 – 15)** is the right tool.
+**When heterogeneity is non-trivial** (the typical ecological case): use the **subgroup analysis (Cells 8 – 11)** for categorical moderators, the **linear meta-regression (Cells 12 – 13)** for continuous moderators with a monotone trend, or the **spline meta-regression (Cells 14 – 15)** when the relationship is curved (threshold, plateau, dose-response, saturation). These are what turn a flat "average effect" into a substantive ecological story by explaining *why* studies disagree.
 
 **For additional descriptive figures:** the cumulative analysis (Cells 23, 25) and the geographic map (Cell 24).
 
