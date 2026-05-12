@@ -194,22 +194,34 @@ Cell 6 computes the per-record effect size and variance, applies any metric-spec
 
 ## 8. Run the overall meta-analysis (Cell 7)
 
-Run **Cell 7 (📊 7. Overall Meta-Analysis)**. This is the headline result of your meta-analysis.
+Cell 7 produces the **pooled effect size** — the headline number of your meta-analysis. This is the cell that takes the per-study effect-size records computed in Cell 6 and combines them into a single best estimate of the true effect, together with all the inferential machinery (confidence interval, prediction interval, *p*-value, heterogeneity statistics) you will need to report.
 
-The cell fits three candidate models (fixed-effect, two-level random-effects, three-level) and reports the **AIC winner** in the **📊 Primary Result** tab as a single number — the pooled effect size — with its confidence interval, prediction interval, and *p*-value.
+### Why this matters
 
-**The six tabs:**
+Meta-analysis is, at heart, a *precision-weighted average* of the individual study estimates — but with three subtleties that make it more than a pocket-calculator exercise:
+
+- **Three-level structure.** Ecological datasets rarely have one effect size per paper. A single paper might report responses across several species, several sites, or several time points; treating those records as independent would inflate your precision artificially. CoMeta fits a **three-level random-effects model** that recognises which records came from the same study, partitioning variance into sampling error (within-record), between-effect-sizes-within-studies (σ²), and between-studies (τ²). The model is fitted by *restricted maximum likelihood* (REML), the modern convention, and the inference uses *cluster-robust* (CR2) standard errors so the result is valid even if the variance structure is slightly misspecified.
+- **Confidence vs. prediction.** Two intervals are reported, and they answer different questions. The **95 % confidence interval** tells you where the *average* true effect likely lies — a statement about the mean. The **95 % prediction interval** tells you where the effect of a *single future, exchangeable study* would likely fall — usually noticeably wider, and the more honest summary of "what to expect" in your field. Reporting both is the modern convention; CoMeta does it for you.
+- **Heterogeneity is the bridge to your next analyses.** The *I*², *Q*, τ², and σ² statistics on the **📉 Heterogeneity** tab quantify how much studies disagree beyond chance. An *I*² above ~25 % is the cue to run the moderator analyses in Sections 9 – 11, which ask *why* studies disagree.
+
+In short: this cell gives you the headline result, and it also tells you whether the headline result is the whole story or just the start of it.
+
+### Run the cell
+
+Run **Cell 7 (📊 7. Overall Meta-Analysis)**. The cell automatically fits **three candidate models in parallel** — fixed-effect (assumes the true effect is identical across studies), two-level random-effects (allows between-study variation), and three-level (also allows within-study variation) — and reports the **AIC winner** as the pooled effect. AIC is a model-selection criterion that rewards fit and penalises complexity; lower is better. For datasets with multiple records per study, the three-level model is almost always the winner, and that is the model you should report.
+
+The default settings (REML estimator, Knapp–Hartung small-sample adjustment, *t*-distribution inference, α = 0.05) are conventions appropriate for the great majority of ecological meta-analyses. You can change them in the **⚙️ Settings** tab, but you rarely need to.
+
+### Read the result — six tabs
 
 | Tab | What to look for |
 |---|---|
-| **📊 Primary Result** | The pooled estimate. This is the number you report. |
-| **📉 Heterogeneity** | *I*², *Q*, τ², σ² with profile-likelihood CIs. |
-| **⚖️ Model Selection** | Side-by-side comparison of all three candidate models. Verify the AIC winner is the three-level model in three-level datasets. |
-| **⚙️ Settings** | Six widgets to change α, model selection, τ² estimator, Knapp–Hartung, distribution, etc. Defaults are appropriate for most analyses. |
+| **📊 Primary Result** | The pooled estimate (the number you report), its 95 % CI, its 95 % prediction interval, and the *p*-value. The model badge tells you whether the three-level model won the AIC comparison. |
+| **📉 Heterogeneity** | *I*² (proportion of variation that is genuine, with Higgins et al. 2003 bins), *Q* (formal test), and the variance components τ² and σ² with profile-likelihood CIs. **Read this before deciding whether to run the moderator-analysis sections.** |
+| **⚖️ Model Selection** | Side-by-side AIC comparison of fixed-effect, two-level, and three-level models, with a visual sensitivity panel. Verify the three-level model is the AIC winner in three-level datasets; if it is not, your studies behave like independent observations and a simpler model is honest. |
+| **⚙️ Settings** | Six widgets to change α, force a particular model, switch τ² estimator (REML / DL / ML), toggle Knapp–Hartung, etc. Click **Re-Run Analysis** after changing anything. |
 | **📝 Publication Text** | **Auto-generated, manuscript-ready *Methods* and *Results* paragraphs** — see below. |
 | **💾 Export** | **📥 Download Settings JSON** here — do this now to safeguard against Colab session timeouts. |
-
-If you change any setting in **⚙️ Settings**, click **Re-Run Analysis** to refit.
 
 ### The autogenerated Methods and Results text
 
@@ -224,7 +236,7 @@ The **📝 Publication Text** tab is one of CoMeta's most useful outputs. Every 
 
 You can copy the text directly into your manuscript draft. The downstream cells (subgroup analysis, meta-regression, publication-bias diagnostics, sensitivity analysis) each produce their own *Publication Text* tab in the same format, so by the time you finish the pipeline you have a draft *Methods* section and a draft *Results* section assembled from cell-level paragraphs — every numerical claim consistent with the figures and tables in the same notebook.
 
-> **You can stop here** if all you want is the pooled estimate and the autogenerated text. Everything below is optional.
+> **You can stop here** if all you want is the pooled estimate and the autogenerated text. Everything below is optional, although for most manuscripts the publication-bias (Cells 16 – 19) and sensitivity (Cells 20 – 22) diagnostics are also expected.
 
 ---
 
