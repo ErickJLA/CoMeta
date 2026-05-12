@@ -836,3 +836,100 @@ When the session has been restored from an `analysis_settings.json` file, the si
 ### 7.8 Summary
 
 Cell 7 fits three candidate meta-analytical models (fixed-effect, two-level random-effects, three-level hierarchical) by REML and reports the AIC-selected model with CR2 cluster-robust inference, Satterthwaite degrees of freedom, profile-likelihood confidence intervals for the variance components, and a prediction interval for a future exchangeable study. The user controls the analysis through six widgets in the **⚙️ Settings** tab (*Confidence Level:*, *Model Selection:*, *τ² Method:*, *Knapp-Hartung Correction*, *Inference:*, *Use Full Log-Likelihood*) and refits the model with **Re-Run Analysis**. Results are presented in six tabs — **📊 Primary Result**, **📉 Heterogeneity**, **⚖️ Model Selection**, **⚙️ Settings**, **📝 Publication Text**, **💾 Export** — and exported either as an Excel audit workbook or as a JSON session file. The fitted model is then consumed by Cells 8 – 25, beginning with the subgroup analyses described in Section 8.
+
+---
+
+## Section 8. Subgroup Analysis Configuration
+
+Cell 8, titled **⚙️ 8. Subgroup Analysis: Configuration**, sets up — but does **not** execute — the subgroup analyses to be run by Cell 9. It exposes a four-tab interface in which the user (i) chooses between a single-factor and a two-factor subgroup design, (ii) selects the moderator (or pair of moderators) on which the groups are defined, (iii) specifies the minimum-data thresholds that each group must satisfy in order to be included, and (iv) inspects the distribution of records across groups before committing to the configuration. The cell validates the user's selections and writes them to `ANALYSIS_CONFIG['subgroup_config']`; Cell 9 then fits a separate three-level REML model for each retained group, using exactly the same inference machinery as Cell 7 (CR2 cluster-robust standard errors, Satterthwaite degrees of freedom, Knapp–Hartung adjustment where enabled).
+
+The cell is executed by clicking its **▶ Run** button. It initialises by reading the analytical dataset from `ANALYSIS_CONFIG['analysis_data']`, auto-detecting the columns that may serve as moderators, and rendering the four tabs.
+
+### 8.1 Moderator auto-detection
+
+CoMeta searches the analytical dataset for columns that can plausibly act as categorical moderators. A column is recognised as a moderator when any of the following conditions is true:
+
+- the column has dtype `object` (i.e., free-text or string values);
+- the column has a pandas `Categorical` dtype;
+- the column is numeric but has fewer than 20 unique values and more than one unique value (e.g., publication year, study quality grade, or an ordinal habitat code).
+
+Core analytical columns (`xe`, `sde`, `ne`, `xc`, `sdc`, `nc`, `id`, the chosen effect-size column, its variance, standard error, confidence-interval bounds, and any auxiliary columns added by Cells 4 – 6 such as `sde_imputed`, `Response_Ratio`, `Odds_Ratio`, `Percent_Change`, `df`, `J`, etc.) are excluded automatically. The detected list is reported in the **📝 Details** tab and used to populate the moderator dropdowns described in §8.2. If no moderator columns are detected, the cell renders a red initialisation-error panel instructing the user to verify that the dataset contains categorical columns; in that case, the subgroup pipeline cannot be used and the analysis should proceed directly to Cell 12 (Meta-Regression).
+
+### 8.2 Tab 1 — 📋 Configuration
+
+The first tab is the principal configuration panel. It presents four numbered sections:
+
+1. **Select Analysis Type.** A radio group with two options:
+
+   | Option label | Internal value | Description |
+   |---|---|---|
+   | **Single-Factor Analysis** | `single` | One moderator partitions the dataset into mutually exclusive groups; an independent three-level REML model is fitted within each group. Recommended for primary hypotheses with ≥ 10 observations per group. |
+   | **Two-Factor Analysis (Interaction)** | `two_way` | Two moderators are crossed; an independent model is fitted in each non-empty cell of the resulting contingency table. Recommended only when 3 – 5 studies are available per cell and ≥ 20 observations are available overall. |
+
+2. **Select Moderator(s).** A *Moderator 1:* dropdown listing every auto-detected moderator. When the analysis type is *two-way*, a *Moderator 2:* dropdown appears below; its first option is *None*, and the two moderators must be distinct.
+
+3. **Set Quality Thresholds.** A read-only summary of the *Min Papers:* and *Min Observations:* slider values, with a pointer to the **⚙️ Thresholds** tab where they may be adjusted (see §8.4).
+
+4. **Save Configuration.** The **💾 Save Configuration & Proceed** button writes the configuration to memory and triggers the validation described in §8.5.
+
+Every change to the analysis-type, moderator, or threshold widgets is observed: the **📊 Moderator Preview** and **⚙️ Thresholds** tabs are updated automatically so that the user can iterate on the configuration before committing.
+
+### 8.3 Tab 2 — 📊 Moderator Preview
+
+This tab summarises the empirical distribution of records across the selected moderator categories *before* the quality thresholds are applied. For the primary moderator, the cell reports a per-category table with four columns:
+
+| Column | Description |
+|---|---|
+| **Category** | Distinct value of the moderator. |
+| **Observations** | Number of effect-size records in the category. |
+| **Papers** | Number of primary studies (distinct `id` values) contributing to the category. |
+| **Percent** | Observations as a percentage of the analytical dataset. |
+
+Rows for categories with fewer than five observations are shaded yellow to flag potentially under-powered groups. A coloured banner beneath the table summarises whether all categories meet the conventional five-observation rule of thumb.
+
+When the analysis type is *two-way*, the per-category table is repeated for the secondary moderator and is followed by a *Combination Matrix: Moderator 1 × Moderator 2* — a colour-graded cross-tabulation of observation counts. The cell counts empty combinations (which will be dropped), flags any combination with fewer than three records, and warns when the minimum-cell count is below five. These visual checks are the principal safeguard against fitting a two-way subgroup model to a sparse contingency table.
+
+### 8.4 Tab 3 — ⚙️ Thresholds
+
+This tab exposes the two minimum-data sliders that determine which groups are retained:
+
+| Widget label | Type | Range | Default |
+|---|---|---|---|
+| **Min Papers:** | IntSlider | 1 – 10 (step 1) | 3 |
+| **Min Observations:** | IntSlider | 2 – 20 (step 1) | 5 |
+
+A group (or, in two-way mode, a cell of the combination matrix) is retained in the analysis only if it contains **at least *Min Papers* distinct primary studies *and* at least *Min Observations* effect-size records**. Setting either threshold higher yields fewer but better-estimated groups; setting either lower yields more groups but increases the risk of unstable estimates.
+
+Below the sliders, an *Impact on Data Retention* section reports, in real time, the consequence of the current thresholds:
+
+- A green panel headed **✓ Groups Meeting Criteria** lists every group that would be retained, with its observation count and paper count.
+- A red panel headed **✗ Groups Excluded** lists every group that would be dropped, together with the reason (fewer than *Min Papers* studies, fewer than *Min Observations* records, or both).
+
+The user is therefore able to choose threshold values with full visibility of which groups will and will not survive, without having to refit the model.
+
+### 8.5 Saving the configuration
+
+Clicking **💾 Save Configuration & Proceed** triggers the following sequence:
+
+1. **Validation.** The configuration is rejected, with a red ❌ ***Validation Failed*** panel listing the offending conditions, if any of the following hold:
+   - the analysis type is *two-way* but *Moderator 2:* is left at *None*;
+   - *Moderator 1:* and *Moderator 2:* are the same column;
+   - fewer than two groups satisfy the quality thresholds, in which case a subgroup analysis is not well-defined.
+2. **Persistence.** On successful validation, the configuration is written to `ANALYSIS_CONFIG['subgroup_config']` as a dictionary recording: the analysis type, the names of the chosen moderator(s), the number of categories in each moderator (and their values), the threshold values, the list of valid groups, the count and percentage of records retained, and (in two-way mode) the number of empty cells in the combination matrix.
+3. **Confirmation.** A green ✓ ***Configuration Saved Successfully*** panel summarises the saved configuration (analysis type, primary moderator, secondary moderator if applicable, number of valid groups, and the proportion of the analytical dataset retained) and directs the user to Cell 9. The **📝 Details** tab is simultaneously updated with a timestamped record of the saved configuration.
+4. **Staleness propagation.** The subgroup-analysis and plotting downstream cells (Cells 9 – 11) are marked stale; they will need to be re-executed to reflect the new configuration.
+
+### 8.6 Behaviour under session restoration
+
+When the session has been restored from an `analysis_settings.json` file, the analysis-type radio group, the *Moderator 1:* and *Moderator 2:* dropdowns, and the two threshold sliders are auto-populated from the saved configuration, and **💾 Save Configuration & Proceed** is invoked automatically. A blue **🔄 Reproducibility Mode Active** notice at the top of the cell reports the analysis type and the moderator(s) being restored. No manual interaction is required.
+
+### 8.7 Practical guidance
+
+- **Use the Moderator Preview tab before adjusting thresholds.** Small categories — those that the *⚠️ Smallest group* warning flags — should be inspected case-by-case. They may represent legitimate but under-sampled levels of a factor (in which case higher thresholds will appropriately exclude them) or coding errors in the source spreadsheet (in which case they should be reconciled upstream in Cell 2 before re-running this configuration).
+- **Two-way subgroup analyses are demanding.** Cell 9 fits a separate three-level REML model per cell of the contingency table. In typical ecological datasets — even relatively well-resourced ones — many cells will contain too few records to support a stable estimate. The *Combination Matrix* in the **📊 Moderator Preview** tab and the *Groups Excluded* list in the **⚙️ Thresholds** tab should both be consulted before committing to a two-way design. When the resulting valid-group count is small, the conclusions of the analysis are driven by the few populated cells and should be reported with explicit caveats.
+- **Subgroups versus meta-regression.** A subgroup analysis is appropriate for categorical moderators whose levels are of intrinsic substantive interest (e.g., taxonomic clade, biome, experimental design). For continuous moderators, or for moderators with many levels, meta-regression (Cell 12) and spline meta-regression (Cell 14) are the appropriate tools.
+- **The cell saves but does not fit.** No model is estimated in Cell 8. The Cell 9 execution, with the corresponding per-group estimates, heterogeneity statistics, between-group tests, and automatic interpretation, is described in Section 9.
+
+### 8.8 Summary
+
+Cell 8 configures the subgroup analysis without executing it. The user selects the analysis type from the *Analysis Type* radio group, the moderator(s) from the *Moderator 1:* and (when applicable) *Moderator 2:* dropdowns, and the minimum-data thresholds (*Min Papers:* and *Min Observations:*) from the IntSliders in the **⚙️ Thresholds** tab. The **📊 Moderator Preview** and *Impact on Data Retention* panels report, in real time, which categories or combinations will be retained under the current configuration. Clicking **💾 Save Configuration & Proceed** validates the selection, persists it to `ANALYSIS_CONFIG['subgroup_config']`, and hands off to Cell 9 (Subgroup Analysis Execution), described in Section 9.
