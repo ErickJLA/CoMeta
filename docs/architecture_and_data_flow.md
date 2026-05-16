@@ -459,9 +459,9 @@ The downstream calculator in Cell 6 reads these keys to dispatch the correct for
 flowchart TD
     A["Cleaned & filtered df"] --> B{"Column<br/>topology?"}
     B -->|Full binary 2-group| PB["Branch A: score<br/>{log_or, log_rr, risk_diff}<br/>rare-outcome → log_or<br/>common → log_rr"]
-    B -->|Single-group binary<br/>(events_e only)| SG["Branch B: proportion<br/>(logit-transformed)<br/>Confidence: Moderate"]
+    B -->|"Single-group binary<br/>(events_e only)"| SG["Branch B: proportion<br/>(logit-transformed)<br/>Confidence: Moderate"]
     B -->|Binary + continuous| MIX["Branch C: larger subset<br/>→ log_or or hedges_g<br/>Confidence: Low<br/>(yellow warning)"]
-    B -->|Continuous (xe, xc)| C["Branch D: continuous scoring<br/>scores = {lnRR, hedges_g, MD, lnCVR}"]
+    B -->|"Continuous (xe, xc)"| C["Branch D: continuous scoring<br/>scores = {lnRR, hedges_g, MD, lnCVR}"]
     B -->|Unrecognised| FB["Branch E: hedges_g fallback<br/>Confidence: Low"]
     C --> R1["R1 negatives → +hedges_g 10, +MD 3<br/>(ratio metrics get nothing)"]
     R1 --> R2["R2 controls≈1 → +lnRR 1..3<br/>(with caution if =1 exactly)"]
