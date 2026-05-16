@@ -19,8 +19,8 @@ This document is organised as a top-down traversal of the CoMeta pipeline, from 
 | [3](#3-data-preparation-and-vcv-matrix-construction) | **Data Preparation and VCV Matrix Construction** | Everything that happens between a clean ingested dataframe and an analysis-ready dataset with per-study variance–covariance blocks. |
 | [3.1](#31-shared-control-detection-cell-4) | Shared-control detection (Cell 4) | `detect_shared_controls` and the `shared_group_id` tag that bridges data preparation and covariance modelling. |
 | [3.2](#32-missing-sd-imputation-strategies-cell-4) | Missing-SD imputation strategies (Cell 4) | The four missing-SD strategies (`nearest`, `median_cv`, `custom_cv`, `drop`), the three zero-SD strategies, and the four audit-trail mechanisms (`sd_log`, `removed_records`, `sde_imputed`/`sdc_imputed`, Protocol & Settings worksheet). |
-| [3.3](#33-rule-based-effect-size-recommendation-cell-5) | Rule-based effect-size recommendation (Cell 5) | The topology hard-router (pure binary → `log_or`; mixed → Hedges' *g*; continuous → scoring) and the six weighted scoring rules R1–R6 that decide between `lnRR` and `hedges_g`. |
-| [3.4](#34-exact-vcv-construction-cell-6--build_vcv_matrices) | Exact VCV construction (Cell 6) | The Gleser–Olkin / Lajeunesse closed-form per-study covariances with a deep dive into the lnRR off-diagonal and its delta-method derivation. |
+| [3.3](#33-rule-based-effect-size-recommendation-cell-5) | Rule-based effect-size recommendation (Cell 5) | The four-branch topology router (pure binary → OR/RR/RD scoring; single-group binary → `proportion`; mixed → larger-subset fallback; continuous → multi-metric weighted scoring) over a catalogue of nine effect sizes, with penalty-aware rules R1–R6, a Nakagawa-2023 tie-breaker, secondary `lnCVR` suggestion for variability questions, and Strong/Mixed/Weak confidence labels. |
+| [3.4](#34-exact-vcv-construction-cell-6--build_vcv_matrices) | Exact VCV construction (Cell 6) | The Gleser–Olkin / Lajeunesse / Nakagawa closed-form per-study covariances for the seven multi-arm metrics (`lnRR`, `cohen_d`, `hedges_g`, `log_or`, `log_rr`, `MD`, `lnCVR`, `risk_diff`) with a deep dive into the lnRR off-diagonal and its delta-method derivation. |
 | [4](#4-the-statistical-engine-flow-cells-1--7--12) | **The Statistical Engine Flow** | The core of CoMeta: orchestration, REML optimisation, CR2 cluster-robust variance, the library stack with environment lockdown, and the multi-channel fallback notification surface. |
 | [4.1](#41-three-level-orchestration-overallenginerun_analysis) | Three-level orchestration | The five-step workflow inside `OverallEngine.run_analysis`, the `_select_model` structure-aware decision tree, and the controller-view fan-out. |
 | [4.2](#42-three-level-reml-core-threelevelenginefit-cell-7-lines-7401098) | Three-level REML core | `ThreeLevelEngine.fit`: data preparation invariants, Σᵢ algebra with the Sherman–Morrison vs Cholesky paths, the deterministic six-start L-BFGS-B optimiser, profile-likelihood CIs, and the prediction interval. |
@@ -345,85 +345,103 @@ Together, these four mechanisms guarantee that **every imputation event is recov
 
 ### 3.3 Rule-based effect-size recommendation (Cell 5)
 
-Cell 5 (`#@title 🔬 5. Effect Size Selection & Diagnostics`) does *not* fit a model — it diagnoses the prepared dataframe and proposes the most defensible effect-size metric. The logic operates in two stages: a topology-based **hard router** that decides whether the data are continuous, pure binary, or ambiguous, followed by a continuous-data **weighted scoring** algorithm that picks between `lnRR` and `hedges_g`. The user is always free to override the recommendation via a `widgets.RadioButtons` selector, but the *recommended* type is highlighted and pre-selected.
+Cell 5 (`#@title 🔬 5. Effect Size Selection & Diagnostics`) does *not* fit a model — it diagnoses the prepared dataframe and proposes the most defensible effect-size metric. The logic operates in two stages: a topology-based **hard router** that classifies the dataset into one of four exclusive regimes (pure binary, single-group binary, mixed, continuous), followed by a regime-specific **weighted scoring** algorithm that ranks the eligible candidates from the nine-metric catalogue using additive rules, penalties, and a Nakagawa-2023-aware tie-breaker. The user is always free to override the recommendation via a `widgets.RadioButtons` selector, but the *recommended* type is highlighted and pre-selected.
 
 #### 3.3.1 Effect-size catalogue
 
-The notebook supports six effect-size metrics, each backed by its own `es_config` dict (Cell 5, lines 343–414 for raw mode; 578–615 for pre-calculated mode):
+The notebook supports nine raw-data effect-size metrics — expanded from five in earlier versions with the addition of `MD`, `lnCVR`, `risk_diff`, and `proportion` — plus `fisher_z` exposed in pre-calculated mode. Each metric is backed by its own `es_config` dict (Cell 5, raw-mode `es_configs` block and the parallel pre-calculated-mode dispatch table):
 
 | Key | `effect_label` | `effect_col` / `var_col` | Data domain | Auto-recommendable? |
 |---|---|---|---|---|
 | `'lnRR'` | log Response Ratio | `lnRR` / `var_lnRR` | continuous, strictly positive | ✅ (continuous router) |
 | `'hedges_g'` | Hedges' g (corrected SMD) | `hedges_g` / `Vg` | continuous, any sign | ✅ (continuous router) |
 | `'cohen_d'` | Cohen's d (uncorrected SMD) | `cohen_d` / `Vd` | continuous, any sign | ⚠️ manual only |
-| `'log_or'` | log Odds Ratio | `log_OR` / `var_log_OR` | binary 2×2 | ✅ (binary short-circuit) |
-| `'log_rr'` | log Risk Ratio | `log_RR` / `var_log_RR` | binary 2×2, when absolute risk matters | ⚠️ user choice within the binary branch |
+| `'MD'` | Mean Difference (raw scale) | `MD` / `var_MD` | continuous, any sign; only when all studies share the same unit of measurement | ✅ (continuous router, when scales are tight) |
+| `'lnCVR'` | log Coefficient of Variation Ratio | `lnCVR` / `var_lnCVR` | continuous, strictly positive; variability-of-trait questions (Nakagawa et al. 2015) | ✅ (primary candidate or secondary suggestion when SD coverage > 80%) |
+| `'log_or'` | log Odds Ratio | `log_OR` / `var_log_OR` | binary 2×2 | ✅ (binary branch — preferred for rare events) |
+| `'log_rr'` | log Risk Ratio | `log_RR` / `var_log_RR` | binary 2×2, when absolute risk matters | ✅ (binary branch — preferred for common outcomes) |
+| `'risk_diff'` | Risk Difference | `risk_diff` / `var_risk_diff` | binary 2×2, absolute risk change | ✅ (binary branch — viable but variance-unstable near 0/1) |
+| `'proportion'` | Logit-transformed single-group prevalence | `proportion` / `var_proportion` | single-group binary (`events_e` / `nonevents_e` only) | ✅ (single-group binary short-circuit) |
 | `'fisher_z'` | Fisher's z | `fisher_z` / `var_fisher_z` | pre-calculated correlations | ⚠️ manual, pre-calc mode only |
 
-> **Note.** The codebase implements `log_rr` as the log of the *risk ratio* (also called *relative risk*) and does **not** implement a standalone *risk difference* metric — clinical RD is therefore reachable only by selecting `log_rr` and back-transforming downstream.
+> **Note.** `risk_diff` is now a first-class metric with its own calculator and variance formula, complementing — rather than back-transformed from — `log_rr`. `proportion` is the only single-group metric in the catalogue and is logit-transformed (with a 0.5 continuity correction on empty cells) so that confidence intervals cannot escape [0, 1] after back-transformation.
 
 #### 3.3.2 Stage 1 — Topology-based hard routing
 
-The first block of Cell 5 (lines 25–67) inspects the prepared `data_filtered` (or `raw_data_standardized` as a fallback) and classifies the dataset:
+The first block of Cell 5 inspects the prepared `data_filtered` (or `raw_data_standardized` as a fallback) and classifies the dataset into one of four exclusive *branches*, each with its own scoring track:
 
 ```python
-binary_cols = ['events_e', 'nonevents_e', 'events_c', 'nonevents_c']
-has_binary_cols     = all(c in target_df.columns for c in binary_cols)
+binary_cols_full = ['events_e', 'nonevents_e', 'events_c', 'nonevents_c']
+binary_cols_exp  = ['events_e', 'nonevents_e']
+
+has_binary_full     = all(c in target_df.columns for c in binary_cols_full)
+has_binary_exp_only = (all(c in target_df.columns for c in binary_cols_exp)
+                       and not all(c in target_df.columns for c in ['events_c', 'nonevents_c']))
 has_continuous_cols = all(c in target_df.columns for c in ['xe', 'xc'])
 has_sd_cols         = (... sde or sdc has any non-null ...)
 
-if has_binary_cols:
-    is_valid_binary = (binary_data >= 0).all().all() and \
-                      (binary_data == binary_data.round(0)).all().all()
-    if is_valid_binary and has_continuous_cols and has_sd_cols:
-        _binary_data_detected = 'mixed'           # → recommend hedges_g, low confidence
-    elif is_valid_binary and not has_sd_cols:
-        _binary_data_detected = 'pure'            # → recommend log_or, high confidence
+# Branch A: full two-group binary       → score {log_or, log_rr, risk_diff}
+# Branch B: single-group binary         → 'proportion' (no scoring loop)
+# Branch C: mixed (binary + continuous) → larger-subset fallback + yellow warning
+# Branch D: continuous                  → score {lnRR, hedges_g, MD, lnCVR}
+# Branch E: unrecognised                → 'hedges_g' fallback, Low confidence
 ```
 
-The hard router therefore produces three exclusive outcomes:
+The router therefore produces five exclusive outcomes:
 
-| Detected topology | Recommendation | Confidence | Scoring runs? |
+| Detected topology | Recommendation | Confidence | Candidates scored |
 |---|---|---|---|
-| **Pure binary** — only `events_*`/`nonevents_*` columns, all non-negative integers | `log_or` | `High` | No |
-| **Mixed/ambiguous** — both binary *and* continuous SD columns present | `hedges_g` (placeholder) | `Low` | No (yellow warning banner displayed) |
-| **Continuous only** — `xe`, `xc` (± `sde`, `sdc`) | scored (see §3.3.3) | depends on margin | Yes |
+| **Pure binary** — only `events_*`/`nonevents_*` columns, all non-negative integers | argmax over `{log_or, log_rr, risk_diff}`; rare-outcome heuristic (mean event rate < 10%) tilts toward `log_or`, otherwise `log_rr` | `High` / `Moderate` / `Low` from binary-score gap | `log_or`, `log_rr`, `risk_diff` |
+| **Single-group binary** — `events_e` / `nonevents_e` present, no control columns | `proportion` (logit-transformed) | `Moderate` (single, unambiguous choice) | — (short-circuit) |
+| **Mixed/ambiguous** — both binary *and* continuous columns populated | `log_or` *or* `hedges_g` depending on which complete-row subset is larger, with a yellow advisory banner suggesting a split-then-meta-analyse workflow | `Low` | — (short-circuit) |
+| **Continuous only** — `xe`, `xc` (± `sde`, `sdc`) | scored (see §3.3.3) | `Strong` / `Mixed` / `Weak` signal | `lnRR`, `hedges_g`, `MD`, `lnCVR` |
+| **Unrecognised structure** — none of the canonical column triples present | `hedges_g` (manual-review default) | `Low` | — |
 
-#### 3.3.3 Stage 2 — Weighted scoring (`lnRR` vs `hedges_g`)
+#### 3.3.3 Stage 2 — Weighted scoring (`lnRR` vs `hedges_g` vs `MD` vs `lnCVR`)
 
-When the topology is continuous, Cell 5 computes a battery of summary statistics on `target_df` (`xe.describe()`, `xc.describe()`, skewness, scale ratio, SD coverage, fraction of controls near unity) and applies six additive scoring rules to two accumulators, `score_lnRR` and `score_hedges_g`. Each rule both updates the score *and* appends a diagnostic tuple `(label, weight_marker, recommended_metric, rationale)` to a `reasons` list that is later rendered in the **🧠 Decision Logic** tab.
+When the topology is continuous, Cell 5 computes a battery of summary statistics on `target_df` (`xe.describe()`, `xc.describe()`, skewness gated on N ≥ 10, scale ratio, SD coverage, fraction of controls near unity, zero/negative counts) and applies six additive scoring rules to a four-entry accumulator dictionary, `scores = {'lnRR': 0, 'hedges_g': 0, 'MD': 0, 'lnCVR': 0}`. Each rule both updates one or more scores (positively *or* negatively — penalties are now first-class) *and* appends a diagnostic tuple `(label, weight_marker, recommended_metric, rationale)` to a `reasons` list that is later rendered in the **🧠 Decision Logic** tab.
 
-| Rule (Cell 5, lines 119–168) | Trigger | Effect on score |
+| Rule (Cell 5, continuous branch) | Trigger | Effect on scores |
 |---|---|---|
-| **R1 — Negative values (hard constraint)** | `(target_df['xe'] < 0).sum() > 0` or same for `xc` | `score_hedges_g += 10` (else `score_lnRR += 2`) |
-| **R2 — Normalisation / fold-change** | `pct_control_exactly_one > 50` → `score_lnRR += 5`; `pct_control_near_one > 30` (`0.95 ≤ xc ≤ 1.05`) → `+= 3`; `0.8 < mean(xc) < 1.2` → `+= 1` | `score_lnRR` |
-| **R3 — Scale heterogeneity** | `scale_ratio = max(range_xe, range_xc) / (min + 1e-4)`; `> 100` → `score_lnRR += 3`; `> 10` → `+= 2`; else `score_hedges_g += 1` | depends |
-| **R4 — Zero values** | any `xe == 0` or `xc == 0` | `score_hedges_g += 2` (rationale: `log(0)` undefined) |
-| **R5 — SD coverage** | `sd_pct = SDs_present / total × 100`; `> 80` → `score_hedges_g += 1`; `< 20` → emits a warning row (no score change) | `score_hedges_g` |
-| **R6 — Distribution shape (skewness)** | `max(skew_xe, skew_xc) > 1.5` → `score_lnRR += 2`; `−0.5 < max_skew < 0.5` → `score_hedges_g += 1` | depends |
+| **R1 — Negative values (hard constraint)** | `(target_df['xe'] < 0).sum() > 0` or same for `xc` | `scores['hedges_g'] += 10`; `scores['MD'] += 3` (ratio metrics — `lnRR`, `lnCVR` — are *not* incremented because `log` of a negative number is undefined). Else `scores['lnRR'] += 2`; `scores['lnCVR'] += 1`. |
+| **R2 — Normalisation / fold-change** | `pct_control_exactly_one > 50` → `scores['lnRR'] += 3` *and* emit a caution warning ("verify raw scale — data may already be log-transformed"); `pct_control_near_one > 30` (`0.95 ≤ xc ≤ 1.05`) → `+= 3`; `0.8 < mean(xc) < 1.2` → `+= 1` | `scores['lnRR']` |
+| **R3 — Scale heterogeneity** | `scale_ratio = max(range_xe, range_xc) / (min(range) + 1e-4)`; `> 100` → `scores['lnRR'] += 3`, `scores['lnCVR'] += 1`; `> 10` → `scores['lnRR'] += 2`; else `scores['hedges_g'] += 1`, `scores['MD'] += 2` (MD becomes attractive only when scales are tight) | depends |
+| **R4 — Zero values** | any `xe == 0` or `xc == 0` | `scores['hedges_g'] += 2`; `scores['MD'] += 1` (rationale: `log(0)` is undefined; ratio metrics receive no credit) |
+| **R5 — SD coverage** | `sd_pct = SDs_present / total × 100`; `> 80` → `scores['hedges_g'] += 1`, `scores['lnCVR'] += 2`, `scores['MD'] += 1`; `< 20` → `scores['hedges_g'] -= 2`, `scores['MD'] -= 2`, `scores['lnCVR'] -= 5` (a strict **penalty**: `lnCVR` is fully dependent on SDs and is effectively disqualified when they are absent) | depends |
+| **R6 — Distribution shape (skewness, gated on `n_studies >= 10`)** | `max(skew_xe, skew_xc) > 1.5` → `scores['lnRR'] += 2`; `−0.5 < max_skew < 0.5` → `scores['hedges_g'] += 1`, `scores['MD'] += 1` | depends |
 
-After R1–R6, a **smart tie-breaker** fires when `score_lnRR == score_hedges_g`:
+After R1–R6, the scorer filters out any candidate whose accumulator has gone negative (`viable = {k: v for k, v in scores.items() if v >= 0}`), then identifies the top score and *all* candidates tied at it. A **Nakagawa-2023-aware tie-breaker** then fires:
 
 ```python
-if score_lnRR == score_hedges_g:
-    if not has_negative and not has_zero:
-        score_lnRR    += 1   # prefer lnRR for strictly-positive ecological data
+top_candidates = [k for k, v in viable.items() if v == top_score]
+if len(top_candidates) > 1:
+    if 'hedges_g' in top_candidates:
+        recommended_type = 'hedges_g'      # Nakagawa et al. 2023, Table 2 —
+                                           # the most general-purpose safe choice
+    elif 'lnRR' in top_candidates:
+        recommended_type = 'lnRR'          # interpretable % change for strictly positive data
     else:
-        score_hedges_g += 1  # safer mathematical choice when zeros/negatives lurk
+        recommended_type = top_candidates[0]
+else:
+    recommended_type = top_candidates[0]
 ```
 
-The winner becomes `recommended_type`, and the **confidence label** is derived from the absolute score gap:
+The **confidence label** is derived from the margin between the top and the runner-up (no longer a binary gap):
 
 ```python
-score_diff = abs(score_lnRR - score_hedges_g)
-confidence = "High"     if score_diff >= 5 \
-        else "Moderate" if score_diff >= 3 \
-        else "Low"
+score_diff = top_score - second_score
+confidence = ("Strong signal" if score_diff >= 5
+              else "Mixed signal" if score_diff >= 3
+              else "Weak signal")
 ```
+
+**Secondary recommendation.** When the primary winner is a mean-based metric (`lnRR`, `hedges_g`, or `MD`), SD coverage exceeds 80%, and neither negatives nor zeros are present, Cell 5 emits a *secondary* suggestion of `lnCVR` for analysts interested in changes in trait *variability* rather than means (Nakagawa et al. 2015 / 2023). The suggestion is surfaced as an additional info-row in the **🧠 Decision Logic** tab but does not displace the primary selection.
+
+**Scale-dependence caveat.** A standing caveat — *"if studies measured outcomes at different spatial/temporal scales, effect-size estimates may be biased; consider plot/duration as a moderator in meta-regression"* — is appended to the `reasons` list for every continuous-branch run (per Nakagawa et al. 2023, "Scale dependence").
 
 #### 3.3.4 Persisting the decision
 
-When the user clicks **✓ Confirm Selection**, `on_proceed(b)` (Cell 5, line 421) commits the chosen metric to global state:
+When the user clicks **✓ Confirm Selection**, `on_proceed(b)` commits the chosen metric to global state:
 
 ```python
 ANALYSIS_CONFIG['effect_size_type'] = sel
@@ -435,29 +453,38 @@ ANALYSIS_CONFIG['se_col']           = es_configs[sel]['se_col']
 mark_stale(ALL_DOWNSTREAM, "Step 5: Effect Size Metric Changed")
 ```
 
-The downstream calculator in Cell 6 reads these keys to dispatch the correct formula branch (lnRR, hedges_g, cohen_d, log_or, log_rr, fisher_z). The handshake is one-directional: Cell 5 *recommends*, Cell 6 *computes* — the metric can be silently overridden by editing `ANALYSIS_CONFIG['effect_size_type']` (the path taken by `load_reproducibility_config` when restoring a session). Because the call to `mark_stale(ALL_DOWNSTREAM, …)` is unconditional, every change re-arms the warning banners across all downstream cells.
+The downstream calculator in Cell 6 reads these keys to dispatch the correct formula branch — one of the nine implemented metrics: `lnRR`, `hedges_g`, `cohen_d`, `MD`, `lnCVR`, `log_or`, `log_rr`, `risk_diff`, `proportion` (raw-data modes) plus `fisher_z` (pre-calculated mode). The handshake is one-directional: Cell 5 *recommends*, Cell 6 *computes* — the metric can be silently overridden by editing `ANALYSIS_CONFIG['effect_size_type']` (the path taken by `load_reproducibility_config` when restoring a session). Because the call to `mark_stale(ALL_DOWNSTREAM, …)` is unconditional, every change re-arms the warning banners across all downstream cells.
 
 ```mermaid
 flowchart TD
-    A["Cleaned & filtered df"] --> B{"Binary cols<br/>(events_e, events_c, …)<br/>present?"}
-    B -->|Yes + SDs present| MIX["Ambiguous → hedges_g<br/>Confidence: Low<br/>(yellow warning)"]
-    B -->|Yes + no SDs| PB["Pure binary → log_or<br/>Confidence: High"]
-    B -->|No| C["Continuous scoring"]
-    C --> R1["R1 negatives → +hedges_g 10"]
-    R1 --> R2["R2 controls≈1 → +lnRR 1..5"]
-    R2 --> R3["R3 scale ratio → ±"]
-    R3 --> R4["R4 zeros → +hedges_g 2"]
-    R4 --> R5["R5 SD coverage → +hedges_g 1"]
-    R5 --> R6["R6 skewness → ±"]
-    R6 --> TB{"Tie?"}
-    TB -->|Yes & no zeros/neg| TL["+lnRR 1"]
-    TB -->|Yes & risky| TH["+hedges_g 1"]
-    TB -->|No| W["Argmax → recommended_type"]
-    TL --> W
-    TH --> W
-    W --> CONF["Confidence:<br/>|Δ|≥5 High • ≥3 Moderate • else Low"]
-    PB --> UI["RadioButtons<br/>(user can override)"]
+    A["Cleaned & filtered df"] --> B{"Column<br/>topology?"}
+    B -->|Full binary 2-group| PB["Branch A: score<br/>{log_or, log_rr, risk_diff}<br/>rare-outcome → log_or<br/>common → log_rr"]
+    B -->|"Single-group binary<br/>(events_e only)"| SG["Branch B: proportion<br/>(logit-transformed)<br/>Confidence: Moderate"]
+    B -->|Binary + continuous| MIX["Branch C: larger subset<br/>→ log_or or hedges_g<br/>Confidence: Low<br/>(yellow warning)"]
+    B -->|"Continuous (xe, xc)"| C["Branch D: continuous scoring<br/>scores = {lnRR, hedges_g, MD, lnCVR}"]
+    B -->|Unrecognised| FB["Branch E: hedges_g fallback<br/>Confidence: Low"]
+    C --> R1["R1 negatives → +hedges_g 10, +MD 3<br/>(ratio metrics get nothing)"]
+    R1 --> R2["R2 controls≈1 → +lnRR 1..3<br/>(with caution if =1 exactly)"]
+    R2 --> R3["R3 scale ratio → ±<br/>tight scales boost MD"]
+    R3 --> R4["R4 zeros → +hedges_g 2, +MD 1"]
+    R4 --> R5["R5 SD coverage<br/>>80%: +hedges_g 1, +lnCVR 2, +MD 1<br/><20%: -hedges_g 2, -MD 2, -lnCVR 5"]
+    R5 --> R6["R6 skewness (N≥10) → ±"]
+    R6 --> FILT["viable = {k: v ≥ 0}"]
+    FILT --> TB{"Top-score tie?"}
+    TB -->|hedges_g in tied| TH["hedges_g<br/>(Nakagawa 2023 default)"]
+    TB -->|lnRR in tied| TL["lnRR"]
+    TB -->|No tie or other| W["argmax(viable)"]
+    TL --> W2["recommended_type"]
+    TH --> W2
+    W --> W2
+    W2 --> SEC{"SDs > 80% & not<br/>neg/zero & primary<br/>is mean-based?"}
+    SEC -->|Yes| SUG["+ secondary: lnCVR<br/>(variability question)"]
+    SEC -->|No| CONF
+    SUG --> CONF["Confidence:<br/>Δ≥5 Strong • ≥3 Mixed • else Weak"]
+    PB --> UI["RadioButtons<br/>(user can override<br/>across 9 metrics)"]
+    SG --> UI
     MIX --> UI
+    FB --> UI
     CONF --> UI
     UI --> CFG["ANALYSIS_CONFIG['effect_size_type']<br/>+ 'es_config'<br/>+ mark_stale(ALL_DOWNSTREAM)"]
 ```
@@ -475,19 +502,24 @@ def build_vcv_matrices(df, effect_type, var_col_name,
                        events_c_col=None, nonevents_c_col=None):
 ```
 
-The builder produces one block per `id`. Each study's block is initialised as a **diagonal matrix** of sampling variances (`np.diag(study_grp[var_col_name].values)`). It then iterates over rows whose `shared_group_id` is non-null and inserts the analytically derived covariance into every off-diagonal pair *(i, j)* within that shared cluster. Five closed-form covariances are implemented (Gleser & Olkin 2009, Table 4 and the response-ratio derivation of Lajeunesse 2011):
+The builder produces one block per `id`. Each study's block is initialised as a **diagonal matrix** of sampling variances (`np.diag(study_grp[var_col_name].values)`). It then iterates over rows whose `shared_group_id` is non-null and inserts the analytically derived covariance into every off-diagonal pair *(i, j)* within that shared cluster. Eight closed-form covariance branches are implemented (Gleser & Olkin 2009, Table 4; the response-ratio derivation of Lajeunesse 2011; and the lnCVR derivation of Nakagawa et al. 2015):
 
 | `effect_type` | Off-diagonal covariance |
 |---|---|
 | `cohen_d` | `cov(d_i, d_j) = 1/nc + d_i·d_j·nc / (2·N_i·N_j)` where `N_i = nt_i + nc` |
 | `hedges_g` | `J_i·J_j · [ 1/nc + (d_i·d_j·nc) / (2·N_i·N_j) ]`, where the inputs are back-converted from the stored `g` values via `d_i = g_i / J_i`, `d_j = g_j / J_j` (guarded so that `J = 0` falls back to the raw `g`), and `J = exp(gammaln(df/2) − ½·log(df/2) − gammaln((df−1)/2))` is computed by `_hedges_j(df_val)` |
-| `lnRR` | `sdc² / (nc · xc²)` |
+| `lnRR` | `sdc² / (nc · xc²)` — Lajeunesse (2011) |
+| `MD` | `sdc² / nc` — the variance of the shared control mean itself, since `MD = x̄_E − x̄_C` is a simple linear functional in `x̄_C` and the off-diagonal therefore equals the sampling variance of `x̄_C` (Gleser & Olkin 2009) |
+| `lnCVR` | `sdc² / (nc · xc²) + 1 / (2·(nc − 1))` — the lnRR control-arm contribution *plus* the shared-control contribution from the small-sample CV bias-correction term `1/(2(n−1))` (Nakagawa et al. 2015). Computed only when `nc > 1` and `xc ≠ 0`; otherwise `cov = 0.0` |
 | `log_or` | `1/c_c + 1/d_c` (shared control events / non-events) |
 | `log_rr` | `1/c_c − 1/n_c` (shared control events / total) |
+| `risk_diff` | `p_c·(1 − p_c) / n_c` — the binomial sampling variance of the shared control proportion `p_c = c_c / (c_c + d_c)`, since `RD = p_E − p_C` is linear in `p_C` (Gleser & Olkin 2009, RD branch) |
+
+> **`proportion` has no off-diagonal entry.** Because logit-transformed `proportion` is a *single-group* metric (it uses only the `events_e` / `nonevents_e` columns and has no control arm to share), two effect sizes from the same study are independent at the sampling level and `build_vcv_matrices` legitimately leaves their off-diagonal at zero. The block degenerates to a pure diagonal of `var_proportion` regardless of `shared_group_id`.
 
 #### 3.4.1 Anatomy of a study block
 
-For a study *s* with `k = len(study_grp)` effect sizes, the algorithm proceeds in three deterministic steps (Cell 6, lines 75–179):
+For a study *s* with `k = len(study_grp)` effect sizes, the algorithm proceeds in three deterministic steps inside the `for study_id, study_grp in df.groupby('id')` loop of `build_vcv_matrices`:
 
 1. **Block initialisation.** The diagonal is seeded with the per-row sampling variances drawn from the already-computed effect-size variance column (`var_col_name`, which resolves to `var_lnRR` for response-ratio workflows):
    ```python
@@ -521,7 +553,7 @@ $$
 
 The first term is *idiosyncratic* to each treatment arm and is therefore independent across effect sizes *i* and *j* — even when those effect sizes are nested within the same study. The second term, however, is **identical** for every effect size that draws on the same control mean. Substituting two effect sizes that share `(xc, sdc, nc)` into the delta-method variance and retaining only the *common* terms yields the covariance formula above. In other words, the off-diagonal entry for a pair of lnRR effect sizes that share a control arm is exactly the *control-arm contribution* to their individual sampling variances — the part of the variance that would otherwise be double-counted if the effect sizes were naïvely treated as independent.
 
-The implementation faithfully translates this derivation (Cell 6, lines 101–112):
+The implementation faithfully translates this derivation (Cell 6, `lnRR` branch of `build_vcv_matrices`):
 
 ```python
 # ── lnRR ─────────────────────────────────────────────
@@ -545,7 +577,57 @@ Several engineering choices in this snippet are worth flagging for methodologist
 - **Zero-mean guard.** If `xc == 0` the divisor would diverge; the routine returns `cov = 0.0` in that boundary case. Such rows should already have been removed or offset in Cell 6's `lnRR` pre-processing block (which adds a scale-adjusted offset to any zero `xe`/`xc` and removes negatives), so this branch is a defence-in-depth guard rather than an expected code path.
 - **Constant covariance across the cluster.** The covariance `(sdc²)/(nc · xc²)` is computed once and assigned to every off-diagonal pair in the cluster. This is the correct behaviour: under shared controls, *all* pairs of effect sizes share the same control-arm uncertainty, so the off-diagonal block is uniform with magnitude exactly equal to the squared standard error of $\ln \bar X_C$ (the delta-method variance of the log control mean).
 
-#### 3.4.3 Interpretation and downstream consumption
+#### 3.4.3 MD, lnCVR, and risk_diff: shared-control covariances for the new metrics
+
+The same control-arm-double-counting argument generalises directly to the three metrics added in the Cell 6 upgrade. In each case the off-diagonal is the sampling variance of *the functional of the control arm that the effect size is linear in*, and `build_vcv_matrices` computes it once per cluster from the first representative row (just as in the lnRR branch).
+
+**MD — Raw mean difference.** Because `MD = x̄_E − x̄_C` is linear in `x̄_C`, two MDs that share a control mean co-vary exactly by the sampling variance of that control mean, $s_C^{2}/n_C$:
+
+```python
+# ── MD ────────────────────────────────────────────────
+elif effect_type == 'MD' and xc_col in shared_rows.columns:
+    nc  = float(shared_rows.iloc[0][nc_col])
+    sdc_column = 'sdc_imputed' if 'sdc_imputed' in shared_rows.columns else sdc_col
+    sdc = float(shared_rows.iloc[0][sdc_column]) if sdc_column in shared_rows.columns else 0.0
+    cov = (sdc ** 2) / nc if nc > 0 else 0.0
+```
+
+This is the Gleser–Olkin (2009) closed form for the raw-scale mean difference and degenerates to the lnRR formula only after dividing through by `xc²`.
+
+**lnCVR — log Coefficient of Variation Ratio.** Following Nakagawa et al. (2015), the lnCVR is `ln(s_E / x̄_E) − ln(s_C / x̄_C)` *plus* a small-sample bias correction `1/(2(n−1))` on each arm. The shared-control off-diagonal therefore carries **two** common terms — one from the log of the control mean (identical in form to lnRR) and one from the bias-correction term that is structurally shared by every effect size drawing on the same control sample:
+
+```python
+# ── lnCVR ─────────────────────────────────────────────
+elif effect_type == 'lnCVR' and xc_col in shared_rows.columns:
+    xc  = float(shared_rows.iloc[0][xc_col])
+    nc  = float(shared_rows.iloc[0][nc_col])
+    sdc = float(shared_rows.iloc[0]['sdc_imputed' if 'sdc_imputed' in shared_rows.columns else sdc_col])
+    if nc > 1 and xc != 0:
+        cov = (sdc**2 / (nc * xc**2)) + (1 / (2 * (nc - 1)))
+    else:
+        cov = 0.0
+```
+
+The `nc > 1` guard avoids a division by zero in the bias term; the `xc != 0` guard preserves the same defence-in-depth as the lnRR branch.
+
+**risk_diff — Risk difference.** Risk difference `RD = p_E − p_C` is linear in the control proportion `p_C = c_c / (c_c + d_c)`; the shared-control covariance is therefore the binomial sampling variance of `p_C`:
+
+```python
+# ── Risk Difference ───────────────────────────────────
+elif effect_type == 'risk_diff' and events_c_col and nonevents_c_col:
+    c_c = float(shared_rows.iloc[0][events_c_col])
+    d_c = float(shared_rows.iloc[0][nonevents_c_col])
+    n_c = c_c + d_c
+    if n_c > 0:
+        p_c = c_c / n_c
+        cov = (p_c * (1 - p_c)) / n_c
+    else:
+        cov = 0.0
+```
+
+Like the log-OR and log-RR branches, the `risk_diff` branch reads its inputs from the shared `events_c_col` / `nonevents_c_col` keyword arguments. The `proportion` metric does not enter this loop at all, because its single-group nature precludes a shared control arm by construction (see the note in § 3.4 above) — the per-study block degenerates cleanly to a diagonal of `var_proportion`.
+
+#### 3.4.4 Interpretation and downstream consumption
 
 The resulting block has a particularly transparent interpretation. For a study contributing `k` effect sizes that all share a common control,
 
@@ -577,10 +659,10 @@ vcv_matrices = build_vcv_matrices(df, effect_size_type, var_col, **vcv_kwargs)
 ANALYSIS_CONFIG['vcv_matrices'] = vcv_matrices                              # then VCV stored
 ```
 
-A study's block deviates from the exact Gleser–Olkin / Lajeunesse form only under one of three documented fallback paths:
+A study's block deviates from the exact Gleser–Olkin / Lajeunesse / Nakagawa form only under one of three documented fallback paths:
 
-1. **Required-column gate (Cell 6, lines 67–72).** If the columns needed for the chosen `effect_type` (e.g. `nc, xc` for `lnRR`; `events_c, nonevents_c` for `log_or`/`log_rr`; raw sample sizes for SMD) are absent from the dataframe — which is the regime hit by pre-calculated workflows that pass `yi`/`vi` directly without the underlying counts — the builder *short-circuits* and returns a dictionary in which **every** study is a pure diagonal of `var_col_name`. No per-study loop is entered.
-2. **Missing `shared_group_id` column (Cell 6, lines 79–81).** If the dataframe has the required raw counts but does *not* carry a `shared_group_id` column (e.g. because `detect_shared_controls` was bypassed), each study's block is initialised to the diagonal `np.diag(study_grp[var_col_name])` and committed unchanged.
+1. **Required-column gate.** If the columns needed for the chosen `effect_type` are absent from the dataframe — `nc, xc` for `lnRR` / `MD` / `lnCVR`; `events_c, nonevents_c` for `log_or`, `log_rr`, and `risk_diff`; raw sample sizes for SMD; nothing beyond `var_col` for the single-group `proportion`  — which is the regime hit by pre-calculated workflows that pass `yi` / `vi` directly without the underlying counts, the builder *short-circuits* and returns a dictionary in which **every** study is a pure diagonal of `var_col_name`. No per-study loop is entered.
+2. **Missing `shared_group_id` column.** If the dataframe has the required raw counts but does *not* carry a `shared_group_id` column (e.g. because `detect_shared_controls` was bypassed), each study's block is initialised to the diagonal `np.diag(study_grp[var_col_name])` and committed unchanged.
 3. **No shared cluster within a study.** Even when `shared_group_id` is present, studies for which every row has `shared_group_id == NaN` — or whose only "clusters" are singletons (`len(positions) < 2`) — exit the inner loop without inserting any off-diagonal entry, leaving the diagonal block intact by construction.
 
 In all three cases the marginal variances on the diagonal are still the correct closed-form sampling variances; what is forfeited is the *off-diagonal* dependence structure that shared-control rows would otherwise contribute.
@@ -1650,8 +1732,8 @@ Following this contract, a new analytical module integrates with the existing st
 | 2 | Data Ingestion | `RAW_COLUMN_SPECS`, `BINARY_COLUMN_SPECS`, `PRECALC_COLUMN_SPECS`, `GEO_COLUMN_SPECS`, `BUILT_IN_DATASETS`, `_safe_read_csv`, `_validate_and_coerce_mapped_numerics`, `_initiate_mapping_interface`, `on_*_clicked` handlers |
 | 3 | Global Filtering | `prefilter_col`, `prefilter_values` |
 | 4 | Data Cleaning & Pre-processing | `detect_shared_controls`, `impute_sd_nearest_neighbor`, `impute_sd_median_cv`, `impute_sd_custom_cv`, `replace_zero_sd_global_min`, `run_processing` |
-| 5 | Effect Size Selection & Diagnostics | Topology router + weighted scoring (`score_lnRR` / `score_hedges_g`), `es_configs` dispatch table, `effect_size_type` |
-| 6 | Effect Size Calculation | `build_vcv_matrices` (Gleser & Olkin 2009); `sde_imputed` / `sdc_imputed` provenance columns |
+| 5 | Effect Size Selection & Diagnostics | Four-branch topology router + weighted multi-metric scoring (`scores = {lnRR, hedges_g, MD, lnCVR}` for the continuous branch; `{log_or, log_rr, risk_diff}` for the binary branch; short-circuits for `proportion`, mixed, and unrecognised), Nakagawa-2023 tie-breaker, secondary `lnCVR` suggestion, `es_configs` dispatch table over nine metrics, `effect_size_type` |
+| 6 | Effect Size Calculation | `build_vcv_matrices` with eight closed-form covariance branches (Gleser & Olkin 2009; Lajeunesse 2011; Nakagawa et al. 2015) — `lnRR`, `cohen_d`, `hedges_g`, `MD`, `lnCVR`, `log_or`, `log_rr`, `risk_diff`; nine per-metric calculator branches including `MD`, `lnCVR`, `risk_diff`, and logit-transformed `proportion`; `sde_imputed` / `sdc_imputed` provenance columns |
 | 7 | Overall Meta-Analysis | `OverallConfig`, `OverallResult`, `OverallDataManager`, `FixedEffectEngine`, `HeterogeneityEngine`, `TwoLevelEngine`, `ThreeLevelEngine`, `OverallEngine`, `OverallPublicationTextGenerator`, `OverallResultsView`, `OverallController` |
 | 8 | Subgroup Configuration | `subgroup_config` |
 | 9 | Subgroup Execution | `SubgroupDataManager`, `SubgroupAnalysisEngine`, `SubgroupController` |
@@ -1670,7 +1752,9 @@ Following this contract, a new analytical module integrates with the existing st
 * Knapp, G., & Hartung, J. (2003). *Improved tests for a random effects meta-regression with a single covariate.* Toggle: `OverallController.use_kh_widget`.
 * Viechtbauer, W. (2005). REML estimator behaviour; the default `tau_method='REML'` in `TwoLevelEngine` and `ThreeLevelEngine`.
 * Higgins, J. P., & Thompson, S. G. (2002). *I² heterogeneity statistic*; `HeterogeneityEngine.calculate_I2`.
-* Lajeunesse, M. J. (2011). lnRR shared-control covariance; the `effect_type == 'lnRR'` branch of `build_vcv_matrices`.
+* Lajeunesse, M. J. (2011). lnRR shared-control covariance; the `effect_type == 'lnRR'` branch of `build_vcv_matrices`. The same control-arm-double-counting argument generalises to the `MD` branch (off-diagonal `sdc²/nc`).
+* Nakagawa, S., Poulin, R., Mengersen, K., Reinhold, K., Engqvist, L., Lagisz, M., & Senior, A. M. (2015). *Meta-analysis of variation: ecological and evolutionary applications and beyond.* Methods in Ecology and Evolution, 6(2), 143–152. — defines the log Coefficient of Variation Ratio (`lnCVR`) effect size, its small-sample bias correction term `1/(2(n−1))`, and its shared-control covariance; implemented in the `effect_size_type == 'lnCVR'` branch of Cell 6 and the corresponding `effect_type == 'lnCVR'` branch of `build_vcv_matrices`.
+* Nakagawa, S., Lagisz, M., O'Dea, R. E., Pottier, P., Rutkowska, J., Senior, A. M., Yang, Y., & Noble, D. W. A. (2023). *orchaRd 2.0: an R package for visualising meta-analyses with orchard plots.* Methods in Ecology and Evolution, 14(8), 2003–2010. — used in CoMeta as the source for the "general-purpose safe choice" tie-breaker rule (Table 2) that prefers `hedges_g` when the continuous-branch scorer ties, and for the standing scale-dependence caveat appended to every continuous recommendation (§ 3.3.3).
 
 ## Appendix C — Glossary of abbreviations and symbols
 
@@ -1699,8 +1783,12 @@ The notation in this document follows the conventions of the meta-analytic liter
 | Abbreviation | Expansion | Domain |
 |---|---|---|
 | **lnRR** | Natural-log Response Ratio | Continuous, strictly positive outcomes; `ln(x̄_E / x̄_C)`. |
+| **MD** | Raw Mean Difference | Continuous outcomes measured on the same unit across studies; `x̄_E − x̄_C`. Preferred over `SMD` when the scale is genuinely common and raw-scale interpretability is valuable. |
+| **lnCVR** | log Coefficient of Variation Ratio | Continuous, strictly positive outcomes; `ln((s_E/x̄_E) / (s_C/x̄_C))` with the Nakagawa (2015) small-sample bias correction `1/(2(n−1))` on each arm. Measures changes in the *variability* of a trait rather than its mean. |
 | **log OR / lnOR** | Natural-log Odds Ratio | Binary 2×2 outcomes; `log(a·d / b·c)`. |
 | **log RR** | Natural-log Risk Ratio | Binary 2×2 outcomes; `log(risk_E / risk_C)`. |
+| **RD / risk_diff** | Risk Difference | Binary 2×2 outcomes; `p_E − p_C`. Absolute (not relative) change in event probability; first-class CoMeta metric with its own calculator (no longer back-transformed from `log_rr`). |
+| **proportion** | Logit-transformed single-group prevalence | Single-group binary outcomes (only `events_e` / `nonevents_e` present); `logit(p) = ln(events / nonevents)`, with a 0.5 continuity correction on empty cells. Logit-space modelling keeps back-transformed confidence intervals inside [0, 1]. |
 | **SMD** | Standardised Mean Difference | Generic continuous comparison on different scales. |
 | **Hedges' *g*** | Small-sample-corrected SMD | Cohen's *d* multiplied by `J`, computed via `_hedges_j(df_val)`. |
 | **Cohen's *d*** | Uncorrected SMD | `(x̄_E − x̄_C) / s_pooled`. |
