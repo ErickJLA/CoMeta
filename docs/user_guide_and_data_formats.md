@@ -179,7 +179,7 @@ The fields exposed for each data type are listed below. Identifier-style synonym
 | `events_c` | Control Events (c) | Number of events in the Control group. | Required for two-group designs; omit for single-group data |
 | `nonevents_c` | Control Non-Events (d) | Number of non-events in the Control group. | Required for two-group designs; omit for single-group data |
 
-> **Single-group binary data.** CoMeta now recognises *single-group* binary designs in which only the treatment-arm (or single-group) event and non-event counts are available — for example, prevalence, incidence, or single-arm proportion meta-analyses. When the source dataset contains `events_e` and `nonevents_e` but no control event or non-event columns, Cell 5 automatically classifies the dataset as single-group binary and recommends the **Logit Proportion** metric (§5). The control-column dropdowns may be left empty in this case, or the corresponding columns may simply be absent from the source file.
+> **Single-group binary data.** CoMeta supports *single-group* binary designs in which only the treatment-arm (or single-group) event and non-event counts are available — for example, prevalence, incidence, or single-arm proportion meta-analyses. When the source dataset contains `events_e` and `nonevents_e` but no control event or non-event columns, Cell 5 automatically classifies the dataset as single-group binary and recommends the **Logit Proportion** metric (§5). The control-column dropdowns may be left empty in this case, or the corresponding columns may simply be absent from the source file.
 
 **Pre-calculated mode** — `id` and `yi` are required; at least one of `variance` or `se` must be mapped:
 
@@ -560,7 +560,7 @@ The **💡 Recommendation** tab displays a coloured banner naming the recommende
 | **Risk Difference (RD) — absolute risk change** | `risk_diff` | Binary (two-group) |
 | **Logit Proportion — for single-group prevalence** | `proportion` | Binary (single-group) |
 
-**Definitions of the four metrics added in version 1.1.**
+**Definitions of the Mean Difference, lnCVR, Risk Difference, and Logit Proportion metrics.**
 
 - **Mean Difference (MD)** — the raw, unstandardised difference between the treatment and control means, $\hat{\mu} = \bar{x}_e - \bar{x}_c$. MD is directly interpretable in the units of the original measurement and does not standardise by within-study variability. **User note:** MD is only appropriate when *all* constituent studies measure the outcome on the exact same scale and unit (e.g., grams of biomass, °C of temperature change); a meta-analysis of MDs across heterogeneous units is not meaningful. If the user is unsure whether their dataset satisfies this assumption, Hedges' *g* is the safer default.
 - **log Coefficient of Variation Ratio (lnCVR)** — the natural log of the ratio of the coefficients of variation of the treatment and control groups (Nakagawa et al., 2015). Whereas lnRR detects changes in the mean, lnCVR detects whether a treatment alters the *variability* of an outcome relative to its mean. **User note:** lnCVR is particularly useful for ecological and evolutionary studies in which a treatment may stabilise or destabilise a response without changing its central tendency. The small-sample bias correction of Nakagawa et al. (2015) is applied automatically.
