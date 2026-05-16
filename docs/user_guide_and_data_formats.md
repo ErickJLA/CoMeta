@@ -169,15 +169,17 @@ The fields exposed for each data type are listed below. Identifier-style synonym
 | `sdc` | Control SD (sdc) | Standard deviation of the Control group. |
 | `nc` | Control N (nc) | Sample size of the Control group. |
 
-**Raw binary mode** — all five fields are required:
+**Raw binary mode** — `id`, `events_e`, and `nonevents_e` are required; `events_c` and `nonevents_c` are required for two-group comparisons but may be omitted for single-group prevalence/incidence data (see note below):
 
-| Field | Widget label | Description |
-|---|---|---|
-| `id` | Study ID / Label | Unique identifier for the study or paper. |
-| `events_e` | Treatment Events (a) | Number of events in the Treatment group. |
-| `nonevents_e` | Treatment Non-Events (b) | Number of non-events in the Treatment group. |
-| `events_c` | Control Events (c) | Number of events in the Control group. |
-| `nonevents_c` | Control Non-Events (d) | Number of non-events in the Control group. |
+| Field | Widget label | Description | Status |
+|---|---|---|---|
+| `id` | Study ID / Label | Unique identifier for the study or paper. | Required |
+| `events_e` | Treatment Events (a) | Number of events in the Treatment group. | Required |
+| `nonevents_e` | Treatment Non-Events (b) | Number of non-events in the Treatment group. | Required |
+| `events_c` | Control Events (c) | Number of events in the Control group. | Required for two-group designs; omit for single-group data |
+| `nonevents_c` | Control Non-Events (d) | Number of non-events in the Control group. | Required for two-group designs; omit for single-group data |
+
+> **Single-group binary data.** CoMeta supports *single-group* binary designs in which only the treatment-arm (or single-group) event and non-event counts are available — for example, prevalence, incidence, or single-arm proportion meta-analyses. When the source dataset contains `events_e` and `nonevents_e` but no control event or non-event columns, Cell 5 automatically classifies the dataset as single-group binary and recommends the **Logit Proportion** metric (§5). The control-column dropdowns may be left empty in this case, or the corresponding columns may simply be absent from the source file.
 
 **Pre-calculated mode** — `id` and `yi` are required; at least one of `variance` or `se` must be mapped:
 
@@ -225,8 +227,10 @@ id, xe, sde, ne, xc, sdc, nc
 **Raw binary schema (per row):**
 
 ```
-id, events_e, nonevents_e, events_c, nonevents_c
+id, events_e, nonevents_e, [events_c], [nonevents_c]
 ```
+
+The control-arm columns `events_c` and `nonevents_c` are required for conventional two-group binary comparisons (log OR, log RR, Risk Difference). They may be omitted for *single-group* prevalence or incidence designs, in which case Cell 5 will recommend the Logit Proportion metric automatically.
 
 **Pre-calculated schema (per row):**
 
@@ -476,9 +480,10 @@ When the data type is `raw_continuous` or `raw_binary`, Cell 5 first classifies 
 
 | Topology | Trigger | Initial recommendation |
 |---|---|---|
-| **Pure binary** | All four binary columns (`events_e`, `nonevents_e`, `events_c`, `nonevents_c`) are present; continuous columns are absent. | **log Odds Ratio (log OR)** with *High* confidence. |
+| **Pure binary (two-group)** | All four binary columns (`events_e`, `nonevents_e`, `events_c`, `nonevents_c`) are present; continuous columns are absent. | **log Odds Ratio (log OR)** with *High* confidence; **log Risk Ratio (log RR)** and **Risk Difference (RD)** are reported as compatible alternatives. |
+| **Single-group binary** | Only the treatment-arm binary columns (`events_e`, `nonevents_e`) are present; the control-arm columns (`events_c`, `nonevents_c`) are absent. | **Logit Proportion** with *Moderate* confidence. The data are logit-transformed to ensure that confidence intervals remain within the [0, 1] interval. |
 | **Mixed** | Both binary and continuous columns are present. | A yellow ⚠️ ***Ambiguous Data Types Detected*** panel is displayed, advising the user to confirm the data type manually. Initial recommendation: **Hedges' *g*** with *Low* confidence. |
-| **Pure continuous** | Continuous columns (`xe`, `xc`, and at least one SD column) are present. | Output of the rule-based scoring engine (§5.2). |
+| **Pure continuous** | Continuous columns (`xe`, `xc`, and at least one SD column) are present. | Output of the weighted scoring engine (§5.2). |
 
 The cell renders its output in three tabs:
 
@@ -488,29 +493,33 @@ The cell renders its output in three tabs:
 | 2 | **📊 Data Patterns** | A diagnostic audit of the dataset's statistical topology: normalisation, negative values, zero values, scale heterogeneity, SD availability, and distribution shape. |
 | 3 | **🧠 Decision Logic** | The row-by-row scoring table produced by the recommendation engine, together with the final per-metric point totals. |
 
-### 5.2 The rule-based scoring engine (R1–R6)
+### 5.2 The weighted scoring engine (R1–R6)
 
-For pure-continuous datasets, the recommendation engine compares two candidate metrics — log Response Ratio (lnRR) and Hedges' *g* — by accumulating weighted points across six rules. The dataset's diagnostic features are computed first, and each rule contributes to one or both metric scores. The final winner is the metric with the higher total; the difference in points determines the stated confidence.
+For pure-continuous datasets, the recommendation engine implements a **Weighted Scoring System** that compares four candidate continuous metrics — log Response Ratio (lnRR), Hedges' *g*, Mean Difference (MD), and log Coefficient of Variation Ratio (lnCVR) — by accumulating weighted points across six rules. The dataset's diagnostic features are computed first, and each rule contributes points to one or more metric scores. The metric with the highest total is reported as the recommendation; the difference in points between the top two contenders determines the stated confidence.
+
+The scoring engine focuses on the dataset properties that govern the mathematical safety of each metric: data skewness, the presence of zeros or negative values, the proportion of exact 1.0 entries (indicative of pre-normalised fold-change data), SD coverage (which is essential for the *g*/MD/lnCVR variance formulae), and scale heterogeneity across studies. The intent is not to identify a single "correct" metric but to recommend the safest mathematical choice given the dataset's empirical features.
 
 | Rule | Diagnostic | Decision threshold | Points awarded | Rationale |
 |---|---|---|---|---|
-| **R1** | Negative values present in `xe` or `xc` | any negative | Hedges' *g* +10 | Log-ratio metrics are mathematically undefined for negative values. This rule operates as a near-hard constraint. |
-|  | All values strictly positive | otherwise | lnRR +2 | Data are compatible with ratio-based metrics. |
+| **R1** | Negative values present in `xe` or `xc` | any negative | Hedges' *g* +10; MD +3 | Log-ratio metrics (lnRR, lnCVR) are mathematically undefined for negative values. This rule operates as a near-hard constraint. |
+|  | All values strictly positive | otherwise | lnRR +2; lnCVR +1 | Data are compatible with ratio-based metrics. |
 | **R2** | Control values clustered at unity | > 50 % of `xc` exactly 1.0 | lnRR +5 | Pre-normalised fold-change data are already a ratio scale. |
 |  |  | > 30 % of `xc` in [0.95, 1.05] | lnRR +3 | Strong evidence of normalisation. |
 |  |  | mean(`xc`) ∈ (0.8, 1.2) | lnRR +1 | Weak evidence of a unity baseline. |
-| **R3** | Scale heterogeneity (ratio of `xe` and `xc` ranges) | ratio > 100 | lnRR +3 | Heterogeneous scales are handled naturally by ratios. |
+| **R3** | Scale heterogeneity (ratio of `xe` and `xc` ranges) | ratio > 100 | lnRR +3; lnCVR +1 | Heterogeneous scales are handled naturally by ratios; MD is *not* recommended in this regime. |
 |  |  | ratio > 10 | lnRR +2 | Moderate scale variance still favours ratios. |
-|  |  | otherwise | Hedges' *g* +1 | Comparable scales support standardised mean differences. |
+|  |  | otherwise | Hedges' *g* +1; MD +2 | Comparable scales support standardised and raw mean differences alike. |
 | **R4** | Zero values present in `xe` or `xc` | any zero | Hedges' *g* +2 | log(0) is undefined; lnRR would require an additive constant. |
-| **R5** | SD coverage | > 80 % of rows with valid SDs | Hedges' *g* +1 | Hedges' *g* requires complete SDs. |
-|  |  | < 20 % | (no points; warning recorded) | SD imputation has unstable consequences. |
+| **R5** | SD coverage | > 80 % of rows with valid SDs | Hedges' *g* +1; lnCVR +2 | Both metrics require complete SDs; lnCVR specifically requires SDs to compute the CV ratio. |
+|  |  | < 20 % | Hedges' *g* −2; MD −2; lnCVR −5 (warning recorded) | SD imputation is unstable for variance-based metrics; the strong negative penalty for lnCVR reflects its direct dependence on the SD term. |
 | **R6** | Maximum skewness of `xe` and `xc` | skew > 1.5 | lnRR +2 | Strong right-skew typical of multiplicative biological processes. |
 |  |  | skew ∈ (−0.5, 0.5) | Hedges' *g* +1 | Approximately symmetric data fit the SMD assumptions. |
 
-**Tie-breaker.** If the two totals are equal after R1–R6, the engine awards one additional point to lnRR when the dataset contains neither negative nor zero values (lnRR is preferred for strictly-positive ecological data because of its direct percentage-change interpretation), and to Hedges' *g* otherwise.
+**Scale-dependence caveat.** When the recommender identifies MD or Hedges' *g* / Cohen's *d* (any *standardised* or *absolute* mean-difference metric) as the leading candidate, a **Scale Dependence Warning** is displayed beneath the recommendation. The warning advises the user that MD and SMD-class metrics implicitly assume that all studies were conducted at comparable *spatial and temporal* scales (e.g., plot size, experiment duration); if the constituent studies span vastly different scales, the pooled estimate may be biased and the user should consider including scale as a moderator in Cell 8 or Cell 12, or aggregating studies separately by scale stratum. The warning is purely advisory and does not alter the score.
 
-**Confidence level.** Let *Δ* be the absolute difference between the lnRR and Hedges' *g* totals. The reported confidence is:
+**Tie-breaker.** If two totals are equal after R1–R6, the engine prefers lnRR when the dataset contains neither negative nor zero values (lnRR is preferred for strictly-positive ecological data because of its direct percentage-change interpretation), and Hedges' *g* otherwise.
+
+**Confidence level.** Let *Δ* be the absolute difference between the top two metric totals. The reported confidence is:
 
 | Confidence | Condition |
 |---|---|
@@ -518,7 +527,9 @@ For pure-continuous datasets, the recommendation engine compares two candidate m
 | **Moderate** | 3 ≤ *Δ* < 5 |
 | **Low** | *Δ* < 3 |
 
-The full scoring table — each rule that fired, the metric it favoured, the weight (encoded as plus-signs), and a one-line educational note — is displayed in the **🧠 Decision Logic** tab. The final point totals are shown beneath the table.
+The full scoring table — each rule that fired, the metric it favoured, the weight (encoded as plus-signs), and a one-line educational note — is displayed in the **🧠 Decision Logic** tab. The final per-metric point totals are shown beneath the table.
+
+For **pure-binary** topologies, a parallel scoring routine evaluates the three binary candidates (log OR, log RR, Risk Difference) and reports log OR as the default high-confidence recommendation, with log RR and RD listed as compatible alternatives. For **single-group binary** topologies, the engine bypasses competitive scoring and recommends Logit Proportion directly.
 
 ### 5.3 The Data Patterns audit
 
@@ -535,15 +546,26 @@ For pure-binary datasets, the audit instead reports that complete 2 × 2 conting
 
 ### 5.4 Selecting an effect-size metric
 
-The **💡 Recommendation** tab displays a coloured banner naming the recommended metric and a one-sentence rationale, followed by a *Select Type:* radio group containing the five effect sizes supported in raw mode:
+The **💡 Recommendation** tab displays a coloured banner naming the recommended metric and a one-sentence rationale, followed by a *Select Type:* radio group containing the nine effect sizes supported in raw mode:
 
 | Option label | Internal code | Compatible data |
 |---|---|---|
-| **log Response Ratio (lnRR) — for ratio/fold-change data** | `lnRR` | Continuous |
+| **log Response Ratio (lnRR) — for ratio/fold-change data** | `lnRR` | Continuous (strictly positive) |
 | **Hedges' *g* — for standardized mean differences (corrected)** | `hedges_g` | Continuous |
 | **Cohen's *d* — for standardized mean differences (uncorrected)** | `cohen_d` | Continuous |
-| **log Odds Ratio (log OR) — for binary outcome data** | `log_or` | Binary |
-| **log Risk Ratio (log RR) — for binary outcome data** | `log_rr` | Binary |
+| **Mean Difference (MD) — for raw, unstandardized differences** | `MD` | Continuous, identical units across studies |
+| **log Coefficient of Variation Ratio (lnCVR) — for variability** | `lnCVR` | Continuous (strictly positive), full SDs available |
+| **log Odds Ratio (log OR) — for binary outcome data** | `log_or` | Binary (two-group) |
+| **log Risk Ratio (log RR) — for binary outcome data** | `log_rr` | Binary (two-group) |
+| **Risk Difference (RD) — absolute risk change** | `risk_diff` | Binary (two-group) |
+| **Logit Proportion — for single-group prevalence** | `proportion` | Binary (single-group) |
+
+**Definitions of the Mean Difference, lnCVR, Risk Difference, and Logit Proportion metrics.**
+
+- **Mean Difference (MD)** — the raw, unstandardised difference between the treatment and control means, $\hat{\mu} = \bar{x}_e - \bar{x}_c$. MD is directly interpretable in the units of the original measurement and does not standardise by within-study variability. **User note:** MD is only appropriate when *all* constituent studies measure the outcome on the exact same scale and unit (e.g., grams of biomass, °C of temperature change); a meta-analysis of MDs across heterogeneous units is not meaningful. If the user is unsure whether their dataset satisfies this assumption, Hedges' *g* is the safer default.
+- **log Coefficient of Variation Ratio (lnCVR)** — the natural log of the ratio of the coefficients of variation of the treatment and control groups (Nakagawa et al., 2015). Whereas lnRR detects changes in the mean, lnCVR detects whether a treatment alters the *variability* of an outcome relative to its mean. **User note:** lnCVR is particularly useful for ecological and evolutionary studies in which a treatment may stabilise or destabilise a response without changing its central tendency. The small-sample bias correction of Nakagawa et al. (2015) is applied automatically.
+- **Risk Difference (RD)** — the absolute difference in event probabilities, $\hat{\mu} = p_e - p_c$, where $p_e = a/(a+b)$ and $p_c = c/(c+d)$. RD is highly interpretable (e.g., "a 5 % absolute reduction in mortality") but its sampling variance is unstable when probabilities approach the boundaries 0 or 1. **User note:** prefer log OR or log RR for rare outcomes; reserve RD for outcomes in the moderate-prevalence range (0.1 – 0.9).
+- **Logit Proportion** — the logit transformation of a single-group event probability, $\hat{\mu} = \ln(\hat p / (1 - \hat p))$, with the Haldane–Anscombe continuity correction applied to zero or one-valued cells. **User note:** the data are logit-transformed (rather than analysed on the proportion scale directly) to ensure that the model-implied confidence intervals remain within the [0, 1] interval after back-transformation. Logit Proportion is the appropriate metric for single-group prevalence, incidence, or single-arm proportion meta-analyses; the back-transformed proportion and its CI are reported alongside the logit estimate in Cell 6.
 
 The radio button is pre-selected to the engine's recommendation. The user may switch freely between options; CoMeta runs a compatibility check on every change and reacts as follows:
 
@@ -554,13 +576,18 @@ Clicking **✓ Confirm Selection** writes the choice to `ANALYSIS_CONFIG['effect
 
 ### 5.5 Pre-calculated mode: manual declaration
 
-When the data type is `pre_calculated`, the cell does not perform a topology audit. Instead, it renders a yellow informational panel — ***📊 Pre-calculated Effect Size Mode*** — and exposes a single *Effect Size Type:* dropdown containing the five metrics that the pipeline can interpret as already computed:
+When the data type is `pre_calculated`, the cell does not perform a topology audit. Instead, it renders a yellow informational panel — ***📊 Pre-calculated Effect Size Mode*** — and exposes a single *Effect Size Type:* dropdown containing the metrics that the pipeline can interpret as already computed:
 
 | Option label | Internal code |
 |---|---|
 | **Hedges' g (Standardized Mean Difference)** | `hedges_g` |
 | **log Response Ratio (lnRR)** | `lnRR` |
+| **Mean Difference (MD)** | `MD` |
+| **log Coefficient of Variation Ratio (lnCVR)** | `lnCVR` |
 | **log Odds Ratio (logOR)** | `log_or` |
+| **log Risk Ratio (logRR)** | `log_rr` |
+| **Risk Difference (RD)** | `risk_diff` |
+| **Logit Proportion** | `proportion` |
 | **Fisher's z (Correlation)** | `fisher_z` |
 | **Cohen's d (Uncorrected SMD)** | `cohen_d` |
 
@@ -582,7 +609,7 @@ Three considerations are worth noting at this step:
 
 ### 5.8 Summary
 
-Cell 5 fixes the effect-size metric for the remainder of the pipeline. In raw mode, a rule-based scoring engine evaluates six topological diagnostics and proposes either lnRR or Hedges' *g* (or, for binary datasets, log OR), with the reasoning surfaced in the **📊 Data Patterns** and **🧠 Decision Logic** tabs; the user accepts or overrides the recommendation via the *Select Type:* radio group, subject to a compatibility check, and clicks **✓ Confirm Selection**. In pre-calculated mode, the user declares the metric via the *Effect Size Type:* dropdown and clicks **✓ Confirm Effect Size Type**. In both cases, successful confirmation hands off to Cell 6 (Effect Size Calculation), described in Section 6.
+Cell 5 fixes the effect-size metric for the remainder of the pipeline. In raw mode, a weighted scoring engine evaluates six topological diagnostics and proposes one of nine supported metrics — lnRR, Hedges' *g*, Cohen's *d*, Mean Difference, lnCVR, log OR, log RR, Risk Difference, or Logit Proportion — with the reasoning surfaced in the **📊 Data Patterns** and **🧠 Decision Logic** tabs; the user accepts or overrides the recommendation via the *Select Type:* radio group, subject to a compatibility check, and clicks **✓ Confirm Selection**. In pre-calculated mode, the user declares the metric via the *Effect Size Type:* dropdown and clicks **✓ Confirm Effect Size Type**. In both cases, successful confirmation hands off to Cell 6 (Effect Size Calculation), described in Section 6.
 
 ---
 
@@ -610,12 +637,22 @@ Before any effect size is computed, Cell 6 applies the cleaning rules required b
 - Rows in which `xe < 0` or `xc < 0` are removed.
 - For rows in which `xe == 0` or `xc == 0`, a small additive offset is applied to both means. The offset is set to 1 % of the smallest strictly positive value observed across `xe` and `xc` (or 0.001 if no positive values are available). This data-driven offset preserves the relative ordering of effects across studies of differing scales.
 
-**Log odds ratio (log OR) and log risk ratio (log RR).** For 2 × 2 contingency-table data:
+**Log Coefficient of Variation Ratio (lnCVR).** lnCVR is undefined for non-positive means and for zero standard deviations:
+
+- Rows in which `xe <= 0` or `xc <= 0` are removed.
+- Rows in which `sde == 0` or `sdc == 0` after the imputation performed in Cell 4 are removed; the reason recorded is *"Zero SD After Imputation (lnCVR Undefined)"*.
+
+**Log odds ratio (log OR), log risk ratio (log RR), and Risk Difference (RD).** For 2 × 2 contingency-table data:
 
 - **Double-zero studies** — studies in which both `events_e == 0` and `events_c == 0` — are uninformative for relative effects and are removed; the reason recorded is *"Double-Zero Event Count (Uninformative)"*.
-- **Single-zero studies** — studies in which any one of `events_e`, `nonevents_e`, `events_c`, `nonevents_c` equals zero — are corrected by the standard **Haldane–Anscombe continuity correction**: 0.5 is added to all four cells of the affected 2 × 2 table.
+- **Single-zero studies** — studies in which any one of `events_e`, `nonevents_e`, `events_c`, `nonevents_c` equals zero — are corrected by the standard **Haldane–Anscombe continuity correction**: 0.5 is added to all four cells of the affected 2 × 2 table. The same correction is applied to RD to stabilise the variance estimate at the boundaries.
 
-**Hedges' *g*, Cohen's *d***. No additional row-level cleaning is performed; rows that produce NaN effect sizes or non-finite variances after the calculation in §6.3 are removed and tagged with the reason *"Calculation Failed (Missing Data/NaN)"* or *"Zero or Negative Variance"*.
+**Logit Proportion.** For single-group binary data:
+
+- Rows in which either `events_e == 0` or `nonevents_e == 0` are corrected by adding 0.5 to both cells (Haldane–Anscombe), so that the logit is finite and its asymptotic variance is well-defined.
+- Rows with missing event or non-event counts are removed and tagged *"Missing Essential Data (Single-Group Binary)"*.
+
+**Mean Difference (MD), Hedges' *g*, Cohen's *d***. No additional row-level cleaning is performed; rows that produce NaN effect sizes or non-finite variances after the calculation in §6.3 are removed and tagged with the reason *"Calculation Failed (Missing Data/NaN)"* or *"Zero or Negative Variance"*.
 
 ### 6.3 Effect-size and variance formulae
 
@@ -655,6 +692,32 @@ $$ \mathrm{logRR} = \ln\!\Bigl(\tfrac{a/(a+b)}{c/(c+d)}\Bigr), \qquad \mathrm{Va
 
 The back-transformed *Risk Ratio* is stored alongside.
 
+**Mean Difference (MD).** The raw, unstandardised mean difference and its sampling variance are
+
+$$ \mathrm{MD} = \bar{x}_e - \bar{x}_c, \qquad \mathrm{Var}(\mathrm{MD}) = \frac{s_e^{2}}{n_e} + \frac{s_c^{2}}{n_c}. $$
+
+The MD has the same units as the original outcome and is reported on the natural scale; no back-transformation is applied.
+
+**Log Coefficient of Variation Ratio (lnCVR).** Following Nakagawa et al. (2015), the bias-corrected lnCVR and its variance are
+
+$$ \mathrm{lnCVR} = \Bigl[\ln\!\bigl(s_e / |\bar{x}_e|\bigr) + \tfrac{1}{2(n_e - 1)}\Bigr] - \Bigl[\ln\!\bigl(s_c / |\bar{x}_c|\bigr) + \tfrac{1}{2(n_c - 1)}\Bigr], $$
+
+$$ \mathrm{Var}(\mathrm{lnCVR}) = \frac{s_e^{2}}{n_e\,\bar{x}_e^{2}} + \frac{1}{2(n_e - 1)} + \frac{s_c^{2}}{n_c\,\bar{x}_c^{2}} + \frac{1}{2(n_c - 1)}. $$
+
+The additive $1/[2(n-1)]$ terms are the small-sample bias correction for log-CVs derived by Nakagawa et al. (2015). The back-transformed Coefficient of Variation Ratio (exp lnCVR) is stored alongside as an interpretive aid.
+
+**Risk Difference (RD).** Let $p_e = a/(a+b)$ and $p_c = c/(c+d)$ be the event probabilities in the two arms. Then
+
+$$ \mathrm{RD} = p_e - p_c, \qquad \mathrm{Var}(\mathrm{RD}) = \frac{p_e\,(1 - p_e)}{a + b} + \frac{p_c\,(1 - p_c)}{c + d}. $$
+
+RD is reported on its natural scale (an absolute probability difference); no back-transformation is applied.
+
+**Logit Proportion (single-group binary).** Let $a$ and $b$ denote the event and non-event counts in the single group (with the Haldane–Anscombe correction of $+0.5$ applied when either cell is zero). Then
+
+$$ \mathrm{logit\_p} = \ln\!\bigl(a / b\bigr), \qquad \mathrm{Var}(\mathrm{logit\_p}) = \frac{1}{a} + \frac{1}{b}. $$
+
+The back-transformed proportion $\hat p = \mathrm{expit}(\mathrm{logit\_p}) = a / (a + b)$ and its confidence interval (obtained by transforming the logit-scale CI endpoints) are stored alongside, ensuring that the reported interval lies entirely within [0, 1].
+
 **Derived quantities (all metrics).** For every retained row, Cell 6 computes:
 
 | Quantity | Formula | Internal column |
@@ -672,10 +735,15 @@ For each primary study (level-3 unit identified by `id`), Cell 6 constructs a pe
 | Metric | Shared-control covariance | Source |
 |---|---|---|
 | **lnRR** | $s_c^{2} / (n_c\,\bar{x}_c^{2})$ | Lajeunesse (2011) delta-method expression. |
+| **lnCVR** | $s_c^{2} / (n_c\,\bar{x}_c^{2}) + 1 / [2\,(n_c - 1)]$ | Nakagawa et al. (2015); adds the log-CV bias-correction covariance to the lnRR shared-control term. |
 | **Cohen's *d*** | $\tfrac{1}{n_c} + \tfrac{d_i\,d_j\,n_c}{2\,N_i\,N_j}$ with $N_k = n_{e,k} + n_c$ | Gleser & Olkin (2009), Table 4. |
 | **Hedges' *g*** | $J_i\,J_j\,\bigl[\tfrac{1}{n_c} + \tfrac{d_i\,d_j\,n_c}{2\,N_i\,N_j}\bigr]$, with *d* back-derived from *g* via *J* | Gleser & Olkin (2009); the *J* factor uses exact log-gamma. |
+| **MD** | $s_c^{2} / n_c$ | Standard expression for the shared-control component of a raw mean difference. |
 | **log OR** | $\tfrac{1}{c} + \tfrac{1}{d}$ (where *c*, *d* are the control-arm event and non-event counts) | Gleser & Olkin (2009). |
 | **log RR** | $\tfrac{1}{c} - \tfrac{1}{n_c}$, with $n_c = c + d$ | Gleser & Olkin (2009). |
+| **Risk Difference (RD)** | $p_c\,(1 - p_c) / n_c$, with $p_c = c/(c+d)$ | Standard expression for the shared-control component of a risk difference. |
+
+Single-group binary designs (Logit Proportion) do not contain a control arm and therefore admit no shared-control covariance; the per-study **Σ**ᵢ for these datasets is purely diagonal.
 
 The resulting dictionary of matrices is stored as `ANALYSIS_CONFIG['vcv_matrices']` and consumed by the three-level REML engine in Cell 7 to populate the off-diagonal entries of the marginal variance Σᵢ = τ²_between · **J**ᵢ + τ²_within · **I**ᵢ + **V**ᵢ. Studies that contain no shared-control records receive a purely diagonal matrix; their sampling variances are therefore treated as independent, exactly as they would be in a conventional fixed-V meta-analysis. No user action is required to enable the VCV correction — it is applied automatically wherever Cell 4 detected a shared control group.
 
@@ -691,7 +759,8 @@ On completion, Cell 6 renders a tabbed interface comprising the following five t
   | Metric class | Negligible | Small | Medium | Large |
   |---|---|---|---|---|
   | Hedges' *g*, Cohen's *d* | < 0.2 | 0.2 – 0.5 | 0.5 – 0.8 | > 0.8 |
-  | lnRR, log OR, log RR | < 0.1 | 0.1 – 0.3 | 0.3 – 0.5 | > 0.5 |
+  | lnRR, lnCVR, log OR, log RR | < 0.1 | 0.1 – 0.3 | 0.3 – 0.5 | > 0.5 |
+  | MD, RD, Logit Proportion | (interpreted on the natural scale of the outcome or probability; no fixed benchmarks are applied) | | | |
 
   The vote-counting and magnitude classifications in this tab are *record-level* descriptive aids; they do **not** substitute for the model-based pooled inference reported by Cell 7.
 - **🗑️ Removed Data.** A table listing every row removed by Cell 6, together with the reason for removal (*"Double-Zero Event Count (Uninformative)"*, *"Calculation Failed (Missing Data/NaN)"*, *"Zero or Negative Variance"*, *"Missing Effect Size or Variance"*, etc.) and the originating means, sample sizes (or event counts), and effect size / variance columns. A green confirmation banner is shown if no rows were removed.
@@ -729,7 +798,7 @@ These objects, together with the unchanged moderator columns retained from Cell 
 
 ### 6.9 Summary
 
-Cell 6 computes, per record, the effect size and sampling variance for the metric chosen in Cell 5, applying the metric-specific cleaning rules required to keep the calculation well-defined (lnRR zero-offset; binary double-zero drop and Haldane–Anscombe correction). For every primary study, it builds the variance–covariance matrix that encodes within-study sampling dependence among effect sizes that share a control group, using the Gleser & Olkin (2009) and Lajeunesse (2011) closed-form expressions. The cell renders a five-tab diagnostic interface — **📊 Summary**, **📉 Diagnostics**, **📏 Detailed Stats**, **🧠 Interpretation**, **🗑️ Removed Data** — that should be inspected before proceeding to Cell 7 (Overall Meta-Analysis), described in Section 7.
+Cell 6 computes, per record, the effect size and sampling variance for the metric chosen in Cell 5 — one of nine supported metrics: lnRR, Hedges' *g*, Cohen's *d*, Mean Difference, lnCVR, log OR, log RR, Risk Difference, or Logit Proportion — applying the metric-specific cleaning rules required to keep the calculation well-defined (lnRR zero-offset; lnCVR positivity and SD checks; binary double-zero drop and Haldane–Anscombe correction; single-group binary continuity correction for Logit Proportion). For every primary study, it builds the variance–covariance matrix that encodes within-study sampling dependence among effect sizes that share a control group, using the Gleser & Olkin (2009), Lajeunesse (2011), and Nakagawa et al. (2015) closed-form expressions. The cell renders a five-tab diagnostic interface — **📊 Summary**, **📉 Diagnostics**, **📏 Detailed Stats**, **🧠 Interpretation**, **🗑️ Removed Data** — that should be inspected before proceeding to Cell 7 (Overall Meta-Analysis), described in Section 7.
 
 ---
 
