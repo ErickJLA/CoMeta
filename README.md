@@ -43,7 +43,8 @@ results were checked against the R packages `metafor`, `clubSandwich` and
 5. [Statistical methods](#5-statistical-methods)
 6. [Outputs](#6-outputs)
 7. [Troubleshooting](#7-troubleshooting)
-8. [Citation and contact](#8-citation-and-contact)
+8. [Validation suite (for developers)](#8-validation-suite-for-developers)
+9. [Citation and contact](#9-citation-and-contact)
 
 ---
 
@@ -528,7 +529,43 @@ changing the result. The shares and calibrated estimates match
 
 ---
 
-## 8. Citation and contact
+## 8. Validation suite (for developers)
+
+CoMeta keeps all its code in the notebook on purpose: you can read how every
+number is computed, change it, and try new ideas. The **validation suite**
+(the 🧪 cells after Step 27) is the verification system for those changes.
+Each validation recomputes a CoMeta result in R (`metafor`, `clubSandwich`,
+`MetaUtility`) and checks that the two agree.
+
+**It runs on your analysis.** The validations use the data, the sampling
+variance–covariance matrix (including shared controls), the settings and the
+results of the steps you ran in this session. Change a cell, re-run your
+analysis and the matching validation, and you see right away, on your own
+data, whether CoMeta still matches R.
+
+How to use it:
+1. Run your analysis (Steps 2–27, or the steps you changed).
+2. Run **Validation: Imports & R Setup** (installs/loads the R packages).
+3. Run the validations you need, then **Validation Summary & Export**.
+
+Each validation is *PASS*, *FAIL*, *not run* (the analysis step it checks was
+not run in this session, e.g. Validation 3 needs Step 9) or *skipped*. A
+validation that crashes is recorded as *FAIL*.
+
+**Reference datasets (optional).** Tick *Also run the fixed reference
+datasets* in the R setup cell to add fixed benchmarks (`metadat` datasets and
+simulated edge cases: shared controls, missing years, singletons, unbalanced
+clusters). They reach code paths your data may not use; validations that use
+only them (6 and 8) are *skipped* while the box is unticked. The Monte Carlo
+validations (2, 5, 9: bias and coverage) and the unit tests (11) use generic
+simulated data and do not depend on your analysis.
+
+The summary cell exports the results, with package versions, to
+`cometa_validation_results.json`.
+
+---
+
+## 9. Citation and contact
 
 If you use CoMeta in published work, please cite the software (citation
 details will be added here on publication) and the methods papers it relies on,
