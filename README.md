@@ -328,11 +328,13 @@ effect on publication year (centred), with effect sizes nested in studies, the
 shared-control covariances and CR2 inference, as in the other steps. A
 precision term separates a decline over time from a small-study effect
 (Nakagawa et al. 2022). Choose it in *Precision term*: √(1/ñ) (effective sample
-size; the default for Hedges' g, Cohen's d, lnRR and lnCVR, whose SE depends on
-the effect itself), the standard error, or none. The year-only model is shown
+size; the default for Hedges' g, Cohen's d, lnRR and lnCVR when the group
+sample sizes are in the data, because their SE depends on the effect itself),
+the standard error, or none. The year-only model is shown
 as a sensitivity analysis. A year slope opposite in sign to the overall mean
 means effect sizes move toward zero over time. Needs a `year` column; effect
-sizes without one are excluded and counted. Tabs: results, plot (bubble plot
+sizes without one (or without the chosen precision term) are excluded and
+counted, and the year-only model uses the same effect sizes. Tabs: results, plot (bubble plot
 of effect against year with the fitted line and confidence band, journal
 presets, PDF/PNG/SVG, caption and plot recipe), publication text, settings and
 an Excel report. Unlike the cumulative meta-analysis (Step 24), which shows how
