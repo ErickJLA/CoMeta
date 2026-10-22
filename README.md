@@ -334,8 +334,13 @@ against its influence on the pooled effect, (μ − μ₋ᵢ)²/SE²₋ᵢ (Bauj
 ### Complementary analyses
 
 **Step 24 – Cumulative Meta-Analysis.** Adds studies in order of publication
-year (oldest first or newest first) and refits the model at each step, by
-study (recommended) or by observation. Needs a `year` column. **Step 26 –
+year (oldest first or newest first) and refits the model at each step. The
+default (*By Study, multilevel model*) refits the model of Step 7 on all effect
+sizes of the studies included so far (effect sizes nested in studies, shared
+controls, CR2 when on). Two simpler options remain: study means pooled with a
+two-level model (approximate: it ignores within-study heterogeneity, so its
+intervals can be too narrow) and each effect size as independent. Needs a
+`year` column. **Step 26 –
 Cumulative Trends** plots the cumulative effect with its confidence band and,
 optionally, the I² trajectory on a second axis.
 
