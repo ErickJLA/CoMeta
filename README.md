@@ -362,7 +362,8 @@ against its influence on the pooled effect, (μ − μ₋ᵢ)²/SE²₋ᵢ (Bauj
 year (oldest first or newest first) and refits the model at each step. The
 default (*By Study, multilevel model*) refits the model of Step 7 on all effect
 sizes of the studies included so far (effect sizes nested in studies, shared
-controls, CR2 when on). Two simpler options remain: study means pooled with a
+controls, CR2 when on; at the first steps, while the CR2 degrees of freedom are
+below 4, model-based standard errors are used). Two simpler options remain: study means pooled with a
 two-level model (approximate: it ignores within-study heterogeneity, so its
 intervals can be too narrow) and each effect size as independent. Needs a
 `year` column. **Step 26 –
