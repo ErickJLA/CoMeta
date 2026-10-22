@@ -189,7 +189,12 @@ sampling variances.
   `escalc`); studies with zero events in both groups are dropped and listed.
 - **Shared controls**: rows that share the same control group are detected,
   and the covariance between their effect sizes is built into the sampling
-  variance matrix used by all models.
+  variance matrix used by all models. Detection is automatic: rows of one
+  study with identical control n, mean and SD (or control counts) share a
+  control. To set the groups yourself, add a column named `control_id` that
+  gives each row's control group (rows of a study with the same label share a
+  control; leave it blank for rows with their own control). When the column is
+  present it replaces the automatic detection.
 
 Click **Calculate & run sensitivity check**. The tabs show a summary, diagnostic
 plots, detailed statistics, an interpretation, a sensitivity check (results
