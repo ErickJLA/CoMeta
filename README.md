@@ -24,7 +24,8 @@ results were checked against the R packages `metafor`, `clubSandwich` and
   that are meaningful increases, decreases or negligible for a threshold you
   choose, overall and per subgroup, extended to the three-level model.
 - Publication bias for dependent effect sizes: multilevel Egger's test,
-  three-level trim-and-fill and PET-PEESE.
+  PET-PEESE and a time-lag (decline effect) test, with trim-and-fill as a
+  sensitivity analysis.
 - Reproducibility: a **session file** reruns the analysis, and a **plot
   recipe** (one file per figure) redraws any figure exactly, without
   re-running the analysis.
@@ -320,6 +321,23 @@ sizes, pseudo-confidence guides and the original and adjusted means.
 with standard error. If the PET intercept is significant (P-threshold, default
 0.10 two-sided), the PEESE estimate is used; otherwise the PET estimate.
 
+**Step 19b – Time-Lag Test (Decline Effect).** Tests whether effect sizes
+change with publication year, as expected when large or significant results are
+published sooner (time-lag bias). It fits a multilevel meta-regression of the
+effect on publication year (centred), with effect sizes nested in studies, the
+shared-control covariances and CR2 inference, as in the other steps. A
+precision term separates a decline over time from a small-study effect
+(Nakagawa et al. 2022). Choose it in *Precision term*: √(1/ñ) (effective sample
+size; the default for Hedges' g, Cohen's d, lnRR and lnCVR, whose SE depends on
+the effect itself), the standard error, or none. The year-only model is shown
+as a sensitivity analysis. A year slope opposite in sign to the overall mean
+means effect sizes move toward zero over time. Needs a `year` column; effect
+sizes without one are excluded and counted. Tabs: results, plot (bubble plot
+of effect against year with the fitted line and confidence band, journal
+presets, PDF/PNG/SVG, caption and plot recipe), publication text, settings and
+an Excel report. Unlike the cumulative meta-analysis (Step 24), which shows how
+the pooled mean changed as studies accumulated, this is a formal test.
+
 **Step 20 – Funnel Plot.** Contour-enhanced funnel plot: shaded significance
 regions (p ≤ 0.10, 0.05, 0.01) around the no-effect value, an optional
 pseudo-confidence region around the pooled effect, optional colouring by a
@@ -472,10 +490,10 @@ changing the result. The shares and calibrated estimates match
 - **Publication text**: Methods and Results paragraphs in the *Publication
   Text* tab of each analysis, with the numbers filled in.
 - **Excel reports**: audit report (Step 7) and reports for subgroups,
-  meta-regression, splines, publication bias and cumulative analysis; a CSV
+  meta-regression, splines, publication bias, time-lag test and cumulative analysis; a CSV
   table of the meaningful-effect shares (Step 9b).
 - **Figures**: forest, orchard, meaningful-effects, bubble, spline,
-  trim-and-fill, funnel, leave-one-out, Baujat, cumulative trend and map plots.
+  trim-and-fill, time-lag, funnel, leave-one-out, Baujat, cumulative trend and map plots.
   Every plot can be customized (size, fonts, colours, labels, axis limits) and
   saved as PDF, PNG
   (adjustable DPI) and SVG, with an optional transparent background. Each plot
