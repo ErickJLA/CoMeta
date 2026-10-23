@@ -178,7 +178,7 @@ accept it or pick another:
 | Pre-calculated | used as supplied |
 
 The **small-sample bias correction** checkbox (lnRR and lnCVR only) is on by
-default and matches `metafor::escalc` ≥ 4.8. For log-scale effect sizes
+default and applies the second-order corrections of Lajeunesse (2015). For log-scale effect sizes
 (lnRR, lnCVR, log OR, log RR) results are also shown back-transformed as ratios
 (fold-change).
 
@@ -187,8 +187,10 @@ sampling variances.
 - *Missing SDs*: impute with the median CV, impute with the pooled CV (missing
   cases only), replace all SDs with the pooled CV, or drop the rows.
 - *Zero SDs*: treat them as missing (then impute) or drop the rows.
-- Binary data: zero cells get 0.5 added only in the affected tables (as
-  `escalc`); studies with zero events in both groups are dropped and listed.
+- Binary data: 0.5 is added to every cell of a table that has a zero cell
+  (only those tables). For log OR and log RR, studies with zero events in both
+  groups are dropped and listed (they are kept for the risk difference). For
+  a logit proportion, 0.5 is added to both counts when either is zero.
 - **Shared controls**: rows that share the same control group are detected,
   and the covariance between their effect sizes is built into the sampling
   variance matrix used by all models. Detection is automatic: rows of one
@@ -464,13 +466,18 @@ standard random-effects model.
 - Profile-likelihood CIs for the variance components.
 - Prediction intervals.
 
-**Effect sizes** follow the formulas of `metafor::escalc`, including the
-small-sample corrections for lnRR and lnCVR, and the bias-corrected Hedges' g.
+**Effect sizes** use the standard formulas (Borenstein et al., 2009; Hedges
+et al., 1999 for lnRR; Nakagawa et al., 2015 for lnCVR; Barendregt et al., 2013
+for the logit proportion), with the small-sample corrections for lnRR and lnCVR
+(Lajeunesse, 2015) and the bias-corrected Hedges' g (Hedges, 1981). They are
+checked against R in Validation 20.
 
 **Publication bias.**
 - Egger's test and trim-and-fill use the full sampling covariance matrix
   (including shared controls).
-- Trim-and-fill chooses the side to fill with the same rule as `metafor`.
+- Trim-and-fill chooses the side to fill from the funnel asymmetry: the sign
+  of the slope of the effect sizes regressed on their standard errors
+  (negative: studies missing on the right).
 - PET-PEESE uses the conditional rule described in Step 19.
 
 **Proportion of meaningful effects.** Under the multilevel model the true
@@ -478,15 +485,15 @@ effect of an effect size is N(μ, τ² + σ²), and the true mean of a study
 N(μ, τ²); with one effect per study both reduce to N(μ, τ²), the setting of
 Mathur & VanderWeele (2019). The parametric share is 1 − Φ((q − μ)/T), with a
 delta-method SE from SE(μ) and SE(T²), where the covariance of the variance
-components comes from the observed information of the REML likelihood (as
-`metafor`'s `cvvc`). Calibrated estimates shrink each effect size toward its
+components comes from the observed information of the REML likelihood.
+Calibrated estimates shrink each effect size toward its
 model mean by √(T²/(T² + vᵢ)) (Wang & Lee, 2019). Bootstrap CIs resample
 studies, refit the model and use BCa intervals with a leave-one-study-out
-jackknife for the acceleration, computed as in R's `boot` package (quick
+jackknife for the acceleration (Efron, 1987) (quick
 exploratory runs skip the jackknife: bias-corrected percentile intervals). The
 resamples start from the full-data estimates, which makes them fast without
-changing the result. The shares and calibrated estimates match
-`MetaUtility::prop_stronger` in the one-effect-per-study case.
+changing the result. The shares and calibrated estimates are checked against
+R in Validation 25 (one-effect-per-study case).
 
 ---
 
