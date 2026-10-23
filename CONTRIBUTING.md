@@ -15,14 +15,10 @@ your data and settings is as valuable as a pull request.
 ## Contents
 
 1. [Ways to contribute](#1-ways-to-contribute)
-2. [Fork, change and propose (the workflow)](#2-fork-change-and-propose-the-workflow)
-3. [How the notebook is organised](#3-how-the-notebook-is-organised)
-4. [Conventions](#4-conventions)
-5. [Checking your change](#5-checking-your-change)
-6. [Adding a new method or a new validation](#6-adding-a-new-method-or-a-new-validation)
-7. [Pull request checklist](#7-pull-request-checklist)
-8. [Keeping your own fork](#8-keeping-your-own-fork)
-9. [Conduct and credit](#9-conduct-and-credit)
+2. [How CoMeta works](#2-how-cometa-works)
+3. [Conventions](#3-conventions)
+4. [Checking your change](#4-checking-your-change)
+5. [Adding a new method or a new validation](#5-adding-a-new-method-or-a-new-validation)
 
 ---
 
@@ -33,7 +29,7 @@ your data and settings is as valuable as a pull request.
 | Report a bug or a wrong number | Open an [issue](https://github.com/ErickJLA/CoMeta/issues) (see below what to include). |
 | Report a difference between CoMeta and R | Open an issue with the validation results file (`cometa_validation_results.json`). |
 | Suggest a method, an option or a plot | Open an issue first, with a reference for the method, so we can agree on the approach before you write code. |
-| Fix a bug or improve the text | Fork, change, open a pull request (section 2). |
+| Fix a bug or improve the text | Fork the repository, make the change on a branch, check it (section 4) and open a pull request describing what changed, why, and what you checked. |
 | Improve the documentation | Edit `README.md` or this file and open a pull request. |
 | Share a test dataset | A published dataset with known results (e.g. from a paper or an R package) is very useful for the validation suite. |
 
@@ -48,111 +44,221 @@ your data and settings is as valuable as a pull request.
 
 ---
 
-## 2. Fork, change and propose (the workflow)
-
-A *fork* is your own copy of the repository on GitHub. You can change it
-freely; nothing reaches the main CoMeta until you propose it and it is
-reviewed.
-
-### 2.1 Make your fork
-
-1. Sign in to GitHub and open <https://github.com/ErickJLA/CoMeta>.
-2. Click **Fork** (top right). You now have `https://github.com/<your-name>/CoMeta`.
-3. In your fork, create a branch for the change (branch menu → type a name
-   such as `fix-pi-label` → **Create branch**). One branch per change keeps
-   proposals small and easy to review.
-
-### 2.2 Work in Google Colab (no installation)
-
-1. Open your branch's notebook in Colab by changing the address:
-   `https://colab.research.google.com/github/<your-name>/CoMeta/blob/<branch>/CoMeta.ipynb`
-2. Edit the cells. Expand a form cell (double-click it, or *Show code*) to
-   see its code.
-3. Re-run the steps you changed on your data, then run the validations
-   (section 5).
-4. Before saving: **Edit → Clear all outputs** (section 4, *Outputs*).
-5. **File → Save a copy in GitHub**: choose your fork, your branch, write a
-   short message describing the change and tick nothing else. This makes a
-   commit on your branch.
-
-### 2.3 Or work on your computer
-
-```bash
-git clone https://github.com/<your-name>/CoMeta.git
-cd CoMeta
-git checkout -b fix-pi-label
-jupyter lab CoMeta.ipynb        # or VS Code, or upload to Colab
-```
-
-The notebook installs what it needs in its first cell (it is written for
-Colab, so a few Colab-only features, such as Google Sheets import, will not
-work locally). The validation suite also needs R and the Python package
-`rpy2`; its setup cell installs the R packages.
-
-Commit and push as usual:
-
-```bash
-git add CoMeta.ipynb
-git commit -m "Prediction interval label: say t or z"
-git push -u origin fix-pi-label
-```
-
-### 2.4 Propose the change (pull request)
-
-On your fork's GitHub page click **Compare & pull request**. Describe:
-- **what** changed and **why** (link the issue if there is one);
-- **what you checked**: which validations you ran, on which data, and the
-  result (attach `cometa_validation_results.json`);
-- for a statistical change, the **reference** it follows.
-
-The change is reviewed, and you may be asked for adjustments; push them to
-the same branch and the pull request updates itself.
-
-### 2.5 Stay up to date
-
-When the main CoMeta changes, bring the changes into your fork with
-**Sync fork** on your fork's GitHub page, or locally:
-
-```bash
-git remote add upstream https://github.com/ErickJLA/CoMeta.git   # once
-git fetch upstream
-git merge upstream/main
-```
-
----
-
-## 3. How the notebook is organised
+## 2. How CoMeta works
 
 Everything lives in `CoMeta.ipynb`. That is on purpose (a *glass box*):
-there is no hidden package, so what you read is what runs. The cells run top
-to bottom and share their state through one dictionary,
+there is no hidden package, so what you read is what runs. This section
+explains how the cells fit together, so you know where a number comes from
+and where a change has to go.
+
+To find the code behind something you see, search the notebook (Colab:
+**Edit → Find and replace**) for the label in the output. Expand a form cell
+(double-click it, or *Show code*) to see its code.
+
+### 2.1 The big picture
+
+The cells run top to bottom. They share their state through one dictionary,
 **`ANALYSIS_CONFIG`**: each step reads the keys it needs and writes its
-settings and results back.
+settings and results back. A step never depends on another cell's private
+variables, only on `ANALYSIS_CONFIG` and the shared functions of Cells 1 and
+1b.
+
+```
+Step 2  Data ingestion      → raw_data_standardized (columns renamed: id, xe, sde, ne, xc, sdc, nc
+                                                     or events_e, nonevents_e, events_c, nonevents_c)
+Step 3  Global filters      → ANALYSIS_CONFIG['clean_dataframe'], ['prefilters'], ['complete_case_moderators']
+Step 4  Cleaning            → data_filtered (+ 'shared_group_id' for rows sharing a control)
+Step 5  Effect-size choice  → ['es_config'], ['effect_col'], ['var_col'], ['bias_correction'], ...
+Step 6  Effect sizes        → ['analysis_data']  (one row per effect size)
+                              ['vcv_matrices']   (study id → sampling variance–covariance block)
+Step 7  Overall model       → ['global_settings'] (inference choices used by every later step)
+                              ['overall_results'], ['overall_text']
+Steps 8–26  Analyses        → read analysis_data + vcv_matrices + global_settings,
+                              write '<analysis>_results' and '<analysis>_text'
+Step 27 Export              → session file (settings + data, no results)
+```
 
 | Cells | What they hold |
 |---|---|
-| **1. Environment Setup & Core Functions** | Imports, the τ² estimators, CR2 / Satterthwaite inference, the HTZ Wald test, the warning router and log, `mark_stale` (the "re-run this step" banner) and shared helpers. |
-| **1b. Unified Model Engine** | `FitSpec`, `fit_mv`, `compare_fits`: the REML/ML multilevel model used by the overall model, subgroups and meta-regression. |
-| **2–6. Data** | Ingestion and column mapping, global filters, cleaning and shared-control detection, effect-size choice and calculation, sampling variance–covariance matrices. |
-| **7. Overall model** | Three-level model, heterogeneity, prediction interval, Methods/Results text. |
+| **1. Environment Setup & Core Functions** | Imports, the τ² estimators (REML, ML, PM, SJ, DL), CR2 / Satterthwaite inference and the HTZ Wald test (`_compute_robust_var_betas`), the warning router and log, the stale-results banners, figure saving and plot recipes, session export/import. |
+| **1b. Unified Model Engine** | `FitSpec`, `build_fit_spec`, `fit_mv`, `fit_blocks`, `fit_cr2`, `compare_fits`, `pseudo_r2`, row accounting, VCV slicing, proportion of meaningful effects. |
+| **2–6. Data** | Ingestion and column mapping, global filters, cleaning and shared-control detection, effect-size choice, effect sizes and sampling VCVs (`build_vcv_matrices`). |
+| **7. Overall model** | Fixed-effect, two-level and three-level models, heterogeneity, prediction interval, Methods/Results text. |
 | **8–16. Moderators** | Subgroups, proportion of meaningful effects, meta-regression, splines, meta-forest, with their plots. |
 | **17–20. Publication bias** | Egger, trim-and-fill, PET-PEESE, time-lag test, funnel plot. |
 | **21–26. Sensitivity and complementary analyses** | Leave-one-out, Baujat, cumulative meta-analysis, maps, trends. |
 | **27. Export Session** | Session file, warnings log. |
 | **🧪 Validation cells** | R setup, Validations 1–26 (Python vs R), Validation 11 (unit tests), summary and export. |
 
-Typical keys in `ANALYSIS_CONFIG`: `analysis_data` (the effect sizes used by
-all models), `vcv_matrices` (study id → sampling VCV block), `es_config`
-(column names and labels of the chosen effect size), `global_settings` (the
-Step 7 choices: estimator, CR2, t or z, α) and one `*_results` entry per
-analysis (e.g. `overall_results`, `subgroup_results`).
+### 2.2 The keys in `ANALYSIS_CONFIG`
 
-To find where something is computed, search the notebook (Colab: **Edit →
-Find and replace**) for the label you see in the output.
+**Settings** (what the user chose; saved in the session file):
+
+| Key | Written by | Content |
+|---|---|---|
+| `prefilters`, `complete_case_moderators` | Step 3 | Global filters; moderators that define the common row set. |
+| `shared_control_column` | Step 2 | Column that labels control groups, or `None` (automatic detection). |
+| `data_type`, `effect_size_type`, `es_config` | Step 5 | The effect size and its description: column names, labels, log scale or not, null value. |
+| `effect_col`, `var_col`, `se_col`, `ci_lower_col`, `ci_upper_col` | Steps 5–6 | Column names in `analysis_data` (e.g. `lnRR`, `var_lnRR`). Always read them from here; never hard-code `yi`. |
+| `bias_correction`, `sd_missing_strategy`, `sd_zero_strategy` | Steps 5–6 | Effect-size options and missing/zero SD handling. |
+| `global_settings` | Step 7 | `alpha`, `ci_percent`, `dist_type` (`'t'` or `'norm'`), `tau_method`, `use_kh` (CR2 / Knapp–Hartung on or off), `model_choice` (three-level or two-level). |
+| `subgroup_config`, `meaningful_config`, … | each step | That step's own options. |
+
+**Data and results** (rebuilt by running the steps; not saved in the session file):
+
+| Key | Written by | Content |
+|---|---|---|
+| `analysis_data` | Step 6 | One row per effect size: `id` (study), the effect, its variance, SE, CI, and all moderator columns. |
+| `vcv_matrices` | Step 6 | `{study id: k×k sampling VCV}`; off-diagonals are non-zero only for shared controls. |
+| `removed_records`, `complete_case_log` | Steps 4, 6 | Every excluded row and why. |
+| `overall_results` | Step 7 | All models; `overall_results['reported']` is the model the user reports (`mu`, `se`, `ci_lower`, `ci_upper`, `pi_lower`, `pi_upper`, `tau_squared`, `sigma_squared`, `df`, …). |
+| `subgroup_results`, `meta_regression_RVE_results`, `spline_model_results`, `meta_forest_results`, `funnel_results`, `trimfill_results`, `pet_peese_results`, `timelag_results`, `loo_results`, `cumulative_results`, `meaningful_results` | each analysis | That analysis's numbers, read by its plot cell and by the validations. |
+| `overall_text`, `subgroup_text`, `regression_text`, `bias_text`, … | each analysis | Generated Methods/Results text. |
+
+### 2.3 Effect sizes, sampling covariances and row identity
+
+Step 6 computes the effect sizes and builds one sampling VCV block per study
+(`build_vcv_matrices`). When rows share a control group, the block has
+covariances between their effect sizes (Gleser & Olkin 2009; Lajeunesse
+2011). Every model uses this V, so it must stay matched to the rows.
+
+The rule is **row identity, never row position**:
+- `analysis_data` keeps its original index. When an analysis uses a subset
+  (rows with a moderator value, one subgroup, leave-one-out), keep the index
+  (do not `reset_index`), and the engine slices each study's block to the
+  rows that remain.
+- `attach_vcv_row_pos(df)` adds a `_vcv_row_pos` column (each row's position
+  inside its study's block), so the identity survives sorting.
+  `cluster_vcv(...)` / `slice_vcv_block(...)` return the right sub-block.
+- The **common row set** (Step 3) is applied in Step 6 before the VCVs are
+  built, so all analyses can use exactly the same rows.
+
+### 2.4 The model engine (Cell 1b)
+
+All models (overall, subgroups, meta-regression, splines, Egger,
+trim-and-fill, leave-one-out, cumulative, time-lag) are fitted by one
+engine, so there is one likelihood and one optimiser to validate
+(Validation 15 checks it against `rma.mv`).
+
+The model, per study *i*:
+
+  *y*ᵢ = *X*ᵢβ + *u*ᵢ**1** + *e*ᵢ + sampling error,  Var(*y*ᵢ) = *V*ᵢ + τ²**J** + σ²**I**
+
+with τ² the between-study and σ² the within-study variance. Either can be
+held fixed (e.g. σ² = 0 gives the two-level model).
+
+The pieces:
+
+| Object | Role |
+|---|---|
+| `select_rows` / `RowAccounting` | Drops rows in a fixed order (missing id → effect → variance → complete-case columns) and records every dropped row with its reason. `accounting.summary_text()` gives "Used 102 of 102 effect sizes in 29 of 29 clusters". |
+| `build_fit_spec(df, X=..., complete_case_cols=...)` | Builds a `FitSpec`: the exact rows, the y, V and X blocks per study, and the row accounting. Reads `effect_col`, `var_col` and `vcv_matrices` from `ANALYSIS_CONFIG` by default. |
+| `fit_mv(spec, tau2=None, sigma2=None, method='REML')` | REML/ML fit. `None` = estimated (bounded at 0); a number = held fixed. Searches the interior and every boundary face, so the log-likelihood is the true constrained maximum. Returns an `MVFit` (`betas`, `cov_beta` (model-based), `se`, `tau2`, `sigma2`, `loglik`, `aic`, `converged`, `structure`, `notes`). |
+| `fit_blocks(y_blocks, V_blocks, X_blocks, ...)` | The entry point most analysis cells use: same fit from blocks they assembled themselves; picks the two-level model when no study has more than one effect size, and can fall back to a diagonal V (with a note) when a block is not a valid covariance. |
+| `fit_cr2(fit)` | CR2 cluster-robust covariance and Satterthwaite df on exactly the blocks and variance components of `fit` (as `clubSandwich::vcovCR(type = "CR2")` / `coef_test`). With `with_wald_helper=True` it also returns the HTZ Wald test used for omnibus tests. |
+| `compare_fits(full, reduced)` | AIC/BIC/LRT between two fits. Refuses (`ComparisonError`) when they use different rows or a different V; refits under ML when the fixed effects differ; boundary-corrected p-values for variance components. |
+| `pseudo_r2(model, null)` | Share of heterogeneity explained (total, per level), with the null fitted on the same rows and V. |
+
+**Try it.** After running Steps 2–7, a new cell can fit its own models with
+the same machinery (this example uses the Curtis 1998 example data and its
+`method` moderator):
+
+```python
+import numpy as np, pandas as pd
+from scipy import stats
+
+cfg = ANALYSIS_CONFIG
+df  = cfg['analysis_data']                  # keep the original index
+gs  = cfg['global_settings']                # Step 7 choices
+
+# Model 0: intercept only (the overall three-level model)
+spec0 = build_fit_spec(df, label='intercept only')
+fit0  = fit_mv(spec0)                       # REML, tau² and sigma² estimated
+
+# Model 1: a moderator, on exactly the same rows and the same V
+X = pd.get_dummies(df['method'], prefix='method', drop_first=True, dtype=float)
+X.insert(0, 'intrcpt', 1.0)
+spec1 = build_fit_spec(df, X=X, label='method')
+fit1  = fit_mv(spec1)
+
+# Inference as the notebook does it: CR2 + Satterthwaite df
+V_cr2, df_cr2 = fit_cr2(fit1)
+se = np.sqrt(np.diag(V_cr2))
+p  = 2 * stats.t.sf(np.abs(fit1.betas / se), df_cr2)
+print(pd.DataFrame({'estimate': fit1.betas, 'SE (CR2)': se, 'df': df_cr2, 'p': p},
+                   index=spec1.term_names))
+
+print(pseudo_r2(fit1, fit0)['R2'])          # share of heterogeneity explained
+cmp = compare_fits(fit1, fit0)              # refitted under ML (different fixed effects)
+print(cmp.delta_aic, cmp.lrt, cmp.p_value)
+print(spec1.accounting.summary_text())
+```
+
+This is the starting point for a new idea: change the design, fix a
+variance component, use a subset, and the rows, V and inference stay
+consistent with the rest of the notebook. To use the user's inference
+choices, read `gs['use_kh']` (CR2 on/off), `gs['alpha']` and
+`gs['dist_type']`, as the time-lag cell (`fit_timelag_model`) does.
+
+### 2.5 Anatomy of an analysis cell
+
+The larger steps share one structure (see Step 7: `OverallDataManager`,
+`OverallEngine`, `OverallHTMLTemplates`, `OverallPublicationTextGenerator`,
+`OverallResultsView`, `OverallController`):
+
+1. **Setup check** at the top: the cell stops with a clear message if Cells
+   1 and 1b have not run in this session.
+2. **Data manager**: all reading from and writing to `ANALYSIS_CONFIG`
+   (`analysis_data`, `vcv_matrices`, settings), with checks that the data
+   are there.
+3. **Engine**: the statistics, using the Cell 1b engine; no widgets or HTML
+   here, so it can be unit-tested and validated on its own.
+4. **Views and text**: HTML tables, plots, and the generated Methods/Results
+   text with references.
+5. **Controller**: the widgets (forms and buttons); on *Run* it calls the
+   engine, stores `<analysis>_results` and `<analysis>_text`, shows the
+   views and marks later steps stale.
+
+Smaller steps keep the same order in plain functions (e.g.
+`fit_timelag_model` → `timelag_results_html` → `TimeLagController` in
+Step 19b). Validations call the engine functions directly, which is why the
+statistics must not live inside widget callbacks.
+
+### 2.6 Staleness, plots and reproducibility
+
+- **Stale results.** When an upstream step changes, it calls
+  `mark_stale(module_ids, "Step N: …")` (Cell 1); the registered banners of
+  the listed modules (`ALL_DOWNSTREAM = ['overall', 'subgroup',
+  'regression', 'spline', 'pub_bias', 'pet_peese', 'loo', 'cumulative',
+  'plots']`) show "re-run this step". A new step registers its banner with
+  `register_banner('my_module', banner_widget)`.
+- **Plot cells** only draw: they read `<analysis>_results` and never refit.
+  `results_token(key)` notices when the analysis was re-run after the plot
+  (`stale_warning_html`). `plot_recipe_bar` / `build_plot_recipe` save a
+  figure's data and settings in a small file, so the figure can be redrawn
+  exactly without the analysis.
+- **Session file.** `export_config_for_reproducibility` (Cell 1) writes the
+  settings and the data (`embedded_data`) and skips the results listed in
+  `RESULT_KEYS`. `load_reproducibility_config` restores them and sets
+  `is_reproducing = True`; Steps 3–8 then restore their widgets from the
+  saved settings. Running the cells recomputes the results; they are never
+  loaded from the file.
+
+### 2.7 Messages and warnings
+
+- `warnings.warn("…")` is the way to tell the user something about their
+  results (e.g. a fallback was used). The router in Cell 1 shows CoMeta's
+  own messages once, compactly, and keeps every warning (CoMeta's and the
+  libraries') in `COMETA_WARNING_LOG`, viewable in Step 27.
+- Floating-point noise from optimisers (trial points outside the valid
+  region) is silenced with the `@_quiet_numerics` decorator (Cell 1b);
+  convergence and boundary estimates are checked explicitly instead.
+- Errors the user can fix are shown as a short HTML message in the cell
+  output (what is missing and which step to run), not as a traceback.
 
 ---
 
-## 4. Conventions
+## 3. Conventions
 
 These keep CoMeta readable and its results trustworthy.
 
@@ -160,7 +266,7 @@ These keep CoMeta readable and its results trustworthy.
 - Every method follows a published source; cite it in a comment next to the
   code and in the generated Methods text.
 - A result that can be compared with R must be validated against R
-  (section 5). If CoMeta deliberately differs from R, say so in the code and
+  (section 4). If CoMeta deliberately differs from R, say so in the code and
   in the generated text.
 - Keep the defaults conservative: a new option starts *off* unless it is the
   recommended practice.
@@ -195,7 +301,7 @@ These keep CoMeta readable and its results trustworthy.
 
 ---
 
-## 5. Checking your change
+## 4. Checking your change
 
 The validation suite (the 🧪 cells after Step 27) is the verification
 system for developers. It runs **on your own analysis**: the data, the
@@ -227,7 +333,7 @@ R call in the docstring).
 
 ---
 
-## 6. Adding a new method or a new validation
+## 5. Adding a new method or a new validation
 
 **A new analysis step**
 1. Open an issue describing the method and its reference.
@@ -261,46 +367,6 @@ R call in the docstring).
    new validation in the README.
 
 ---
-
-## 7. Pull request checklist
-
-- [ ] One topic per pull request; linked issue if there is one.
-- [ ] The notebook runs top to bottom in a fresh Colab session.
-- [ ] Validation 11 (unit tests) passes; new tests added for the change.
-- [ ] Relevant validations pass on your data (and on the reference datasets
-      for statistical changes); `cometa_validation_results.json` attached.
-- [ ] Generated Methods/Results text and references match what is computed.
-- [ ] README updated if the user sees something new or different.
-- [ ] Outputs cleared before saving the notebook.
-
----
-
-## 8. Keeping your own fork
-
-You are welcome to keep a fork for your own research, teaching or method
-development: that is part of the idea of CoMeta. If you do:
-- keep the reference to the original CoMeta and its citation, and say what
-  you changed, so readers of your work know which version produced the
-  results;
-- run the validation suite after your changes; a modified version that has
-  not been checked against R should say so in any publication;
-- consider proposing your improvements back (section 2.4): a method that
-  helps you probably helps others.
-
-Check the repository's licence file for the terms under which CoMeta may be
-reused and redistributed.
-
----
-
-## 9. Conduct and credit
-
-Be kind and constructive: many users are researchers learning meta-analysis
-or programming as they go, and questions are welcome. Critique the code and
-the statistics, not the person.
-
-Contributors are credited in the repository history and in the release
-notes. If a contribution adds a method of your own, cite your paper in the
-generated text and the README, as is done for the other methods.
 
 Questions about contributing: open an
 [issue](https://github.com/ErickJLA/CoMeta/issues).
