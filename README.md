@@ -216,7 +216,14 @@ with imputed SDs against complete cases only) and the removed rows.
 - *Confidence level*: 90, 95 or 99 %.
 
 Results are shown in tabs:
-- *Primary Result*: pooled effect, CI, p-value and prediction interval.
+- *Primary Result*: a summary dashboard that explains the result in plain
+  language: the pooled effect with its CI, p-value and prediction interval;
+  the effect on its original scale (ratio, proportion or correlation); how
+  clustering and the CR2 correction change the uncertainty (effect sizes,
+  studies, degrees of freedom, model-based vs reported SE); where the
+  variation comes from (multilevel I²); whether there is more variation than
+  chance (Q test) and how large it is (τ², σ² with CIs). A warning appears
+  when there are fewer than 10 studies.
 - *Heterogeneity*: Q test, multilevel I² (total, between and within study) and
   profile-likelihood CIs for the variance components.
 - *Model Selection*: likelihood-ratio test and AIC comparing the nested
