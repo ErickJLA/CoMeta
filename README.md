@@ -311,10 +311,22 @@ by the first moderator.
 
 **Step 12 – Meta-Regression.** Choose one or more moderators. For each, choose
 whether it is continuous or categorical and, for categorical ones, the
-reference level. Click **Run Meta-Regression**. Results include coefficients
-with CR2 tests, the HTZ omnibus test for all moderators together, pseudo-R²
-(against the intercept-only model on the same rows), diagnostics, publication
-text and an Excel report.
+reference level. Click **Run Meta-Regression**.
+- *Results*: a dashboard that explains the model in plain language: what each
+  moderator does (per unit, or each level vs the reference, with the change
+  over the observed range and the ratio scale for log ratios), predicted
+  effects (a bubble plot with CI and prediction bands for one continuous
+  moderator; otherwise predictions at typical values, kept inside the
+  observed range), the tests of the moderators, how much heterogeneity they
+  explain, and whether the analysis is reliable (studies per coefficient,
+  moderator coverage, within- or between-study moderators). Warnings appear
+  for fewer than 10 studies per coefficient, coefficients with fewer than 4
+  degrees of freedom, categories with fewer than 5 studies and excluded rows.
+- *Detailed Statistics*: every number at full precision with its method
+  (coefficients, CR2 / Knapp–Hartung tests, residual τ² and σ² with
+  profile-likelihood CIs, pseudo-R², predictions, the coefficient covariance
+  matrix, diagnostics), with a plain-text copy for reports or AI assistants.
+- *Publication Text* and *Export* (Excel report).
 
 **Step 13 – Meta-Regression: Visualization.** Bubble plot of the effect against
 a continuous moderator of the model (choose which one for the x-axis), with the
