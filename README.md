@@ -576,3 +576,5 @@ which are listed in the generated publication text.
 
 Questions, bug reports and suggestions are welcome through the
 [GitHub issues](https://github.com/ErickJLA/CoMeta/issues) page.
+To fix something, add a method or keep your own version of CoMeta, see
+[CONTRIBUTING.md](CONTRIBUTING.md).
