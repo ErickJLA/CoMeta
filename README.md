@@ -295,9 +295,17 @@ decreases** and **negligible** (Mathur & VanderWeele 2019, 2020):
   marked as exploratory), **1000** or more for the results you report (BCa
   intervals). A progress bar shows the time left.
 
-The results come as a table, publication text, a CSV export and a figure
-(stacked bars for all groups with their CIs, or the distribution of true
-effects for one group) with its own plot recipe. Choose the thresholds before
+The results come as a dashboard, a **🔢 Detailed Statistics** tab, publication
+text, a CSV export and a figure. The dashboard explains the shares in plain
+words. It shows stacked bars for every group (calibrated and parametric), the
+distribution of true effects with the thresholds marked, and the overall shares
+with their confidence intervals. It also gives warnings for exploratory runs,
+missing bootstrap intervals, T² = 0 and few studies. The Detailed Statistics tab
+lists every number at full precision: the thresholds on the analysis scale, the
+model, τ², σ², T² and SE(T²), and each share with its bootstrap and
+delta-method CIs. It also has a plain-text copy to paste into a report or an AI
+assistant. The figure shows stacked bars for all groups with their CIs, or the
+distribution of true effects for one group, and has its own plot recipe. Choose the thresholds before
 looking at the results, from what is biologically or practically relevant for
 your outcome.
 
