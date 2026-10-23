@@ -193,10 +193,12 @@ sampling variances.
   and the covariance between their effect sizes is built into the sampling
   variance matrix used by all models. Detection is automatic: rows of one
   study with identical control n, mean and SD (or control counts) share a
-  control. To set the groups yourself, add a column named `control_id` that
-  gives each row's control group (rows of a study with the same label share a
-  control; leave it blank for rows with their own control). When the column is
-  present it replaces the automatic detection.
+  control. To set the groups yourself, add a column that gives each row's
+  control group (rows of a study with the same label share a control; leave it
+  blank for rows with their own control) and select it as **Control-group
+  column** in the Step 2 column mapping. It is used only when selected there
+  (a column named `control_id` is pointed out but not used on its own);
+  otherwise the automatic detection applies.
 
 Click **Calculate & run sensitivity check**. The tabs show a summary, diagnostic
 plots, detailed statistics, an interpretation, a sensitivity check (results
