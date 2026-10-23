@@ -338,8 +338,20 @@ level (categorical).
 **Step 14 – Non-Linear Spline Meta-Regression.** Fits a natural cubic spline of
 a continuous moderator (choose the spline df, default 3). A likelihood-ratio
 test against the linear model shows whether the relationship is non-linear,
-and the HTZ omnibus test shows whether the moderator matters at all. Knot
-positions and sparse regions are reported. **Step 15** plots the fitted curve
+and the HTZ omnibus test shows whether the moderator matters at all.
+- *Results*: a dashboard that reads the two tests in order (does the effect
+  change with the moderator? is the change curved?), draws the fitted curve
+  over the effect sizes with its CI and prediction bands, the best straight
+  line and the knots, shows how much heterogeneity the spline explains, and
+  how reliable the curve is (studies along the moderator range, studies per
+  coefficient, sparse ends). Warnings appear for sparse ends, few studies per
+  coefficient, a test with fewer than 4 degrees of freedom and fallbacks.
+- *Detailed Statistics*: every number with its method (knots, basis
+  coefficients, both tests with the ML fits, residual τ² and σ² with
+  profile-likelihood CIs, pseudo-R², the predicted curve at the knots,
+  diagnostics), with a plain-text copy for reports or AI assistants.
+
+**Step 15** plots the fitted curve
 with its confidence band and the non-linearity test.
 
 **Step 16 – Exploratory Meta-Forest.** A random forest that ranks many
