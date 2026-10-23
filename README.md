@@ -248,8 +248,21 @@ to estimate. A preview shows how many studies and observations each level has.
 **Step 9 – Subgroup Analysis: Execution.** Fits one three-level model with a
 mean for each group (and common variance components) and tests whether the
 groups differ (HTZ cluster-robust omnibus test).
-Tabs: results, heterogeneity, processing log, configuration, publication text
-and export (Excel report and session file).
+- *Results Summary*: a dashboard that explains the result in plain language:
+  the effect in each subgroup (with CI, prediction interval and the
+  back-transformed value), whether the subgroups differ, every pairwise
+  difference (with Holm-adjusted p-values), how much heterogeneity the
+  moderator explains (τ² and σ² with and without it), and whether the
+  comparison is fair (studies per subgroup; between- or within-study
+  moderator). Warnings appear for subgroups with fewer than 5 studies, a test
+  with fewer than 4 degrees of freedom, excluded subgroups and the fallback
+  fit.
+- *Detailed Statistics*: every number at full precision with its method
+  (subgroup estimates, pairwise differences, omnibus and two-way tests,
+  residual τ² and σ² with profile-likelihood CIs, pseudo-R²), with a
+  plain-text copy for reports or AI assistants.
+- *Processing Log*, *Configuration*, *Publication Text* and *Export* (Excel
+  report and session file).
 
 **Step 9b – Proportion of Meaningful Effects.** The pooled mean says how large
 the effect is on average; with heterogeneity, the true effects of individual
