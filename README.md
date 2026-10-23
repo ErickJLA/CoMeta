@@ -365,7 +365,16 @@ with its confidence band and the non-linearity test.
 **Step 16 – Exploratory Meta-Forest.** A random forest that ranks many
 moderators by their importance, with cross-validation by study. Use it to
 explore which moderators may matter, then test them with Steps 9 or 12. It is
-not a confirmatory test.
+not a confirmatory test. The **Results** dashboard shows each moderator's
+permutation importance on held-out studies. Each moderator is marked
+*consistent*, *unstable* or *none* by how it varies across folds. The dashboard
+also gives the out-of-bag R² with a reading guide and the step where each
+promising moderator should be tested. **🔢 Detailed Statistics** lists the data,
+the forest settings, the weights (τ² and its source), the out-of-bag R², and
+each importance score with its SD across folds. Columns derived from the effect
+size, such as `fold_change`, `Response_Ratio`, `Odds_Ratio` and CI bounds, are
+never offered as moderators here or in Steps 8, 12 and 14. Neither is any
+numeric column whose ranks match the effect size exactly.
 
 ### Publication bias
 
@@ -428,7 +437,12 @@ moderator and the result of Egger's test from Step 17.
 
 **Step 21 – Leave-One-Out.** Refits the overall model leaving out one study at
 a time and reports how much the estimate changes and which studies change its
-significance. **Step 22** plots the results (sorted by effect, by influence or
+significance. The **Results** dashboard explains the outcome in plain words. It
+shows the pooled effect without each study as a forest, the studies that move
+the estimate most (against the 20% threshold), whether removing one study
+changes the conclusion (the CI crossing no effect), and whether one study
+drives the heterogeneity. **🔢 Detailed Statistics** lists the model with all
+studies and every refit (estimate, SE, df, CI, p, shift, τ², σ²). **Step 22** plots the results (sorted by effect, by influence or
 by study ID, with significance changers highlighted).
 
 **Step 23 – Baujat Plot.** Each study's contribution to heterogeneity (Q)
@@ -445,7 +459,12 @@ controls, CR2 when on; at the first steps, while the CR2 degrees of freedom are
 below 4, model-based standard errors are used). Two simpler options remain: study means pooled with a
 two-level model (approximate: it ignores within-study heterogeneity, so its
 intervals can be too narrow) and each effect size as independent. Needs a
-`year` column. **Step 26 –
+`year` column. The **Results** dashboard explains the outcome in plain words. It
+plots the cumulative estimate with its CI band and marks from when the CI
+excludes no effect. It also shows how precision grew and how I² and τ² evolved,
+and says whether the estimate has stabilized (less than 10% change over the
+last five steps). **🔢 Detailed Statistics** lists the settings, a summary and
+every step (estimate, SE, df, CI, τ², σ², I², inference). **Step 26 –
 Cumulative Trends** plots the cumulative effect with its confidence band and,
 optionally, the I² trajectory on a second axis.
 
