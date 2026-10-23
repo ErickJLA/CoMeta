@@ -224,8 +224,14 @@ Results are shown in tabs:
   variation comes from (multilevel I²); whether there is more variation than
   chance (Q test) and how large it is (τ², σ² with CIs). A warning appears
   when there are fewer than 10 studies.
-- *Heterogeneity*: Q test, multilevel I² (total, between and within study) and
-  profile-likelihood CIs for the variance components.
+- *Detailed Statistics*: every number of the analysis at full precision, with
+  the method behind it: data (effect sizes, studies, effect sizes per study,
+  exclusions, sampling covariances), model and estimation, inference settings,
+  pooled effect (SE, test statistic, df, p, CI, PI, back-transformed values),
+  heterogeneity (Q, I², multilevel I², τ² and σ² with profile-likelihood CIs),
+  variance-structure tests, reference models and software versions. A
+  plain-text (Markdown) copy with a Copy button is included, for reports or
+  for pasting into an AI assistant.
 - *Model Selection*: likelihood-ratio test and AIC comparing the nested
   variance structures. This is for information; the model you chose is the one
   reported.
