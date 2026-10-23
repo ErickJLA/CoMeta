@@ -188,7 +188,8 @@ sampling variances.
   cases only), replace all SDs with the pooled CV, or drop the rows.
 - *Zero SDs*: treat them as missing (then impute) or drop the rows.
 - Binary data: 0.5 is added to every cell of a table that has a zero cell
-  (only those tables). For log OR and log RR, studies with zero events in both
+  (only those tables, plus any table that shares a control group with one of
+  them, so the shared control counts stay identical). For log OR and log RR, studies with zero events in both
   groups are dropped and listed (they are kept for the risk difference). For
   a logit proportion, 0.5 is added to both counts when either is zero.
 - **Shared controls**: rows that share the same control group are detected,
@@ -211,6 +212,9 @@ with imputed SDs against complete cases only) and the removed rows.
 **Step 7 – Overall Meta-Analysis.** The main result.
 - *Model*: three-level (recommended) or two-level (as a sensitivity analysis).
   For the two-level model you can choose the τ² estimator: REML, DL, ML, PM or SJ.
+  With shared controls, the two-level mean is estimated by generalized least
+  squares with weights (V + τ²I)⁻¹, using the full sampling covariance matrix.
+  Its CR2 standard error uses the same weights.
 - *CR2 / Knapp-Hartung*: cluster-robust small-sample inference (on by default).
 - *Inference*: t-distribution (default) or normal (z).
 - *Confidence level*: 90, 95 or 99 %.
@@ -325,7 +329,8 @@ reference level. Click **Run Meta-Regression**.
   over the observed range and the ratio scale for log ratios), predicted
   effects (a bubble plot with CI and prediction bands for one continuous
   moderator; otherwise predictions at typical values, kept inside the
-  observed range), the tests of the moderators, how much heterogeneity they
+  observed range; their CI and prediction intervals follow the t or z choice
+  of Step 7), the tests of the moderators, how much heterogeneity they
   explain, and whether the analysis is reliable (studies per coefficient,
   moderator coverage, within- or between-study moderators). Warnings appear
   for fewer than 10 studies per coefficient, coefficients with fewer than 4
@@ -542,7 +547,8 @@ for effect size *i* in study *j*:
 
 The variance components are estimated by REML (ML for likelihood-ratio tests
 between models with different fixed effects). The two-level model is the
-standard random-effects model.
+standard random-effects model (with shared controls, its weights use the full
+sampling covariance matrix).
 
 **Inference.**
 - By default, tests and CIs use the CR2 cluster-robust variance estimator with
