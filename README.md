@@ -352,6 +352,21 @@ level (categorical).
 a continuous moderator (choose the spline df, default 3). A likelihood-ratio
 test against the linear model shows whether the relationship is non-linear,
 and the HTZ omnibus test shows whether the moderator matters at all.
+- *Adjust for* (optional): other moderators to hold constant, so the curve
+  shows the change with the spline moderator after accounting for them.
+  - Numeric moderators enter as straight-line terms, centred at their mean.
+  - Text moderators enter as categories, against a reference level you choose
+    (the default is the level with the most effect sizes).
+  - The curve is the partial effect, drawn at the mean or reference level of
+    each adjustment moderator.
+  - The plotted points are the effect sizes minus the estimated contribution
+    of the adjustment moderators, so they are comparable with the curve.
+  - Both tests keep the adjustment terms in every model they compare.
+  - The pseudo-R² of the adjustment moderators alone is also reported, so you
+    can see what the curve adds.
+  - Each adjustment adds parameters: aim for at least 10 studies per
+    coefficient. A warning appears below that, and the run stops when there
+    are fewer studies than coefficients plus two.
 - *Results*: a dashboard that reads the two tests in order (does the effect
   change with the moderator? is the change curved?), draws the fitted curve
   over the effect sizes with its CI and prediction bands, the best straight
@@ -365,7 +380,9 @@ and the HTZ omnibus test shows whether the moderator matters at all.
   diagnostics), with a plain-text copy for reports or AI assistants.
 
 **Step 15** plots the fitted curve
-with its confidence band and the non-linearity test.
+with its confidence band and the non-linearity test. With adjustment
+moderators, it plots the adjusted points and the caption says where the curve
+is drawn.
 
 **Step 16 – Exploratory Meta-Forest.** A random forest that ranks many
 moderators by their importance, with cross-validation by study. Use it to
