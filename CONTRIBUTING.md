@@ -85,7 +85,7 @@ Step 27 Export              → session file (settings + data, no results)
 | **2–6. Data** | Ingestion and column mapping, global filters, cleaning and shared-control detection, effect-size choice, effect sizes and sampling VCVs (`build_vcv_matrices`). |
 | **7. Overall model** | Fixed-effect, two-level and three-level models, heterogeneity, prediction interval, Methods/Results text. |
 | **8–16. Moderators** | Subgroups, proportion of meaningful effects, meta-regression, splines, meta-forest, with their plots. |
-| **17–20. Publication bias** | Egger, trim-and-fill, PET-PEESE, time-lag test, funnel plot. |
+| **17–20. Publication bias** | Egger, trim-and-fill, PET-PEESE, time-lag test, the overview of all of them (19c), funnel plot. |
 | **21–26. Sensitivity and complementary analyses** | Leave-one-out, Baujat, cumulative meta-analysis, maps, trends. |
 | **27. Export Session** | Session file, warnings log. |
 | **🧪 Validation cells** | R setup, Validations 1–26 (Python vs R), Validation 11 (unit tests), summary and export. |

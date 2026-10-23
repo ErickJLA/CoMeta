@@ -367,6 +367,8 @@ not a confirmatory test.
 - *Trim-and-fill*: estimators L0 and R0 to estimate the missing studies and
   the adjusted effect.
 - *Combined Assessment* summarizes both.
+- *Detailed Statistics*: every number of both methods with its method, with a
+  plain-text copy.
 - Also has publication text and an Excel report.
 
 **Step 18 – Trim-and-Fill Plot.** Funnel plot with observed and imputed effect
@@ -375,6 +377,8 @@ sizes, pseudo-confidence guides and the original and adjusted means.
 **Step 19 – PET-PEESE.** Precision-effect test and precision-effect estimate
 with standard error. If the PET intercept is significant (P-threshold, default
 0.10 two-sided), the PEESE estimate is used; otherwise the PET estimate.
+Tabs: summary, visuals, interpretation, *Detailed Statistics* (both models,
+the decision rule and the recommended estimate) and publication text.
 
 **Step 19b – Time-Lag Test (Decline Effect).** Tests whether effect sizes
 change with publication year, as expected when large or significant results are
@@ -391,9 +395,21 @@ means effect sizes move toward zero over time. Needs a `year` column; effect
 sizes without one (or without the chosen precision term) are excluded and
 counted, and the year-only model uses the same effect sizes. Tabs: results, plot (bubble plot
 of effect against year with the fitted line and confidence band, journal
-presets, PDF/PNG/SVG, caption and plot recipe), publication text, settings and
-an Excel report. Unlike the cumulative meta-analysis (Step 24), which shows how
+presets, PDF/PNG/SVG, caption and plot recipe), publication text, *Detailed
+Statistics* (both models, settings and exclusions) and an Excel report. Unlike the cumulative meta-analysis (Step 24), which shows how
 the pooled mean changed as studies accumulated, this is a formal test.
+
+**Step 19c – Publication Bias: Overview.** Brings together the
+publication-bias steps run in the session (17, 19, 19b); nothing is refitted.
+The dashboard shows how the average effect of Step 7 changes under each
+correction (PET, PEESE with the recommended one marked, trim-and-fill), which
+signals of small-study effects were found (Egger's slope, trim-and-fill, the
+PET slope, a decline over time), whether the conclusion changes (direction,
+significance, size), and how to read the results (a signal is not proof of
+publication bias; no signal is not proof of none). The verdict is based on the
+PET-PEESE estimate the rule recommends. *Detailed Statistics* lists every number
+of the three steps, with a plain-text copy. Re-run it after re-running any of
+them.
 
 **Step 20 – Funnel Plot.** Contour-enhanced funnel plot: shaded significance
 regions (p ≤ 0.10, 0.05, 0.01) around the no-effect value, an optional
