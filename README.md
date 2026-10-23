@@ -525,6 +525,7 @@ changing the result. The shares and calibrated estimates match
 | "… resamples could not be fitted" (Step 9b) | A small subgroup was missing from some bootstrap resamples; those resamples are skipped. With many skipped, the subgroup CIs are unreliable. |
 | "This recipe is for a … plot" | Load a plot recipe in the plot cell that saved it (e.g. a forest-plot recipe in Step 10). |
 | The map cannot be saved as PNG/PDF | Install `kaleido` (`pip install kaleido`) or use the interactive HTML file and the camera button on the map. |
+| You want to see the warnings | Numerical messages from numpy/scipy while models are fitted (e.g. "invalid value encountered") come from trial values the optimiser rejects; CoMeta checks convergence itself, so they are not printed. CoMeta's own messages appear as a short yellow line. Both are kept in the *Warnings log* in Step 27. |
 | Google Sheets does not connect | Allow the Google sign-in pop-up, or download the sheet and use *Upload Excel/CSV*. |
 
 ---
