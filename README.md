@@ -24,8 +24,8 @@ results were checked against the R packages `metafor`, `clubSandwich` and
   that are meaningful increases, decreases or negligible for a threshold you
   choose, overall and per subgroup, extended to the three-level model.
 - Publication bias for dependent effect sizes: multilevel Egger's test,
-  PET-PEESE and a time-lag (decline effect) test, with trim-and-fill as a
-  sensitivity analysis.
+  a time-lag (decline effect) test, with PET-PEESE and trim-and-fill as
+  sensitivity analyses.
 - Reproducibility: a **session file** reruns the analysis, and a **plot
   recipe** (one file per figure) redraws any figure exactly, without
   re-running the analysis.
@@ -422,10 +422,19 @@ numeric column whose ranks match the effect size exactly.
 sizes, pseudo-confidence guides and the original and adjusted means.
 
 **Step 19 – PET-PEESE.** Precision-effect test and precision-effect estimate
-with standard error. If the PET intercept is significant (P-threshold, default
-0.10 two-sided), the PEESE estimate is used; otherwise the PET estimate.
-Tabs: summary, visuals, interpretation, *Detailed Statistics* (both models,
-the decision rule and the recommended estimate) and publication text.
+with standard error (Stanley & Doucouliagos 2014), fitted as multilevel
+meta-regressions with the random structure and sampling covariances of the
+overall model (Nakagawa et al. 2022) and CR2 inference. If the PET intercept is
+significant in the expected direction (P-threshold, default 0.10 two-sided),
+the PEESE estimate is used; otherwise the PET estimate. *Precision term*: the
+predictor of PET, and squared, of PEESE. The default is √(1/ñ), the effective
+sample size, for Hedges' g, Cohen's d, lnRR and lnCVR when the group sample
+sizes are in the data (as in Step 19b), because their SE depends on the effect
+itself; otherwise the standard error. PET-PEESE is reported as a sensitivity
+analysis: how well it performs with nested, highly heterogeneous data has not
+been established. Tabs: summary, visuals, interpretation, *Detailed Statistics*
+(both models, the decision rule and the recommended estimate) and publication
+text.
 
 **Step 19b – Time-Lag Test (Decline Effect).** Tests whether effect sizes
 change with publication year, as expected when large or significant results are
@@ -602,7 +611,9 @@ checked against R in Validation 20.
 - Trim-and-fill chooses the side to fill from the funnel asymmetry: the sign
   of the slope of the effect sizes regressed on their standard errors
   (negative: studies missing on the right).
-- PET-PEESE uses the conditional rule described in Step 19.
+- PET-PEESE uses the conditional rule described in Step 19. With √(1/ñ) as
+  precision term, rows without group sizes are left out (the count is shown).
+  Validation 19 checks both precision terms against metafor + clubSandwich.
 
 **Proportion of meaningful effects.** Under the multilevel model the true
 effect of an effect size is N(μ, τ² + σ²), and the true mean of a study

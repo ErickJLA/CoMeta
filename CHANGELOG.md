@@ -24,8 +24,8 @@ First public release.
   optionally adjusted for other moderators. An exploratory meta-forest.
 - Proportion of meaningful effects (parametric and calibrated, with
   cluster-bootstrap BCa intervals), overall and per subgroup.
-- Publication bias: multilevel Egger's test, PET-PEESE, a time-lag test and
-  trim-and-fill (sensitivity analysis), with an overview.
+- Publication bias: multilevel Egger's test, a time-lag test, and PET-PEESE and
+  trim-and-fill (sensitivity analyses), with an overview.
 - Sensitivity and complementary analyses: leave-one-out, Baujat plot,
   cumulative meta-analysis, map of studies.
 
@@ -54,6 +54,11 @@ First public release.
   stay identical.
 - Prediction intervals (overall model and meta-regression) follow the t / z
   choice of Step 7.
+- PET-PEESE: for Hedges' g, Cohen's d, lnRR and lnCVR with group sample sizes,
+  the precision term is now √(1/ñ) (PET) and 1/ñ (PEESE), the effective sample
+  size (Nakagawa et al. 2022), as in the time-lag test. The standard error stays
+  available in *Precision term*. PET-PEESE is now described as a sensitivity
+  analysis.
 - The control-group column is used only when selected in Step 2. Older session
   files that relied on automatic use of a `control_id` column must select it.
 - Columns derived from the effect size (e.g. `fold_change`, `Response_Ratio`,
