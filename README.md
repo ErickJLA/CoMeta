@@ -1,6 +1,6 @@
 # CoMeta: Three-Level Meta-Analysis in Google Colab
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ErickJLA/CoMeta/blob/main/CoMeta_1_filters.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ErickJLA/CoMeta/blob/main/CoMeta.ipynb)
 
 CoMeta is a point-and-click meta-analysis notebook for Google Colab. It fits
 **three-level random-effects models** (effect sizes nested within studies) with
@@ -44,7 +44,7 @@ results were checked against the R packages `metafor`, `clubSandwich` and
 6. [Outputs](#6-outputs)
 7. [Troubleshooting](#7-troubleshooting)
 8. [Validation suite (for developers)](#8-validation-suite-for-developers)
-9. [Citation and contact](#9-citation-and-contact)
+9. [Citation, license and contact](#9-citation-license-and-contact)
 
 ---
 
@@ -691,11 +691,22 @@ The summary cell exports the results, with package versions, to
 
 ---
 
-## 9. Citation and contact
+## 9. Citation, license and contact
 
-If you use CoMeta in published work, please cite the software (citation
-details will be added here on publication) and the methods papers it relies on,
-which are listed in the generated publication text.
+**Version.** This is CoMeta **1.0.0**. The version appears in the notebook
+header and is recorded in every session file, Excel report and validation
+export. [CHANGELOG.md](CHANGELOG.md) lists the changes between versions.
+
+**How to cite.** If you use CoMeta in published work, please cite the software
+and the methods papers it relies on (the generated publication text lists
+them). Citation details are in [CITATION.cff](CITATION.cff): GitHub's
+**Cite this repository** button gives them in APA and BibTeX. The notebook
+header shows the same citation.
+
+**License.** CoMeta is free software, released under the
+[GNU General Public License v3.0 or later](LICENSE). You may use, study,
+change and share it. If you distribute a modified version, it must also be
+released under the GPL with its source code.
 
 Questions, bug reports and suggestions are welcome through the
 [GitHub issues](https://github.com/ErickJLA/CoMeta/issues) page.

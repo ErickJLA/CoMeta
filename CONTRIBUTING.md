@@ -10,6 +10,15 @@ own version (a fork).
 You do not need to be a professional programmer. A clear bug report with
 your data and settings is as valuable as a pull request.
 
+CoMeta is released under the [GNU GPL v3.0 or later](LICENSE). By
+contributing, you agree that your contribution is released under the same
+license. A fork you distribute must keep the license and make its source code
+available. When you change results, add an entry to
+[CHANGELOG.md](CHANGELOG.md) and raise the version in three places (`COMETA_VERSION` in Cell 1, the first
+notebook cell and `CITATION.cff`): MAJOR for
+changes that alter results or break saved sessions, MINOR for new features,
+PATCH for fixes.
+
 ---
 
 ## Contents
