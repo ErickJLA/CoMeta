@@ -90,7 +90,7 @@ Step 27 Export              → session file (settings + data, no results)
 | Cells | What they hold |
 |---|---|
 | **1. Environment Setup & Core Functions** | Imports, the τ² estimators (REML, ML, PM, SJ, DL), CR2 / Satterthwaite inference and the HTZ Wald test (`_compute_robust_var_betas`), the warning router and log, the stale-results banners, figure saving and plot recipes, session export/import. |
-| **1b. Unified Model Engine** | `FitSpec`, `build_fit_spec`, `fit_mv`, `fit_blocks`, `fit_cr2`, `compare_fits`, `pseudo_r2`, row accounting, VCV slicing, proportion of meaningful effects. |
+| **1b. Statistical Engine** | `FitSpec`, `build_fit_spec`, `fit_mv`, `fit_blocks`, `fit_cr2`, `compare_fits`, `pseudo_r2`, row accounting, VCV slicing, proportion of meaningful effects. |
 | **2–6. Data** | Ingestion and column mapping, global filters, cleaning and shared-control detection, effect-size choice, effect sizes and sampling VCVs (`build_vcv_matrices`). |
 | **7. Overall model** | Fixed-effect, two-level and three-level models, heterogeneity, prediction interval, Methods/Results text. |
 | **8–16. Moderators** | Subgroups, proportion of meaningful effects, meta-regression, splines, meta-forest, with their plots. |

@@ -53,8 +53,15 @@ results were checked against the R packages `metafor`, `clubSandwich` and
 1. Click **Open in Colab** above. You need a Google account. Use
    *File → Save a copy in Drive* if you want to keep your own copy.
 2. Run **Cell 1 (Environment Setup & Core Functions)** and then **Cell 1b
-   (Unified Model Engine)**. These two cells define everything the other cells
-   use, and they must run first in every session.
+   (Statistical Engine)**. These two cells define everything the other cells
+   use, and they must run first in every session. Each ends with a status line:
+   - Cell 1: **Environment ready**, or amber **Environment incomplete** if a
+     package is missing (outside Colab), with how many package versions
+     differ from the tested set.
+   - Cell 1b: **Statistical engine ready** after a self-test that refits the
+     BCG vaccine trials and reproduces the published estimates
+     (τ² = 0.3132, μ = −0.7145, SE = 0.1798). If the self-test fails, the line
+     turns red: check the package versions before trusting any result.
    - Cell 1 installs missing packages at the tested versions.
    - If a package that is already installed has a different version, Cell 1
      keeps it, so you do not need to restart. The differences are listed in the
