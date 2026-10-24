@@ -57,7 +57,8 @@ results were checked against the R packages `metafor`, `clubSandwich` and
    use, and they must run first in every session.
    - Cell 1 installs missing packages at the tested versions.
    - If a package that is already installed has a different version, Cell 1
-     shows a notice but does not change it, so you do not need to restart.
+     keeps it, so you do not need to restart. The differences are listed in the
+     log of Step 27 and recorded in the session file and the validation export.
 3. Run the remaining cells **in order** (Step 2, Step 3, ...). Each cell shows
    a form; make your choices and click its button before moving on. Cells that
    depend on an earlier step tell you which step is missing.
@@ -640,7 +641,7 @@ R in Validation 25 (one-effect-per-study case).
 | Problem | Solution |
 |---|---|
 | "CoMeta setup not found in this session" | Run Cells 1 and 1b again (the runtime was restarted or the cells were not run). |
-| Notice about different package versions in Cell 1 | Usually harmless; the analysis runs with the installed versions. |
+| Package versions differ from the tested set (log of Step 27) | Usually harmless; the analysis runs with the installed versions. |
 | A step says an earlier step is missing | Run the steps in order. If you change something in an early step, re-run the following steps. |
 | "'year' column not found" (cumulative analysis) | Add a `year` column to your data. |
 | No map types available | Map latitude/longitude or country in Step 2. |
