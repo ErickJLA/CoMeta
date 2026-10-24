@@ -634,9 +634,14 @@ R in Validation 25 (one-effect-per-study case).
   Every plot can be customized (size, fonts, colours, labels, axis limits) and
   saved as PDF, PNG
   (adjustable DPI) and SVG, with an optional transparent background. Each plot
-  cell has a **journal size preset** (Cell Press 1, 1.5 or full column, STAR
-  Protocols 1 column or full width, Cell 3-column layout, thesis, presentation)
-  and generates a figure caption. The map is saved as an interactive HTML file
+  cell has a **figure size preset** and generates a figure caption. The
+  presets set the width, height and font sizes at printed size:
+  - **Generic** 1 column (85 mm), 1.5 columns (120 mm) and full width (175 mm),
+    which fit most journals;
+  - the exact column widths of **Elsevier** (90, 140, 190 mm), **Nature** (89,
+    183 mm) and **PLOS** (190 mm);
+  - a thesis page and a 16:9 presentation slide.
+  Check your target journal's instructions, which take precedence. The map is saved as an interactive HTML file
   (PNG/PDF/SVG too if the `kaleido` package is installed). In Colab, saved files
   appear in the *Files* panel on the left.
 - **Session file** and **plot recipes** for reproducibility (Section 4).
