@@ -617,7 +617,14 @@ jackknife for the acceleration (Efron, 1987) (quick
 exploratory runs skip the jackknife: bias-corrected percentile intervals). The
 resamples start from the full-data estimates, which makes them fast without
 changing the result. The shares and calibrated estimates are checked against
-R in Validation 25 (one-effect-per-study case).
+R in Validation 25 (one-effect-per-study case). Validation 27 checks the
+three-level case by simulation: the bias of both shares and the coverage of
+both CIs, on normal and skewed true effects, 15 or 30 studies, shared controls
+and study-level shares. In those simulations the calibrated share stayed close
+to the truth when the true effects were skewed, while the parametric share
+(which assumes normal true effects) was biased by about 0.05. The delta-method
+CI covered poorly when the true share was below 0.15; use the bootstrap CI
+there. With 15 studies, coverage was slightly below nominal.
 
 ---
 
@@ -697,7 +704,7 @@ datasets* in the R setup cell to add fixed benchmarks (`metadat` datasets and
 simulated edge cases: shared controls, missing years, singletons, unbalanced
 clusters). They reach code paths your data may not use; validations that use
 only them (6 and 8) are *skipped* while the box is unticked. The Monte Carlo
-validations (2, 5, 9: bias and coverage) and the unit tests (11) use generic
+validations (2, 5, 9, 27: bias and coverage) and the unit tests (11) use generic
 simulated data and do not depend on your analysis.
 
 The summary cell exports the results, with package versions, to
