@@ -653,6 +653,7 @@ R in Validation 25 (one-effect-per-study case).
 | Problem | Solution |
 |---|---|
 | "CoMeta setup not found in this session" | Run Cells 1 and 1b again (the runtime was restarted or the cells were not run). |
+| A dashboard shows an inner scroll bar, or you prefer one | In Colab each step's output grows to its full height. To get Colab's scrolling back, set `COMETA_FULL_HEIGHT_OUTPUT = False` in Cell 1 (just above `es_null_value`) and re-run Cell 1. |
 | Package versions differ from the tested set (log of Step 27) | Usually harmless; the analysis runs with the installed versions. |
 | A step says an earlier step is missing | Run the steps in order. If you change something in an early step, re-run the following steps. |
 | "'year' column not found" (cumulative analysis) | Add a `year` column to your data. |
