@@ -243,7 +243,10 @@ Results are shown in tabs:
   heterogeneity (Q, I², multilevel I², τ² and σ² with profile-likelihood CIs),
   variance-structure tests, reference models and software versions. A
   plain-text (Markdown) copy with a Copy button is included, for reports or
-  for pasting into an AI assistant.
+  for pasting into an AI assistant. Numbers have 6 significant digits; to
+  compare with R at full precision, run `DETAILED_STATS_DIGITS = 12` in a cell
+  and re-run the step (this applies to every Detailed Statistics tab; `None`
+  restores the default).
 - *Model Selection*: likelihood-ratio test and AIC comparing the nested
   variance structures. This is for information; the model you chose is the one
   reported.

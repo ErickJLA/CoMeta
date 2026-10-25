@@ -32,8 +32,9 @@ First public release.
 ### Results for every analysis
 - A plain-language **Results** dashboard explains what the numbers mean, with
   warnings when the data are thin.
-- A **Detailed Statistics** tab gives every number at full precision with its
-  method, and a plain-text copy for reports or AI assistants.
+- A **Detailed Statistics** tab gives every number with its method, and a
+  plain-text copy for reports or AI assistants. `DETAILED_STATS_DIGITS` sets
+  the significant digits (default 6), e.g. 12 to compare with R.
 - Methods and Results text cites the published sources of each method.
 - Publication-ready figures, with plot recipes that redraw a figure exactly.
 - A session file that reruns the whole analysis.
