@@ -253,6 +253,11 @@ Results are shown in tabs:
   compare with R at full precision, run `DETAILED_STATS_DIGITS = 12` in a cell
   and re-run the step (this applies to every Detailed Statistics tab; `None`
   restores the default).
+  Every Detailed Statistics tab ends with a **Data selection (Steps 2–6)**
+  section: the records loaded, each Step 3 filter with the values kept and
+  excluded, the records excluded in Steps 4 and 6 with their reasons, imputed
+  SDs, continuity corrections, shared control groups and the analysis data
+  every step starts from. The same information opens the Step 7 Methods text.
 - *Model Selection*: likelihood-ratio test and AIC comparing the nested
   variance structures. This is for information; the model you chose is the one
   reported.
@@ -268,7 +273,7 @@ to estimate. A preview shows how many studies and observations each level has.
 
 **Step 9 – Subgroup Analysis: Execution.** Fits one three-level model with a
 mean for each group (and common variance components) and tests whether the
-groups differ (HTZ cluster-robust omnibus test).
+groups differ (cluster-robust omnibus test, approximate Hotelling's T², AHZ).
 - *Results Summary*: a dashboard that explains the result in plain language:
   the effect in each subgroup (with CI, prediction interval and the
   back-transformed value), whether the subgroups differ, every pairwise
@@ -368,7 +373,7 @@ level (categorical).
 **Step 14 – Non-Linear Spline Meta-Regression.** Fits a natural cubic spline of
 a continuous moderator (choose the spline df, default 3). A likelihood-ratio
 test against the linear model shows whether the relationship is non-linear,
-and the HTZ omnibus test shows whether the moderator matters at all.
+and the cluster-robust omnibus test (AHZ) shows whether the moderator matters at all.
 - *Adjust for* (optional): other moderators to hold constant, so the curve
   shows the change with the spline moderator after accounting for them.
   - Numeric moderators enter as straight-line terms, centred at their mean.
@@ -490,7 +495,8 @@ significance. The **Results** dashboard explains the outcome in plain words. It
 shows the pooled effect without each study as a forest, the studies that move
 the estimate most (against the 20% threshold), whether removing one study
 changes the conclusion (the CI crossing no effect), and whether one study
-drives the heterogeneity. **🔢 Detailed Statistics** lists the model with all
+drives the heterogeneity. Each refit uses the three-level model with the
+inference settings of Step 7 (CR2 on or off, t or z). **🔢 Detailed Statistics** lists the model with all
 studies and every refit (estimate, SE, df, CI, p, shift, τ², σ²). **Step 22** plots the results (sorted by effect, by influence or
 by study ID, with significance changers highlighted).
 
@@ -600,14 +606,20 @@ sampling covariance matrix).
   valid when the variance structure is misspecified or effect sizes are
   correlated within studies.
 - Tests of several coefficients (subgroup differences, meta-regression
-  omnibus) use the HTZ approximate F test.
+  omnibus) use the approximate Hotelling's T² F test of Tipton & Pustejovsky
+  (2015), AHZ (called HTZ in the R package clubSandwich).
 - Turning CR2 off gives model-based standard errors with t or z inference.
 
 **Heterogeneity.**
-- Cochran's Q.
-- Multilevel I² split into between- and within-study parts.
+- Cochran's Q and I² (Higgins & Thompson, 2002).
+- Multilevel I² split into between- and within-study parts, with the typical
+  sampling variance (Nakagawa & Santos, 2012).
 - Profile-likelihood CIs for the variance components.
-- Prediction intervals.
+- Prediction intervals (Higgins et al., 2009).
+
+**Shared control groups.** Effect sizes that share a control group get the
+covariance of their sampling errors (Gleser & Olkin, 2009; for lnRR,
+Lajeunesse, 2011) in the sampling variance–covariance matrix.
 
 **Effect sizes** use the standard formulas (Borenstein et al., 2009; Hedges
 et al., 1999 for lnRR; Nakagawa et al., 2015 for lnCVR; Barendregt et al., 2013
@@ -656,9 +668,14 @@ Methods (the generated Methods text of each step cites the full set):
 - Efron, B. (1987). Better bootstrap confidence intervals. *Journal of the American Statistical Association*, 82(397), 171–185. https://doi.org/10.1080/01621459.1987.10478410
 - Hedges, L. V. (1981). Distribution theory for Glass's estimator of effect size and related estimators. *Journal of Educational Statistics*, 6(2), 107–128. https://doi.org/10.3102/10769986006002107
 - Hedges, L. V., Gurevitch, J., & Curtis, P. S. (1999). The meta-analysis of response ratios in experimental ecology. *Ecology*, 80(4), 1150–1156. https://doi.org/10.1890/0012-9658(1999)080[1150:TMAORR]2.0.CO;2
+- Gleser, L. J., & Olkin, I. (2009). Stochastically dependent effect sizes. In H. Cooper, L. V. Hedges, & J. C. Valentine (Eds.), *The handbook of research synthesis and meta-analysis* (2nd ed., pp. 357–376). Russell Sage Foundation.
+- Higgins, J. P. T., & Thompson, S. G. (2002). Quantifying heterogeneity in a meta-analysis. *Statistics in Medicine*, 21(11), 1539–1558. https://doi.org/10.1002/sim.1186
+- Higgins, J. P. T., Thompson, S. G., & Spiegelhalter, D. J. (2009). A re-evaluation of random-effects meta-analysis. *Journal of the Royal Statistical Society: Series A*, 172(1), 137–159. https://doi.org/10.1111/j.1467-985X.2008.00552.x
+- Lajeunesse, M. J. (2011). On the meta-analysis of response ratios for studies with correlated and multi-group designs. *Ecology*, 92(11), 2049–2055. https://doi.org/10.1890/11-0423.1
 - Lajeunesse, M. J. (2015). Bias and correction for the log response ratio in ecological meta-analysis. *Ecology*, 96(8), 2056–2063. https://doi.org/10.1890/14-2402.1
 - Mathur, M. B., & VanderWeele, T. J. (2019). New metrics for meta-analyses of heterogeneous effects. *Statistics in Medicine*, 38(8), 1336–1342. https://doi.org/10.1002/sim.8057
 - Mathur, M. B., & VanderWeele, T. J. (2020). Robust metrics and sensitivity analyses for meta-analyses of heterogeneous effects. *Epidemiology*, 31(3), 356–358. https://doi.org/10.1097/EDE.0000000000001180
+- Nakagawa, S., & Santos, E. S. A. (2012). Methodological issues and advances in biological meta-analysis. *Evolutionary Ecology*, 26(5), 1253–1274. https://doi.org/10.1007/s10682-012-9555-5
 - Nakagawa, S., Lagisz, M., Jennions, M. D., et al. (2022). Methods for testing publication bias in ecological and evolutionary meta-analyses. *Methods in Ecology and Evolution*, 13(1), 4–21. https://doi.org/10.1111/2041-210X.13724
 - Nakagawa, S., Poulin, R., Mengersen, K., Reinhold, K., Engqvist, L., Lagisz, M., & Senior, A. M. (2015). Meta-analysis of variation: ecological and evolutionary applications and beyond. *Methods in Ecology and Evolution*, 6(2), 143–152. https://doi.org/10.1111/2041-210X.12309
 - Pustejovsky, J. E., & Tipton, E. (2018). Small-sample methods for cluster-robust variance estimation and hypothesis testing in fixed effects models. *Journal of Business & Economic Statistics*, 36(4), 672–683. https://doi.org/10.1080/07350015.2016.1247004

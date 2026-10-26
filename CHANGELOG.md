@@ -74,6 +74,29 @@ First public release.
 - Trim-and-fill reports the number of missing *effect sizes* (it was called
   "missing studies"), and its text no longer calls agreement with Egger's test
   "convergent evidence".
+- Leave-one-out refits follow the inference settings of Step 7 (CR2 on or off,
+  t or z); before, they always used CR2 with a t distribution.
+- Cumulative meta-analysis text: confidence intervals of log ratios are
+  back-transformed like the estimate (they were left on the log scale).
+
+### Publication text and Detailed Statistics
+- Every Detailed Statistics tab ends with a *Data selection (Steps 2–6)*
+  section: records loaded, Step 3 filters (values kept and excluded), records
+  excluded in Steps 4 and 6 with their reasons, imputed SDs, continuity
+  corrections, shared control groups and the analysis data.
+- Step 7 Methods: the Data Preparation paragraph reports the records, filters,
+  exclusions, imputed SDs (only when some were imputed), continuity
+  corrections (only when applied) and shared-control covariances; the
+  inference, heterogeneity (Q, I², multilevel I²) and prediction-interval
+  methods are described with their references; references are numbered in
+  order of citation and uncited ones are left out.
+- Step 7 Results: one I² (the multilevel I² for the three-level model), ΔAIC
+  defined, plain wording of the SD sensitivity check.
+- Subgroups: the test for residual heterogeneity replaces the Q_M + Q_E
+  "partition" (the two use different weights).
+- Wording fixes in Steps 9b, 12, 14, 16, 17, 21 and 24 (test names, k = number
+  of effect sizes, AIC comparison, missing CoMeta reference in Step 16,
+  reference order in Step 24).
 
 ### License
 - Released under the GNU General Public License v3.0 or later (see `LICENSE`).
