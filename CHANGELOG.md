@@ -37,7 +37,9 @@ First public release.
   the significant digits (default 6), e.g. 12 to compare with R.
 - Methods and Results text cites the published sources of each method.
 - Publication-ready figures, with plot recipes that redraw a figure exactly.
-- A session file that reruns the whole analysis.
+- A session file that restores the data and the settings of Steps 2–9b, so
+  those steps rerun without clicking (choices from Step 12 onward are selected
+  again).
 
 ### Validation
 - 27 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
@@ -66,6 +68,12 @@ First public release.
   CI bounds) are no longer offered as moderators.
 - Plot recipes saved with the funnel-plot shade "Gray (dark to light)" still
   load, under the new internal name.
+- The built-in BCG example uses author and year as the study ID, so its 13
+  trials are 13 studies (two Rosenthal et al. and two Comstock et al. trials
+  were merged before) and it reproduces the published estimates.
+- Trim-and-fill reports the number of missing *effect sizes* (it was called
+  "missing studies"), and its text no longer calls agreement with Egger's test
+  "convergent evidence".
 
 ### License
 - Released under the GNU General Public License v3.0 or later (see `LICENSE`).

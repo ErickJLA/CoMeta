@@ -26,7 +26,8 @@ results were checked against the R packages `metafor`, `clubSandwich` and
 - Publication bias for dependent effect sizes: multilevel Egger's test,
   a time-lag (decline effect) test, with PET-PEESE and trim-and-fill as
   sensitivity analyses.
-- Reproducibility: a **session file** reruns the analysis, and a **plot
+- Reproducibility: a **session file** restores the data and the settings of
+  Steps 2–9b (see [Section 4](#4-saving-and-reproducing-an-analysis)), and a **plot
   recipe** (one file per figure) redraws any figure exactly, without
   re-running the analysis.
 - Publication-ready figures with journal size presets, and generated
@@ -80,11 +81,16 @@ with five classic datasets:
 
 | Example | Data type | Good for |
 |---|---|---|
-| Binary (BCG Vaccine, Tuberculosis) | Events / non-events | log OR, log RR, RD |
+| Binary (BCG Vaccine, Tuberculosis; Colditz et al. 1994) | Events / non-events | log OR, log RR, RD |
 | Continuous (Normand 1999, Stroke Rehab) | Means / SDs / N | Hedges' g, MD |
 | 3-Level Pre-Calculated (Konstantopoulos 2011) | Effect + variance | Three-level model |
-| Meta-Regression / Splines (Raudenbush 1985) | Effect + variance | Moderators, splines |
-| Ecology Continuous (Curtis 1998, Plant CO₂) | Means / SDs / N | lnRR, subgroups, shared controls |
+| Meta-Regression / Splines (Raudenbush 1984; Raudenbush & Bryk 1985) | Effect + variance | Moderators, splines |
+| Ecology Continuous (Curtis & Wang 1998, Plant CO₂) | Means / SDs / N | lnRR, subgroups, shared controls |
+
+The examples are the `dat.bcg`, `dat.normand1999`, `dat.konstantopoulos2011`,
+`dat.raudenbush1985` and `dat.curtis1998` datasets of the R package
+[metadat](https://CRAN.R-project.org/package=metadat); the original studies
+are listed under [References](#references).
 
 ---
 
@@ -414,8 +420,9 @@ numeric column whose ranks match the effect size exactly.
 **Step 17 – Egger's Test & Trim-and-Fill.**
 - *Egger's test*: multilevel regression of the effect on its standard error
   with CR2 inference.
-- *Trim-and-fill*: estimators L0 and R0 to estimate the missing studies and
-  the adjusted effect.
+- *Trim-and-fill*: estimators L0 and R0 to estimate the number of missing
+  effect sizes and the adjusted effect. It treats effect sizes as independent,
+  so it is reported as a sensitivity analysis.
 - *Combined Assessment* summarizes both.
 - *Detailed Statistics*: every number of both methods with its method, with a
   plain-text copy.
@@ -639,6 +646,34 @@ to the truth when the true effects were skewed, while the parametric share
 (which assumes normal true effects) was biased by about 0.05. The delta-method
 CI covered poorly when the true share was below 0.15; use the bootstrap CI
 there. With 15 studies, coverage was slightly below nominal.
+
+### References
+
+Methods (the generated Methods text of each step cites the full set):
+
+- Barendregt, J. J., Doi, S. A., Lee, Y. Y., Norman, R. E., & Vos, T. (2013). Meta-analysis of prevalence. *Journal of Epidemiology and Community Health*, 67(11), 974–978. https://doi.org/10.1136/jech-2013-203104
+- Borenstein, M., Hedges, L. V., Higgins, J. P. T., & Rothstein, H. R. (2009). *Introduction to meta-analysis*. John Wiley & Sons.
+- Efron, B. (1987). Better bootstrap confidence intervals. *Journal of the American Statistical Association*, 82(397), 171–185. https://doi.org/10.1080/01621459.1987.10478410
+- Hedges, L. V. (1981). Distribution theory for Glass's estimator of effect size and related estimators. *Journal of Educational Statistics*, 6(2), 107–128. https://doi.org/10.3102/10769986006002107
+- Hedges, L. V., Gurevitch, J., & Curtis, P. S. (1999). The meta-analysis of response ratios in experimental ecology. *Ecology*, 80(4), 1150–1156. https://doi.org/10.1890/0012-9658(1999)080[1150:TMAORR]2.0.CO;2
+- Lajeunesse, M. J. (2015). Bias and correction for the log response ratio in ecological meta-analysis. *Ecology*, 96(8), 2056–2063. https://doi.org/10.1890/14-2402.1
+- Mathur, M. B., & VanderWeele, T. J. (2019). New metrics for meta-analyses of heterogeneous effects. *Statistics in Medicine*, 38(8), 1336–1342. https://doi.org/10.1002/sim.8057
+- Mathur, M. B., & VanderWeele, T. J. (2020). Robust metrics and sensitivity analyses for meta-analyses of heterogeneous effects. *Epidemiology*, 31(3), 356–358. https://doi.org/10.1097/EDE.0000000000001180
+- Nakagawa, S., Lagisz, M., Jennions, M. D., et al. (2022). Methods for testing publication bias in ecological and evolutionary meta-analyses. *Methods in Ecology and Evolution*, 13(1), 4–21. https://doi.org/10.1111/2041-210X.13724
+- Nakagawa, S., Poulin, R., Mengersen, K., Reinhold, K., Engqvist, L., Lagisz, M., & Senior, A. M. (2015). Meta-analysis of variation: ecological and evolutionary applications and beyond. *Methods in Ecology and Evolution*, 6(2), 143–152. https://doi.org/10.1111/2041-210X.12309
+- Pustejovsky, J. E., & Tipton, E. (2018). Small-sample methods for cluster-robust variance estimation and hypothesis testing in fixed effects models. *Journal of Business & Economic Statistics*, 36(4), 672–683. https://doi.org/10.1080/07350015.2016.1247004
+- Stanley, T. D., & Doucouliagos, H. (2014). Meta-regression approximations to reduce publication selection bias. *Research Synthesis Methods*, 5(1), 60–78. https://doi.org/10.1002/jrsm.1095
+- Tipton, E., & Pustejovsky, J. E. (2015). Small-sample adjustments for tests of moderators and model fit using robust variance estimation in meta-regression. *Journal of Educational and Behavioral Statistics*, 40(6), 604–634. https://doi.org/10.3102/1076998615606099
+- Wang, C.-C., & Lee, W.-C. (2019). A simple method to estimate prediction intervals and predictive distributions: Summarizing meta-analyses beyond means and confidence intervals. *Research Synthesis Methods*, 10(2), 255–266. https://doi.org/10.1002/jrsm.1345
+
+Built-in example datasets:
+
+- Colditz, G. A., Brewer, T. F., Berkey, C. S., Wilson, M. E., Burdick, E., Fineberg, H. V., & Mosteller, F. (1994). Efficacy of BCG vaccine in the prevention of tuberculosis: Meta-analysis of the published literature. *JAMA*, 271(9), 698–702. https://doi.org/10.1001/jama.1994.03510330076038
+- Curtis, P. S., & Wang, X. (1998). A meta-analysis of elevated CO₂ effects on woody plant mass, form, and physiology. *Oecologia*, 113(3), 299–313. https://doi.org/10.1007/s004420050381
+- Konstantopoulos, S. (2011). Fixed effects and variance components estimation in three-level meta-analysis. *Research Synthesis Methods*, 2(1), 61–76. https://doi.org/10.1002/jrsm.35
+- Normand, S.-L. T. (1999). Meta-analysis: Formulating, evaluating, combining, and reporting. *Statistics in Medicine*, 18(3), 321–359. https://doi.org/10.1002/(SICI)1097-0258(19990215)18:3<321::AID-SIM28>3.0.CO;2-P
+- Raudenbush, S. W. (1984). Magnitude of teacher expectancy effects on pupil IQ as a function of the credibility of expectancy induction: A synthesis of findings from 18 experiments. *Journal of Educational Psychology*, 76(1), 85–97. https://doi.org/10.1037/0022-0663.76.1.85
+- Raudenbush, S. W., & Bryk, A. S. (1985). Empirical Bayes meta-analysis. *Journal of Educational Statistics*, 10(2), 75–98. https://doi.org/10.3102/10769986010002075
 
 ---
 

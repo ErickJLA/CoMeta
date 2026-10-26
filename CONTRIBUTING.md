@@ -97,7 +97,7 @@ Step 27 Export              → session file (settings + data, no results)
 | **17–20. Publication bias** | Egger, trim-and-fill, PET-PEESE, time-lag test, the overview of all of them (19c), funnel plot. |
 | **21–26. Sensitivity and complementary analyses** | Leave-one-out, Baujat, cumulative meta-analysis, maps, trends. |
 | **27. Export Session** | Session file, warnings log. |
-| **🧪 Validation cells** | R setup, Validations 1–26 (Python vs R), Validation 11 (unit tests), summary and export. |
+| **🧪 Validation cells** | R setup, Validations 1–27 (Python vs R, and Monte Carlo checks), Validation 11 (unit tests), summary and export. |
 
 ### 2.2 The keys in `ANALYSIS_CONFIG`
 
