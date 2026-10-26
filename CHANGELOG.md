@@ -79,6 +79,14 @@ First public release.
 - Cumulative meta-analysis text: confidence intervals of log ratios are
   back-transformed like the estimate (they were left on the log scale).
 
+### File names
+- Every file is named `<Analysis>_<settings>_<k>ES-<studies>st[_F-<filters>]`
+  (e.g. `Subgroups_meth_95ES-27st_F-hab-mar.xlsx`), ready to upload as
+  supplementary material: the analysis, its moderators and non-default
+  settings, the effect sizes and studies it used, and the Step 3 filters. No
+  timestamp; a repeated name gets `_v2`, `_v3`. A figure and its plot recipe
+  share the name. Names typed in a plot cell still take precedence.
+
 ### Publication text and Detailed Statistics
 - Every Detailed Statistics tab ends with a *Data selection (Steps 2–6)*
   section: records loaded, Step 3 filters (values kept and excluded), records

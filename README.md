@@ -719,6 +719,26 @@ Built-in example datasets:
   appear in the *Files* panel on the left.
 - **Session file** and **plot recipes** for reproducibility (Section 4).
 
+**File names.** Every file is named after what it contains, so the files can be
+uploaded as supplementary material as they are:
+
+`<Analysis>_<settings>_<k>ES-<studies>st[_F-<filters>].<ext>`
+
+| Part | Meaning | Example |
+|---|---|---|
+| Analysis | the analysis or plot | `Subgroups`, `MetaRegression`, `ForestPlot` |
+| settings | moderators (first 4 letters; more than two: `+Nmore`) and settings that differ from the defaults (`2level`, `noCR2`, `z`, `90CI`) | `meth`, `time+meth`, `time-adj-meth` |
+| `ES-st` | effect sizes and studies used by that analysis | `102ES-29st` |
+| `F-` | Step 3 filters: column (first 3 letters, more if two columns start alike), then the kept value (3 letters) or how many values were kept | `F-hab-mar`, `F-met2of3` |
+
+Examples: `Overall_102ES-29st.xlsx`, `Subgroups_meth_95ES-27st_F-hab-mar.xlsx`,
+`ForestPlot_meth_95ES-27st_F-hab-mar.pdf` and its recipe
+`ForestPlot_meth_95ES-27st_F-hab-mar_recipe.json`, `Session_102ES-29st.json`.
+The full settings and filters are inside each file (protocol sheet, recipe,
+Data selection section). A name that was already written in the session gets
+`_v2`, `_v3`. A name typed in a plot cell's *Filename* box replaces the
+automatic one.
+
 ---
 
 ## 7. Troubleshooting
