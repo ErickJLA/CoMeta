@@ -1,0 +1,42 @@
+# Citation metadata for CoMeta (Citation File Format 1.2.0).
+# GitHub shows a "Cite this repository" button from this file, and Zenodo uses
+# it when the release is archived.
+# Before the release: replace the bracketed placeholders below (and the same
+# names in COMETA_AUTHORS, Cell 1 of the notebook). After Zenodo assigns a DOI,
+# uncomment the doi line here and set COMETA_DOI in Cell 1.
+cff-version: 1.2.0
+message: "If you use CoMeta, please cite it as below."
+title: "CoMeta: A no-code, glass-box platform for multilevel meta-analysis"
+version: 1.0.0
+# doi: 10.5281/zenodo.XXXXXXX
+license: GPL-3.0-or-later
+repository-code: "https://github.com/ErickJLA/CoMeta"
+type: software
+authors:
+  - given-names: "Erick"
+    family-names: "[SURNAME]"
+    affiliation: "[AFFILIATION]"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"
+  - given-names: "Karla"
+    family-names: "[SURNAME]"
+    affiliation: "[AFFILIATION]"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"
+  - given-names: "Hugo"
+    family-names: "[SURNAME]"
+    affiliation: "[AFFILIATION]"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"
+abstract: >-
+  CoMeta is a point-and-click Google Colab notebook for three-level
+  meta-analysis in ecology: effect-size calculation with shared-control
+  covariances, three-level random-effects models with cluster-robust (CR2)
+  inference, subgroups, meta-regression and splines, the proportion of
+  meaningful effects, publication-bias and sensitivity analyses, and
+  publication-ready figures and text. All statistics are visible in the
+  notebook, and a validation suite compares them with R on the user's own data.
+keywords:
+  - meta-analysis
+  - three-level model
+  - multilevel meta-analysis
+  - ecology
+  - cluster-robust variance estimation
+  - Google Colab
