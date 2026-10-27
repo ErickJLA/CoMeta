@@ -198,8 +198,14 @@ default and applies the second-order corrections of Lajeunesse (2015). For log-s
 
 **Step 6 – Effect Size Calculation.** Computes the effect sizes and their
 sampling variances.
-- *Missing SDs*: impute with the median CV, impute with the pooled CV (missing
-  cases only), replace all SDs with the pooled CV, or drop the rows.
+- *Missing SDs*: impute with the median CV; impute with the pooled CV of
+  Nakagawa et al. (2023) (missing cases only), or replace all SDs with it
+  (all cases); or drop the rows. The pooled CV is the sample-size-weighted mean
+  CV within each study, averaged across studies with weights equal to each
+  study's mean sample size, then squared (separately for treatment and control
+  groups). The method of earlier versions (the root of the (n − 1)-weighted
+  mean of squared, small-sample-corrected CVs over all rows) remains available
+  as *Pooled CV² across effect sizes* to reproduce earlier results.
 - *Zero SDs*: treat them as missing (then impute) or drop the rows.
 - Binary data: 0.5 is added to every cell of a table that has a zero cell
   (only those tables, plus any table that shares a control group with one of
@@ -287,18 +293,20 @@ groups differ (cluster-robust omnibus test, approximate Hotelling's T², AHZ).
   (subgroup estimates, pairwise differences, omnibus and two-way tests,
   residual τ² and σ² with profile-likelihood CIs, pseudo-R²), with a
   plain-text copy for reports or AI assistants.
-- *Variance Check*: the common τ² and σ² can distort a subgroup's estimate
-  and interval when the subgroups differ in heterogeneity, above all when
-  they are unbalanced (Rubio-Aparicio et al. 2017; Rodriguez et al. 2023).
-  Each subgroup is therefore refitted on its own effect sizes with its own
-  τ² and σ² (same estimation and inference) and shown next to the shared
-  model, with flags when a conclusion changes, when the subgroup's own mean
-  falls outside the shared CI, or when its τ² + σ² differs from the shared
-  value by more than a factor of 4 (subgroups with at least 5 studies). For a
-  moderator that does not vary within studies, a likelihood-ratio test
-  checks whether the variance components are equal across subgroups. The
-  shared model stays the primary analysis; the check is reported in the
-  dashboard, Detailed Statistics, the publication text and the Excel report.
+- *Variance Check*: the common τ² and σ² can distort the subgroup estimates
+  and the test of subgroup differences when the subgroups differ in
+  heterogeneity, above all when they are unbalanced (Rubio-Aparicio et al.
+  2017; Rodriguez et al. 2023). The model is therefore refitted with a τ² and
+  a σ² for each subgroup (same estimation and CR2 inference) and shown next to
+  the shared model: the subgroup means, the test of subgroup differences, every
+  pairwise difference (Holm) and, for two moderators, the main effects and the
+  interaction. Flags mark a conclusion that changes, a subgroup mean outside
+  the shared CI, and a τ² + σ² that differs from the shared value by more than
+  a factor of 4 (subgroups with at least 5 studies). For a moderator that does
+  not vary within studies, a likelihood-ratio test checks whether the variance
+  components are equal. Report the model you choose and the other as a
+  sensitivity analysis; the check is in the dashboard, Detailed Statistics,
+  the publication text and the Excel report.
 - *Processing Log*, *Configuration*, *Publication Text* and *Export* (Excel
   report and session file).
 
@@ -630,15 +638,23 @@ sampling covariance matrix).
 - Prediction intervals (Higgins et al., 2009).
 
 **Subgroups.** One model with a mean per subgroup and common τ² and σ²
-(reference-coded moderator). The Variance Check refits each subgroup alone
-with its own τ² and σ² (REML, the same CR2 / t settings). For a moderator that
-does not vary within studies, the REML log-likelihoods of these separate fits
-add up to that of the model with one τ² and one σ² per subgroup (metafor's
-`struct = "DIAG"`), so the likelihood-ratio test of equal variance components
-is 2 × (Σ log L<sub>separate</sub> − log L<sub>shared</sub>), compared with a
-χ² distribution (approximate, conservative when a component is near 0). Both
-models have the same fixed effects, so REML is used. Validation 3 checks the
-separate fits, their CR2 inference and the test against metafor + clubSandwich.
+(reference-coded moderator). The Variance Check fits the same fixed effects
+with one τ² and one σ² per subgroup: Σ<sub>j</sub> = V<sub>j</sub> +
+diag(σ²<sub>g</sub>) + τ²<sub>g</sub> between effect sizes of the same study and
+subgroup (metafor: `random = list(~ subgroup | study, ~ subgroup | es),
+struct = "DIAG"`), by REML (L-BFGS-B with the analytic gradient), with CR2
+standard errors by study and AHZ tests. Studies that contribute to several
+subgroups keep their rows and sampling covariances together; their study
+effects are independent between subgroups in this working model, and the
+cluster-robust inference protects the tests if they are not (Pustejovsky &
+Tipton, 2022). σ²<sub>g</sub> is fixed at 0 when no study has two effect sizes
+in subgroup g. For a moderator that does not vary within studies, this model
+equals the subgroups fitted separately, so the likelihood-ratio test of equal
+variance components is 2 × (Σ log L<sub>separate</sub> − log
+L<sub>shared</sub>), compared with a χ² distribution (approximate,
+conservative when a component is near 0); both models have the same fixed
+effects, so REML is used. Validation 3 checks the model, its CR2 inference,
+the tests and the likelihood-ratio test against metafor + clubSandwich.
 
 **Shared control groups.** Effect sizes that share a control group get the
 covariance of their sampling errors (Gleser & Olkin, 2009; for lnRR,
@@ -700,8 +716,10 @@ Methods (the generated Methods text of each step cites the full set):
 - Mathur, M. B., & VanderWeele, T. J. (2020). Robust metrics and sensitivity analyses for meta-analyses of heterogeneous effects. *Epidemiology*, 31(3), 356–358. https://doi.org/10.1097/EDE.0000000000001180
 - Nakagawa, S., & Santos, E. S. A. (2012). Methodological issues and advances in biological meta-analysis. *Evolutionary Ecology*, 26(5), 1253–1274. https://doi.org/10.1007/s10682-012-9555-5
 - Nakagawa, S., Lagisz, M., Jennions, M. D., et al. (2022). Methods for testing publication bias in ecological and evolutionary meta-analyses. *Methods in Ecology and Evolution*, 13(1), 4–21. https://doi.org/10.1111/2041-210X.13724
+- Nakagawa, S., Noble, D. W. A., Lagisz, M., et al. (2023). A robust and readily implementable method for the meta-analysis of response ratios with and without missing standard deviations. *Ecology Letters*, 26(2), 232–244. https://doi.org/10.1111/ele.14144
 - Nakagawa, S., Poulin, R., Mengersen, K., Reinhold, K., Engqvist, L., Lagisz, M., & Senior, A. M. (2015). Meta-analysis of variation: ecological and evolutionary applications and beyond. *Methods in Ecology and Evolution*, 6(2), 143–152. https://doi.org/10.1111/2041-210X.12309
 - Pustejovsky, J. E., & Tipton, E. (2018). Small-sample methods for cluster-robust variance estimation and hypothesis testing in fixed effects models. *Journal of Business & Economic Statistics*, 36(4), 672–683. https://doi.org/10.1080/07350015.2016.1247004
+- Pustejovsky, J. E., & Tipton, E. (2022). Meta-analysis with robust variance estimation: Expanding the range of working models. *Prevention Science*, 23(3), 425–438. https://doi.org/10.1007/s11121-021-01246-3
 - Rodriguez, J. E., Williams, D. R., & Bürkner, P.-C. (2023). Heterogeneous heterogeneity by default: Testing categorical moderators in mixed-effects meta-analysis. *British Journal of Mathematical and Statistical Psychology*, 76(2), 402–433. https://doi.org/10.1111/bmsp.12299
 - Rubio-Aparicio, M., López-López, J. A., Viechtbauer, W., et al. (2020). Testing categorical moderators in mixed-effects meta-analysis in the presence of heteroscedasticity. *The Journal of Experimental Education*, 88(2), 288–310. https://doi.org/10.1080/00220973.2018.1561404
 - Rubio-Aparicio, M., Sánchez-Meca, J., López-López, J. A., et al. (2017). Analysis of categorical moderators in mixed-effects meta-analysis: Consequences of using pooled versus separate estimates of the residual between-studies variances. *British Journal of Mathematical and Statistical Psychology*, 70(3), 439–456. https://doi.org/10.1111/bmsp.12092

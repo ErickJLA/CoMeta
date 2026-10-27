@@ -20,9 +20,11 @@ First public release.
   pre-calculated effect sizes. Missing SDs can be imputed, with a complete-case
   sensitivity check.
 - Subgroups (one or two moderators), with all pairwise differences
-  (Holm-adjusted) and a shared-variance check: each subgroup refitted with its
-  own τ² and σ², compared with the shared model, with a likelihood-ratio test
-  of equal variance components for between-study moderators. Meta-regression with predictions. Natural cubic splines,
+  (Holm-adjusted) and a shared-variance check: the model refitted with a τ²
+  and a σ² per subgroup (metafor's `struct = "DIAG"`, CR2 by study), with its
+  subgroup means, test of subgroup differences, pairwise differences and
+  two-way terms next to the shared model's, and a likelihood-ratio test of
+  equal variance components for between-study moderators. Meta-regression with predictions. Natural cubic splines,
   optionally adjusted for other moderators. An exploratory meta-forest.
 - Proportion of meaningful effects (parametric and calibrated, with
   cluster-bootstrap BCa intervals), overall and per subgroup.
@@ -52,6 +54,15 @@ First public release.
   presets).
 
 ### Changes that affect results compared with pre-release versions
+- Missing SDs, pooled CV: the "Pooled CV (Nakagawa et al. 2023)" options now
+  compute the pooled CV as in that paper (the sample-size-weighted mean CV
+  within each study, averaged across studies weighted by each study's mean
+  sample size, then squared). Before, they averaged the squared,
+  small-sample-corrected CVs over all rows with weights n − 1, which gives a
+  larger CV. That method is kept as "Pooled CV² across effect sizes (earlier
+  CoMeta method)" to reproduce earlier results; session files that used the
+  pooled CV now get the new estimator. Validation 20 recomputes the pooled CVs
+  in R.
 - Two-level model with shared controls: the mean is now the GLS estimate with
   the full sampling covariance matrix, matching its CR2 standard error.
 - Binary data: the 0.5 continuity correction is also applied to every table
