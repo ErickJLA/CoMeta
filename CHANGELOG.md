@@ -20,7 +20,9 @@ First public release.
   pre-calculated effect sizes. Missing SDs can be imputed, with a complete-case
   sensitivity check.
 - Subgroups (one or two moderators), with all pairwise differences
-  (Holm-adjusted). Meta-regression with predictions. Natural cubic splines,
+  (Holm-adjusted) and a shared-variance check: each subgroup refitted with its
+  own τ² and σ², compared with the shared model, with a likelihood-ratio test
+  of equal variance components for between-study moderators. Meta-regression with predictions. Natural cubic splines,
   optionally adjusted for other moderators. An exploratory meta-forest.
 - Proportion of meaningful effects (parametric and calibrated, with
   cluster-bootstrap BCa intervals), overall and per subgroup.

@@ -287,6 +287,18 @@ groups differ (cluster-robust omnibus test, approximate Hotelling's T², AHZ).
   (subgroup estimates, pairwise differences, omnibus and two-way tests,
   residual τ² and σ² with profile-likelihood CIs, pseudo-R²), with a
   plain-text copy for reports or AI assistants.
+- *Variance Check*: the common τ² and σ² can distort a subgroup's estimate
+  and interval when the subgroups differ in heterogeneity, above all when
+  they are unbalanced (Rubio-Aparicio et al. 2017; Rodriguez et al. 2023).
+  Each subgroup is therefore refitted on its own effect sizes with its own
+  τ² and σ² (same estimation and inference) and shown next to the shared
+  model, with flags when a conclusion changes, when the subgroup's own mean
+  falls outside the shared CI, or when its τ² + σ² differs from the shared
+  value by more than a factor of 4 (subgroups with at least 5 studies). For a
+  moderator that does not vary within studies, a likelihood-ratio test
+  checks whether the variance components are equal across subgroups. The
+  shared model stays the primary analysis; the check is reported in the
+  dashboard, Detailed Statistics, the publication text and the Excel report.
 - *Processing Log*, *Configuration*, *Publication Text* and *Export* (Excel
   report and session file).
 
@@ -617,6 +629,17 @@ sampling covariance matrix).
 - Profile-likelihood CIs for the variance components.
 - Prediction intervals (Higgins et al., 2009).
 
+**Subgroups.** One model with a mean per subgroup and common τ² and σ²
+(reference-coded moderator). The Variance Check refits each subgroup alone
+with its own τ² and σ² (REML, the same CR2 / t settings). For a moderator that
+does not vary within studies, the REML log-likelihoods of these separate fits
+add up to that of the model with one τ² and one σ² per subgroup (metafor's
+`struct = "DIAG"`), so the likelihood-ratio test of equal variance components
+is 2 × (Σ log L<sub>separate</sub> − log L<sub>shared</sub>), compared with a
+χ² distribution (approximate, conservative when a component is near 0). Both
+models have the same fixed effects, so REML is used. Validation 3 checks the
+separate fits, their CR2 inference and the test against metafor + clubSandwich.
+
 **Shared control groups.** Effect sizes that share a control group get the
 covariance of their sampling errors (Gleser & Olkin, 2009; for lnRR,
 Lajeunesse, 2011) in the sampling variance–covariance matrix.
@@ -679,6 +702,9 @@ Methods (the generated Methods text of each step cites the full set):
 - Nakagawa, S., Lagisz, M., Jennions, M. D., et al. (2022). Methods for testing publication bias in ecological and evolutionary meta-analyses. *Methods in Ecology and Evolution*, 13(1), 4–21. https://doi.org/10.1111/2041-210X.13724
 - Nakagawa, S., Poulin, R., Mengersen, K., Reinhold, K., Engqvist, L., Lagisz, M., & Senior, A. M. (2015). Meta-analysis of variation: ecological and evolutionary applications and beyond. *Methods in Ecology and Evolution*, 6(2), 143–152. https://doi.org/10.1111/2041-210X.12309
 - Pustejovsky, J. E., & Tipton, E. (2018). Small-sample methods for cluster-robust variance estimation and hypothesis testing in fixed effects models. *Journal of Business & Economic Statistics*, 36(4), 672–683. https://doi.org/10.1080/07350015.2016.1247004
+- Rodriguez, J. E., Williams, D. R., & Bürkner, P.-C. (2023). Heterogeneous heterogeneity by default: Testing categorical moderators in mixed-effects meta-analysis. *British Journal of Mathematical and Statistical Psychology*, 76(2), 402–433. https://doi.org/10.1111/bmsp.12299
+- Rubio-Aparicio, M., López-López, J. A., Viechtbauer, W., et al. (2020). Testing categorical moderators in mixed-effects meta-analysis in the presence of heteroscedasticity. *The Journal of Experimental Education*, 88(2), 288–310. https://doi.org/10.1080/00220973.2018.1561404
+- Rubio-Aparicio, M., Sánchez-Meca, J., López-López, J. A., et al. (2017). Analysis of categorical moderators in mixed-effects meta-analysis: Consequences of using pooled versus separate estimates of the residual between-studies variances. *British Journal of Mathematical and Statistical Psychology*, 70(3), 439–456. https://doi.org/10.1111/bmsp.12092
 - Stanley, T. D., & Doucouliagos, H. (2014). Meta-regression approximations to reduce publication selection bias. *Research Synthesis Methods*, 5(1), 60–78. https://doi.org/10.1002/jrsm.1095
 - Tipton, E., & Pustejovsky, J. E. (2015). Small-sample adjustments for tests of moderators and model fit using robust variance estimation in meta-regression. *Journal of Educational and Behavioral Statistics*, 40(6), 604–634. https://doi.org/10.3102/1076998615606099
 - Wang, C.-C., & Lee, W.-C. (2019). A simple method to estimate prediction intervals and predictive distributions: Summarizing meta-analyses beyond means and confidence intervals. *Research Synthesis Methods*, 10(2), 255–266. https://doi.org/10.1002/jrsm.1345
@@ -699,8 +725,8 @@ Built-in example datasets:
 - **Tables and results** in each step's tabs.
 - **Publication text**: Methods and Results paragraphs in the *Publication
   Text* tab of each analysis, with the numbers filled in.
-- **Excel reports**: audit report (Step 7) and reports for subgroups,
-  meta-regression, splines, publication bias, time-lag test and cumulative analysis; a CSV
+- **Excel reports**: audit report (Step 7) and reports for subgroups (with
+  a *Variance Check* sheet), meta-regression, splines, publication bias, time-lag test and cumulative analysis; a CSV
   table of the meaningful-effect shares (Step 9b).
 - **Figures**: forest, orchard, meaningful-effects, bubble, spline,
   trim-and-fill, time-lag, funnel, leave-one-out, Baujat, cumulative trend and map plots.
