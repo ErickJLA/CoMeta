@@ -207,6 +207,13 @@ sampling variances.
   mean of squared, small-sample-corrected CVs over all rows) remains available
   as *Pooled CV² across effect sizes* to reproduce earlier results.
 - *Zero SDs*: treat them as missing (then impute) or drop the rows.
+- *Geary's test* (lnRR): each effect size is checked with the modified Geary
+  test of Lajeunesse (2015), (|mean| / SD) × 4n^{3/2} / (1 + 4n) ≥ 3 in both
+  groups, which flags means too close to zero for the log response ratio to be
+  approximately normal (rows with an imputed SD are tested with it). Failing
+  effect sizes stay in the analysis and are counted in the log and in every
+  Detailed Statistics tab (columns `geary_t`, `geary_c`, `geary_pass` of the
+  processed data); Step 7 refits the overall model without them.
 - Binary data: 0.5 is added to every cell of a table that has a zero cell
   (only those tables, plus any table that shares a control group with one of
   them, so the shared control counts stay identical). For log OR and log RR, studies with zero events in both
@@ -247,7 +254,9 @@ Results are shown in tabs:
   studies, degrees of freedom, model-based vs reported SE); where the
   variation comes from (multilevel I²); whether there is more variation than
   chance (Q test) and how large it is (τ², σ² with CIs). A warning appears
-  when there are fewer than 10 studies.
+  when there are fewer than 10 studies. For lnRR, a note gives the pooled
+  effect without the effect sizes that fail Geary's test and whether the
+  conclusion changes (also in Detailed Statistics and the publication text).
 - *Detailed Statistics*: every number of the analysis at full precision, with
   the method behind it: data (effect sizes, studies, effect sizes per study,
   exclusions, sampling covariances), model and estimation, inference settings,
@@ -664,7 +673,10 @@ Lajeunesse, 2011) in the sampling variance–covariance matrix.
 et al., 1999 for lnRR; Nakagawa et al., 2015 for lnCVR; Barendregt et al., 2013
 for the logit proportion), with the small-sample corrections for lnRR and lnCVR
 (Lajeunesse, 2015) and the bias-corrected Hedges' g (Hedges, 1981). They are
-checked against R in Validation 20.
+checked against R in Validation 20. For lnRR, Geary's test (Lajeunesse, 2015)
+flags effect sizes whose normal approximation is doubtful; the overall model is
+refitted without them as a sensitivity analysis (Validation 20 recomputes the
+test in R).
 
 **Publication bias.**
 - Egger's test and trim-and-fill use the full sampling covariance matrix

@@ -18,7 +18,9 @@ First public release.
 - Effect sizes: lnRR, Hedges' g, Cohen's d, mean difference, lnCVR, log odds
   ratio, log risk ratio, risk difference and logit proportion, or
   pre-calculated effect sizes. Missing SDs can be imputed, with a complete-case
-  sensitivity check.
+  sensitivity check. For lnRR, Geary's test (Lajeunesse 2015) flags effect sizes
+  whose normal approximation is doubtful, and the overall model is refitted
+  without them as a sensitivity analysis.
 - Subgroups (one or two moderators), with all pairwise differences
   (Holm-adjusted) and a shared-variance check: the model refitted with a τ²
   and a σ² per subgroup (metafor's `struct = "DIAG"`, CR2 by study), with its
