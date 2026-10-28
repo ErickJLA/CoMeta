@@ -657,9 +657,12 @@ sampling covariance matrix).
   covariance); the statistic is the Wald F with a CR0 covariance (Q/q), and
   the p-value is the share of bootstrap statistics above the observed one,
   reported with its Monte Carlo SE, the number of replications and the seed.
-  Validations 3 and 4 compare every bootstrap statistic with an R
-  implementation of wildmeta's algorithm (metafor + clubSandwich) given the
-  same weights, and with `wildmeta::Wald_test_cwb` when it is installed.
+  Validation 28 compares every bootstrap statistic of every test the panels
+  offer (both subgroup models, the meta-regression tests; raw and CR2
+  residuals, both weight distributions, re-estimating and fast mode) with an
+  R implementation of wildmeta's algorithm (metafor + clubSandwich) given the
+  same weights, and with `wildmeta::Wald_test_cwb` when it is installed
+  (Validations 3 and 4 include the main test of each step).
 
 **Heterogeneity.**
 - Cochran's Q and I² (Higgins & Thompson, 2002).

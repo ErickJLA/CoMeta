@@ -53,12 +53,16 @@ First public release.
   again).
 
 ### Validation
-- 27 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
+- 28 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
   the user's own analysis, with optional reference datasets. They also include
-  77 unit tests. R packages are pinned to a dated CRAN snapshot.
+  84 unit tests. R packages are pinned to a dated CRAN snapshot.
 - Validation 27 checks the proportion of meaningful effects on simulated
   three-level data (bias and CI coverage, with Quick / Standard / Publication
   presets).
+- Validation 28 checks the cluster wild bootstrap tests of Steps 9 and 12
+  against an R implementation of wildmeta's algorithm with the same auxiliary
+  weights (every bootstrap statistic, every setting), and against
+  `wildmeta::Wald_test_cwb` when that package installs.
 
 ### Changes that affect results compared with pre-release versions
 - Missing SDs, pooled CV: the "Pooled CV (Nakagawa et al. 2023)" options now
