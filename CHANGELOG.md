@@ -30,6 +30,11 @@ First public release.
   optionally adjusted for other moderators. An exploratory meta-forest.
 - Proportion of meaningful effects (parametric and calibrated, with
   cluster-bootstrap BCa intervals), overall and per subgroup.
+- Optional cluster wild bootstrap tests (Joshi et al. 2022; the algorithm of
+  R's wildmeta) for the subgroup tests (shared and separate-variance models)
+  and the meta-regression tests, from a panel in Detailed Statistics that
+  lists the borderline tests and estimates the run time; re-estimating or
+  fast mode, Rademacher or Webb six weights, raw or CR2-adjusted residuals.
 - Publication bias: multilevel Egger's test, a time-lag test, and PET-PEESE and
   trim-and-fill (sensitivity analyses), with an overview.
 - Sensitivity and complementary analyses: leave-one-out, Baujat plot,

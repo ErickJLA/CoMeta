@@ -302,6 +302,11 @@ groups differ (cluster-robust omnibus test, approximate Hotelling's T², AHZ).
   (subgroup estimates, pairwise differences, omnibus and two-way tests,
   residual τ² and σ² with profile-likelihood CIs, pseudo-R²), with a
   plain-text copy for reports or AI assistants.
+  The tab ends with an optional **wild cluster bootstrap check**: it lists
+  the borderline tests (AHZ df < 4 or 0.01 ≤ p ≤ 0.10), estimates the time,
+  and runs cluster wild bootstrap tests (Joshi et al. 2022) for them or for
+  all tests (shared and separate-variance models); the results join the Detailed Statistics, the publication text
+  and the Excel report (see *Statistical methods*).
 - *Variance Check*: the common τ² and σ² can distort the subgroup estimates
   and the test of subgroup differences when the subgroups differ in
   heterogeneity, above all when they are unbalanced (Rubio-Aparicio et al.
@@ -390,6 +395,11 @@ reference level. Click **Run Meta-Regression**.
   (coefficients, CR2 / Knapp–Hartung tests, residual τ² and σ² with
   profile-likelihood CIs, pseudo-R², predictions, the coefficient covariance
   matrix, diagnostics), with a plain-text copy for reports or AI assistants.
+  The tab ends with an optional **wild cluster bootstrap check**: it lists
+  the borderline tests (AHZ df < 4 or 0.01 ≤ p ≤ 0.10), estimates the time,
+  and runs cluster wild bootstrap tests (Joshi et al. 2022) for them or for
+  all tests; the results join the Detailed Statistics, the publication text
+  and the Excel report (see *Statistical methods*).
 - *Publication Text* and *Export* (Excel report).
 
 **Step 13 – Meta-Regression: Visualization.** Bubble plot of the effect against
@@ -638,6 +648,18 @@ sampling covariance matrix).
   omnibus) use the approximate Hotelling's T² F test of Tipton & Pustejovsky
   (2015), AHZ (called HTZ in the R package clubSandwich).
 - Turning CR2 off gives model-based standard errors with t or z inference.
+- **Cluster wild bootstrap** (optional, Steps 9 and 12; Joshi, Pustejovsky &
+  Beretvas, 2022), following R's wildmeta: the null model is the full design
+  projected onto the hypothesis; its residuals (optionally multiplied by its
+  CR2 adjustment matrices) are multiplied by one auxiliary weight per study
+  (Rademacher or Webb six), added to its fitted values, and the full model is
+  refitted, re-estimating τ² and σ² (or, in *fast* mode, keeping the fitted
+  covariance); the statistic is the Wald F with a CR0 covariance (Q/q), and
+  the p-value is the share of bootstrap statistics above the observed one,
+  reported with its Monte Carlo SE, the number of replications and the seed.
+  Validations 3 and 4 compare every bootstrap statistic with an R
+  implementation of wildmeta's algorithm (metafor + clubSandwich) given the
+  same weights, and with `wildmeta::Wald_test_cwb` when it is installed.
 
 **Heterogeneity.**
 - Cochran's Q and I² (Higgins & Thompson, 2002).
@@ -732,6 +754,7 @@ Methods (the generated Methods text of each step cites the full set):
 - Nakagawa, S., Poulin, R., Mengersen, K., Reinhold, K., Engqvist, L., Lagisz, M., & Senior, A. M. (2015). Meta-analysis of variation: ecological and evolutionary applications and beyond. *Methods in Ecology and Evolution*, 6(2), 143–152. https://doi.org/10.1111/2041-210X.12309
 - Pustejovsky, J. E., & Tipton, E. (2018). Small-sample methods for cluster-robust variance estimation and hypothesis testing in fixed effects models. *Journal of Business & Economic Statistics*, 36(4), 672–683. https://doi.org/10.1080/07350015.2016.1247004
 - Pustejovsky, J. E., & Tipton, E. (2022). Meta-analysis with robust variance estimation: Expanding the range of working models. *Prevention Science*, 23(3), 425–438. https://doi.org/10.1007/s11121-021-01246-3
+- Joshi, M., Pustejovsky, J. E., & Beretvas, S. N. (2022). Cluster wild bootstrapping to handle dependent effect sizes in meta-analysis with a small number of studies. *Research Synthesis Methods*, 13(4), 457–477. https://doi.org/10.1002/jrsm.1554
 - Rodriguez, J. E., Williams, D. R., & Bürkner, P.-C. (2023). Heterogeneous heterogeneity by default: Testing categorical moderators in mixed-effects meta-analysis. *British Journal of Mathematical and Statistical Psychology*, 76(2), 402–433. https://doi.org/10.1111/bmsp.12299
 - Rubio-Aparicio, M., López-López, J. A., Viechtbauer, W., et al. (2020). Testing categorical moderators in mixed-effects meta-analysis in the presence of heteroscedasticity. *The Journal of Experimental Education*, 88(2), 288–310. https://doi.org/10.1080/00220973.2018.1561404
 - Rubio-Aparicio, M., Sánchez-Meca, J., López-López, J. A., et al. (2017). Analysis of categorical moderators in mixed-effects meta-analysis: Consequences of using pooled versus separate estimates of the residual between-studies variances. *British Journal of Mathematical and Statistical Psychology*, 70(3), 439–456. https://doi.org/10.1111/bmsp.12092
