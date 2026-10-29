@@ -662,7 +662,11 @@ sampling covariance matrix).
   residuals, both weight distributions, re-estimating and fast mode) with an
   R implementation of wildmeta's algorithm (metafor + clubSandwich) given the
   same weights, and with `wildmeta::Wald_test_cwb` when it is installed
-  (Validations 3 and 4 include the main test of each step).
+  (Validations 3 and 4 include the main test of each step). It checks the
+  main test of each model first and has a time budget (`V28_MAX_MINUTES`,
+  default 30); R's fits use sparse matrices on large data and start from
+  CoMeta's estimates, so large datasets (about 1000 effect sizes) take
+  minutes per model rather than hours.
 
 **Heterogeneity.**
 - Cochran's Q and I² (Higgins & Thompson, 2002).

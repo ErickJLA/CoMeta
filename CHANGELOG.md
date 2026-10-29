@@ -62,7 +62,12 @@ First public release.
 - Validation 28 checks the cluster wild bootstrap tests of Steps 9 and 12
   against an R implementation of wildmeta's algorithm with the same auxiliary
   weights (every bootstrap statistic, every setting), and against
-  `wildmeta::Wald_test_cwb` when that package installs.
+  `wildmeta::Wald_test_cwb` when that package installs. Main tests first,
+  a progress line with the time left, and a time budget (`V28_MAX_MINUTES`);
+  a model R cannot fit is reported, not a crash. The R reference uses sparse
+  matrices on large data, starts its fits near CoMeta's estimates and keeps
+  the best REML fit over several starts, and orders the separate-variance
+  model's subgroups as CoMeta does (σ² fixed at 0 for the right subgroup).
 
 ### Changes that affect results compared with pre-release versions
 - Missing SDs, pooled CV: the "Pooled CV (Nakagawa et al. 2023)" options now
