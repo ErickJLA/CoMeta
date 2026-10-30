@@ -48,8 +48,8 @@ First public release.
   the significant digits (default 6), e.g. 12 to compare with R.
 - Methods and Results text cites the published sources of each method.
 - Publication-ready figures, with plot recipes that redraw a figure exactly.
-  The meta-regression bubble plot (Step 13) can label an lnRR y-axis in
-  percent change.
+  The meta-regression bubble plot (Step 13) and the orchard plot (Step 11)
+  can label an lnRR effect axis in percent change.
 - A session file that restores the data and the settings of Steps 2–9b, so
   those steps rerun without clicking (choices from Step 12 onward are selected
   again).
