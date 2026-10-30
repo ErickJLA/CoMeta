@@ -407,7 +407,10 @@ a continuous moderator of the model (choose which one for the x-axis), with the
 regression line, confidence band, equation, p and R², bubbles sized by their
 model weight and optional colouring by another moderator. With several
 moderators, the line holds the others at their mean (continuous) or reference
-level (categorical).
+level (categorical). For lnRR, the y-axis can be labelled in percent change,
+100 × (e^lnRR − 1), with round values (−25%, 0%, +50%, +100%…) placed on the
+lnRR scale, so the points and the straight regression line are unchanged; the
+equation box adds the slope as % change per unit of the moderator.
 
 **Step 14 – Non-Linear Spline Meta-Regression.** Fits a natural cubic spline of
 a continuous moderator (choose the spline df, default 3). A likelihood-ratio
