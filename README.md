@@ -375,9 +375,13 @@ fold-change, CI text), axes, labels (rename each group), export and an
 auto-generated figure caption. The orchard plot shows the individual effect
 sizes (scaled by precision), the CI (thick line) and the prediction interval
 (thin line) for each group. In a two-factor analysis both plots group the rows
-by the first moderator. For lnRR, the orchard plot's effect axis can be
-labelled in percent change (Axes & Grid tab), as in Step 13; the estimate and
-CI annotations are then in percent change too.
+by the first moderator. The orchard plot can draw the subgroups from Step 9's
+separate-variance model instead (Orchard Elements tab, "Own variances per
+subgroup": each subgroup's estimate, CI and prediction interval with its own
+τ² and σ²; when no study spans two subgroups these equal fitting each
+subgroup on its own), and can hide the Overall row. For lnRR, the orchard
+plot's effect axis can be labelled in percent change (Axes & Grid tab), as in
+Step 13; the estimate and CI annotations are then in percent change too.
 
 **Step 12 – Meta-Regression.** Choose one or more moderators. For each, choose
 whether it is continuous or categorical and, for categorical ones, the

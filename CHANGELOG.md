@@ -49,7 +49,9 @@ First public release.
 - Methods and Results text cites the published sources of each method.
 - Publication-ready figures, with plot recipes that redraw a figure exactly.
   The meta-regression bubble plot (Step 13) and the orchard plot (Step 11)
-  can label an lnRR effect axis in percent change.
+  can label an lnRR effect axis in percent change. The orchard plot can show
+  the subgroups from the separate-variance model (own τ² and σ² per
+  subgroup) and hide the Overall row.
 - A session file that restores the data and the settings of Steps 2–9b, so
   those steps rerun without clicking (choices from Step 12 onward are selected
   again).
