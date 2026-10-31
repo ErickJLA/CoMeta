@@ -379,7 +379,9 @@ by the first moderator. The orchard plot can draw the subgroups from Step 9's
 separate-variance model instead (Orchard Elements tab, "Own variances per
 subgroup": each subgroup's estimate, CI and prediction interval with its own
 τ² and σ²; when no study spans two subgroups these equal fitting each
-subgroup on its own), and can hide the Overall row. For lnRR, the orchard
+subgroup on its own), and can hide the Overall row. In its Labels tab each
+group also has a colour picker that overrides the colour scheme for that
+group (↺ goes back to the scheme). For lnRR, the orchard
 plot's effect axis can be labelled in percent change (Axes & Grid tab), as in
 Step 13; the estimate and CI annotations are then in percent change too.
 
