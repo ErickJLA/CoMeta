@@ -418,7 +418,10 @@ moderators, the line holds the others at their mean (continuous) or reference
 level (categorical). For lnRR, the y-axis can be labelled in percent change,
 100 × (e^lnRR − 1), with round values (−25%, 0%, +50%, +100%…) placed on the
 lnRR scale, so the points and the straight regression line are unchanged; the
-equation box adds the slope as % change per unit of the moderator.
+equation box adds the slope as % change per unit of the moderator. Points
+coloured by a moderator can use a colour-blind-safe palette (Okabe-Ito, Paul
+Tol bright, Viridis), Grayscale, Set2 or Dark2 (default Tab10), and each
+category can take a custom colour (colour pickers in the Labels tab).
 
 **Step 14 – Non-Linear Spline Meta-Regression.** Fits a natural cubic spline of
 a continuous moderator (choose the spline df, default 3). A likelihood-ratio

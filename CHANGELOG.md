@@ -52,7 +52,8 @@ First public release.
   can label an lnRR effect axis in percent change. The orchard plot can show
   the subgroups from the separate-variance model (own τ² and σ² per
   subgroup), hide the Overall row, and take a custom colour per group (colour
-  pickers in its Labels tab).
+  pickers in its Labels tab). The bubble plot (Step 13) offers colour-blind-safe
+  palettes and grayscale for Color By, and a custom colour per category.
 - A session file that restores the data and the settings of Steps 2–9b, so
   those steps rerun without clicking (choices from Step 12 onward are selected
   again).
