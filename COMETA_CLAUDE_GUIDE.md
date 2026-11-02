@@ -105,7 +105,7 @@ see what changed since.
 | 0 | markdown header, Colab badge | | |
 | 1 | ⚙️ 1. Environment Setup & Core Functions (~3160 lines) | GPL notice; release constants `COMETA_VERSION` … (section 2b), `check_and_lockdown`/`package_check_rows`, header banner; CR2 core `_compute_robust_var_betas`, `_run_three_level_reml_regression_v2`, spline engine `_run_robust_spline_analysis`, `spline_prediction_band`, `spline_adjustment_design`, Excel export `export_analysis_report`, `_get_protocol_metadata`, widget helpers, plot-recipe system, **dashboard and Detailed-Statistics helpers**, `effect_derived_columns`, `es_null_value`, `ci_pct_label`, `COMETA_CITATION` | |
 | 2 | ⚙️ 1b. Statistical Engine: Multilevel Models, Tests & Checks (~1750; renamed from "Unified Model Engine") | `FitSpec`, `build_fit_spec`, `fit_mv`, `fit_blocks`, `fit_estimates`, `fit_cr2`, `compare_fits`, `pseudo_r2`, `pseudo_r2_report`, `profile_ci`, `tau2_univariate`, `var_components_vcov`, `select_rows`/`RowAccounting`, `attach_vcv_row_pos`, `cluster_vcv`, `slice_vcv_block`, meaningful-effects engine (`MeaningfulModel`, `meaningful_proportions`, `bca_interval`); ends with `cometa_engine_selftest()` (BCG trials, REML: τ² 0.3132433, μ −0.7145323, SE 0.1797815 from metafor, tol 1e-4; plus CR2 computable) → `COMETA_ENGINE_SELFTEST`, sets `COMETA_SETUP_DONE`, shows a green/red status line | |
-| 3 | ⚙️ 2. Data Ingestion | upload, column mapping, `CURTIS_DATA` built-in example, opt-in control-group column (`_build_control_mapping_widget`) | `shared_control_column` |
+| 3 | ⚙️ 2. Data Ingestion | upload, column mapping, `CURTIS_DATA` built-in example, opt-in control-group column (`_build_control_mapping_widget`); tab 3 "Project" = `project_open_widget()` (Cell 1) | `shared_control_column` |
 | 4 | ⚙️ 3. Global Filtering | | `complete_case_moderators` |
 | 5 | ⚙️ 4. Data Cleaning | `run_processing`, `detect_shared_controls`, `user_control_column` | `removed_records`, counts |
 | 6 | 🔬 5. Effect Size Selection | effect-size type, bias correction option | `effect_size_type`, `es_config`, `effect_col`, `var_col`, `se_col`, `bias_correction`, `data_type` |
@@ -133,7 +133,7 @@ see what changed since.
 | 28 | 📈 24. Cumulative MA | `CumulativeEngine` (multilevel / study / obs), `cumulative_dashboard_html`, `cumulative_statistics_rows`; `_cumulative_controller` (`agg_method_widget`, `sort_order_widget`, `run_analysis()`) | `cumulative_results` (steps DataFrame), `cumulative_metadata`, `cumulative_text` |
 | 29 | 🗺️ 25. Map | | |
 | 30 | 📊 26. Cumulative trends plot | | |
-| 31 | 💾 27. Export Session | session file; log = `_package_versions_html()` (package differences) + warnings summary | |
+| 31 | 💾 27. Project File | `project_manager_widget()`; log = `_package_versions_html()` (package differences) + warnings summary | |
 | 32 | 🧪 Validation: Imports & R Setup | `R_SNAPSHOT_DATE = "2026-10-01"` (Posit snapshot), `record_validation`, `VALIDATION_RESULTS`, `ValidationPrerequisiteError`, `validation_prerequisite_missing`, `validation_user_data`, `validation_sources`, `validation_block_V`, `record_validation_skipped`, `reference_only_validation`, `VALIDATION_INCLUDE_REFERENCE` | |
 | 33–60 | Validations 1–28 | V(n) is cell 32+n. V2 (cell 34) and V27 (cell 59) are button-driven Monte Carlo runs. V11 (cell 43) is the pytest unit tests (84). V28 (cell 60) is the cluster wild bootstrap. V22 (cell 54) needs the Baujat cell (27) run first. | |
 | 61 | Validation Summary & Export | `N_VALIDATIONS = 28` | |
@@ -443,6 +443,54 @@ README, CONTRIBUTING and CHANGELOG wording.
   colours); a ↺ button resets. Don't add a "custom" checkbox: settings are
   restored in dict order and it would be overwritten.
 
+### 4.5 Project file (replaces the session file; November 2026)
+
+Design agreed with the user after a long discussion: no Drive, no text
+"code" strings; one JSON **project** that is downloaded again (as a new
+revision) on every save. The user tested that repeated downloads are fine
+in Colab, and accepts that people may work on an old revision.
+
+- Cell 1, block "PROJECT FILE" (just before the dashboards block):
+  `COMETA_PROJECT` (kept when Cell 1 re-runs), `PROJECT_STEPS`
+  (`overall`/`subgroup`/`meaningful`: result key, stale-banner id, settings
+  to drop, "run to" text), `project_data_entry` (canonical CSV via one
+  reload, 12-hex SHA-256 `id`), `project_add_data` (labels v1, v2…),
+  `project_settings` (export_config_for_reproducibility minus `_*` keys and
+  later steps' settings), `project_check_ready` (no results / stale banner /
+  9b older than Step 7 or 9 by timestamp), `project_key_results`,
+  `project_results_text`, `project_settings_text`, `project_add_analysis`
+  (raises `ProjectNameExists`; `replace=True`), `project_rename`,
+  `project_set_note`, `project_delete`, `project_commit` (revision + log,
+  drops unused data), `project_payload` (readable keys first, `datasets`
+  last), `project_download` (JS data URL; also sets `PROJECT_LAST_FILE`
+  for tests), `project_from_bytes` (+ `_project_from_session` for old
+  session files), `project_restore` (sets `ANALYSIS_CONFIG`,
+  `raw_data_standardized`, `DATA_TYPE_SELECTED`, `VARIANCE_TYPE_SELECTED`,
+  `GEO_COLUMNS_MAPPED`; `is_reproducing = True`), widgets
+  `project_save_bar(step)`, `project_manager_widget()`,
+  `project_open_widget()`; `_PROJECT_LISTENERS` / `_project_notify()`
+  redraw every bar and manager on screen.
+- The stored data is `raw_data_standardized` (Step 2 output, **before** the
+  Step 3 filters), so analyses on different subsets share one data version.
+  (The old session file stored `clean_dataframe`, i.e. the filtered rows.)
+- Save bars: Step 7 (after the tabs), Step 9 (after `controller.run_analysis()`),
+  Step 9b (after its tabs). The "Download Settings JSON" buttons are gone.
+- Strict restore: Steps 3 (missing filter / common-row-set column), 5 (effect
+  size), 7 (`set_silent` collects `not_restored`; the model is not fitted),
+  8 (analysis type / moderators) and 9b (`apply_widget_values` skipped names)
+  show a red "Reproducibility Mode stopped" box. Step 6 already refused
+  unknown SD strategies.
+- Tests: V11 `test_project_*` (4; they isolate session globals with
+  `monkeypatch.setitem(globals(), …)`). Headless round trip on the fixture:
+  save 4 analyses (overall, filtered overall through Steps 3–7, subgroups,
+  9b) → open → restore → rerun → key results equal to 1e-6 (the fixture
+  path and the cell path differ by ~1e-9 from the optimiser); also the
+  Konstantopoulos pre-calculated example.
+- Agreed phases: (1) done; (2) data versions — done with phase 1;
+  (3) save/restore for Steps 12–24; (4) "Export for publication" (tick
+  analyses, readable table) and a Verify cell that reruns every saved
+  analysis and compares with the stored key results.
+
 ---
 
 ## 5. Validation suite
@@ -464,7 +512,7 @@ README, CONTRIBUTING and CHANGELOG wording.
 - **Expected baseline for the full suite on the fixture** (section 9.4):
   - 21 validations record results, all PASS (V6 and V8 SKIP when the
     reference checkbox is off).
-  - Unit tests: 84 passed.
+  - Unit tests: 88 passed.
   - V28 passes (84/84 on the fixture, about 6.5 min; 186/186 with the
     reference datasets).
   - Cell 54 (V22) fails with "Baujat cell not found" because the harness
@@ -588,7 +636,9 @@ README, CONTRIBUTING and CHANGELOG wording.
   5. Further spline options: several spline moderators added together, or a
      spline × factor interaction. They need many studies; option 1
      (adjustment) is done.
-  6. Session file: settings for Step 12 onward aren't saved.
+  6. Project file (section 4.5): analyses of Step 12 onward can't be saved
+     yet (phase 3 of the agreed plan); then an "Export for publication"
+     table and a Verify cell (phase 4).
   7. Remove dead code and narrow the broad `except Exception` handlers in
      statistical code; add MEE figure-size presets.
   8. **Capture cell for overall analyses** (discussed with the user, not
@@ -888,6 +938,10 @@ and inspect `analysis_data` and `vcv_matrices`. Pre-run cells `1,2,3,5,7`.
 
 Most recent first, all on one long-running branch:
 
+- *(project file, November 2026, branch `claude/youthful-pasteur-hm1pmf`)*:
+  the session file and the "Download Settings JSON" buttons were replaced by
+  the project file (section 4.5), after the user asked how to keep many
+  analyses for a paper's supplement without one JSON per analysis.
 - *(plots, November 2026, same branch; commits `eee5781` … `4a943a2`)*:
   - **Percent-change axis for lnRR** (shared helpers in Cell 1, section 4.4):
     bubble plot (y axis; equation box adds the slope as % per unit; caption

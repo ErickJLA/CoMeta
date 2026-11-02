@@ -45,8 +45,9 @@ PATCH for fixes.
 **A good bug report contains:**
 - what you did (the step and the options you chose) and what you expected;
 - the message or the number that looks wrong (a screenshot helps);
-- the session file from **Step 27 (Export Session)**: it holds your settings
-  and data, so the problem can be reproduced exactly. If the data cannot be
+- the **project file** with the analysis that shows the problem (save it with
+  **💾 Save analysis** in Step 7, 9 or 9b): it holds your settings and data, so
+  the problem can be reproduced exactly. If the data cannot be
   shared, say so; a small made-up dataset that shows the same problem is
   enough;
 - the **Warnings log** from Step 27, if the problem came with warnings.
@@ -84,24 +85,25 @@ Step 7  Overall model       → ['global_settings'] (inference choices used by e
                               ['overall_results'], ['overall_text']
 Steps 8–26  Analyses        → read analysis_data + vcv_matrices + global_settings,
                               write '<analysis>_results' and '<analysis>_text'
-Step 27 Export              → session file (settings + data, no results)
+Steps 7, 9, 9b "Save analysis" → project file (data versions + named analyses:
+                              settings, key results; no full results)
 ```
 
 | Cells | What they hold |
 |---|---|
-| **1. Environment Setup & Core Functions** | Imports, the τ² estimators (REML, ML, PM, SJ, DL), CR2 / Satterthwaite inference and the HTZ Wald test (`_compute_robust_var_betas`), the warning router and log, the stale-results banners, figure saving and plot recipes, session export/import. |
+| **1. Environment Setup & Core Functions** | Imports, the τ² estimators (REML, ML, PM, SJ, DL), CR2 / Satterthwaite inference and the HTZ Wald test (`_compute_robust_var_betas`), the warning router and log, the stale-results banners, figure saving and plot recipes, the project file (`project_*`, save bar, manager). |
 | **1b. Statistical Engine** | `FitSpec`, `build_fit_spec`, `fit_mv`, `fit_blocks`, `fit_cr2`, `compare_fits`, `pseudo_r2`, row accounting, VCV slicing, proportion of meaningful effects. |
 | **2–6. Data** | Ingestion and column mapping, global filters, cleaning and shared-control detection, effect-size choice, effect sizes and sampling VCVs (`build_vcv_matrices`). |
 | **7. Overall model** | Fixed-effect, two-level and three-level models, heterogeneity, prediction interval, Methods/Results text. |
 | **8–16. Moderators** | Subgroups, proportion of meaningful effects, meta-regression, splines, meta-forest, with their plots. |
 | **17–20. Publication bias** | Egger, trim-and-fill, PET-PEESE, time-lag test, the overview of all of them (19c), funnel plot. |
 | **21–26. Sensitivity and complementary analyses** | Leave-one-out, Baujat, cumulative meta-analysis, maps, trends. |
-| **27. Export Session** | Session file, warnings log. |
+| **27. Project File** | Project manager, warnings log. |
 | **🧪 Validation cells** | R setup, Validations 1–28 (Python vs R, and Monte Carlo checks), Validation 11 (unit tests), summary and export. |
 
 ### 2.2 The keys in `ANALYSIS_CONFIG`
 
-**Settings** (what the user chose; saved in the session file):
+**Settings** (what the user chose; saved with each analysis in the project file):
 
 | Key | Written by | Content |
 |---|---|---|
@@ -113,7 +115,7 @@ Step 27 Export              → session file (settings + data, no results)
 | `global_settings` | Step 7 | `alpha`, `ci_percent`, `dist_type` (`'t'` or `'norm'`), `tau_method`, `use_kh` (CR2 / Knapp–Hartung on or off), `model_choice` (three-level or two-level). |
 | `subgroup_config`, `meaningful_config`, … | each step | That step's own options. |
 
-**Data and results** (rebuilt by running the steps; not saved in the session file):
+**Data and results** (rebuilt by running the steps; not saved in the project file, except a few key results per analysis):
 
 | Key | Written by | Content |
 |---|---|---|
@@ -246,12 +248,25 @@ statistics must not live inside widget callbacks.
   (`stale_warning_html`). `plot_recipe_bar` / `build_plot_recipe` save a
   figure's data and settings in a small file, so the figure can be redrawn
   exactly without the analysis.
-- **Session file.** `export_config_for_reproducibility` (Cell 1) writes the
-  settings and the data (`embedded_data`) and skips the results listed in
-  `RESULT_KEYS`. `load_reproducibility_config` restores them and sets
-  `is_reproducing = True`; Steps 3–8 then restore their widgets from the
-  saved settings. Running the cells recomputes the results; they are never
-  loaded from the file.
+- **Project file** (Cell 1, "PROJECT FILE"). `COMETA_PROJECT` is the open
+  project: `datasets` (each data version once: canonical CSV, column types,
+  12-hex SHA-256 fingerprint `id`, label `v1`, `v2`, …), `analyses` (name,
+  note, `step` = `overall` / `subgroup` / `meaningful`, `data_id`, `settings`,
+  key `results`, a readable `summary`), `log` and `revision`.
+  `project_settings` takes the settings from `export_config_for_reproducibility`
+  (which skips the results listed in `RESULT_KEYS`) and drops later steps'
+  settings the analysis does not use (`PROJECT_STEPS[step]['drop']`).
+  `project_save_bar(step)` (Steps 7, 9, 9b) adds an analysis and downloads a new
+  revision (`project_commit`); `project_manager_widget()` (Steps 2 and 27)
+  renames, annotates, deletes and restores. `project_restore` puts the data and
+  settings in `ANALYSIS_CONFIG` with `is_reproducing = True`; Steps 3–9b then
+  restore their widgets from the saved settings and run. A saved value that is
+  not available stops the step with a red "Reproducibility Mode stopped"
+  message instead of falling back to a default. Running the cells recomputes
+  the results; they are never loaded from the file. Old session files open
+  through `_project_from_session`. To save a new kind of analysis, add it to
+  `PROJECT_STEPS`, `project_key_results` and `project_results_text`, and make
+  its step restore its settings in Reproducibility Mode.
 
 ### 2.7 Messages and warnings
 
@@ -354,7 +369,7 @@ R call in the docstring).
 4. Store its results under a new key (e.g. `ANALYSIS_CONFIG['mymethod_results']`)
    and, if they are results rather than settings, add the key to
    `RESULT_KEYS` in `export_config_for_reproducibility` (Cell 1) so the
-   session file stays small.
+   project file stays small.
 5. Generate Methods/Results text with references, as the other steps do.
 6. Add unit tests and, when R can compute the same thing, a validation.
 7. Document the step in the README manual.

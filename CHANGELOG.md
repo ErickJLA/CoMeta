@@ -3,7 +3,7 @@
 All notable changes to CoMeta. Versions follow [semantic versioning](https://semver.org/):
 MAJOR for changes that alter results or break saved sessions, MINOR for new
 features, PATCH for fixes. The version is set once in Cell 1 (`COMETA_VERSION`)
-and recorded in session files, Excel reports and validation exports.
+and recorded in project files, Excel reports and validation exports.
 
 ## [1.0.0] - 2026-10-24
 
@@ -56,14 +56,23 @@ First public release.
   palettes and grayscale for Color By, and a custom colour per category; its
   stats box can show the slope with CI, p, bootstrap p and k, without stars,
   or custom text, and the bubble legend can be relabelled or hidden.
-- A session file that restores the data and the settings of Steps 2–9b, so
-  those steps rerun without clicking (choices from Step 12 onward are selected
-  again).
+- A project file that keeps the work of several days in one file: the data
+  (each version once, with a fingerprint) and every analysis saved with
+  **💾 Save analysis** (Steps 7, 9 and 9b), with its name, a note, all its
+  settings (Steps 2–9b) and its key results. Each save downloads a new revision
+  (`<project>_project_r012.json`) with a log of the changes. Step 2 (tab
+  *Project*) and Step 27 list the saved analyses to restore, rename, annotate or
+  delete; a restored analysis reruns Steps 3–9 without clicking (Step 12 onward
+  is not saved yet). Restoring is strict: a saved setting that is not available
+  stops the step with a message instead of running a different analysis. Session
+  files of pre-release versions open as a project with one analysis. This
+  replaces the session file of Step 27 and the "Download Settings JSON" buttons
+  of Steps 7 and 9.
 
 ### Validation
 - 28 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
   the user's own analysis, with optional reference datasets. They also include
-  84 unit tests. R packages are pinned to a dated CRAN snapshot.
+  88 unit tests. R packages are pinned to a dated CRAN snapshot.
 - Validation 27 checks the proportion of meaningful effects on simulated
   three-level data (bias and CI coverage, with Quick / Standard / Publication
   presets).
