@@ -26,7 +26,8 @@ results were checked against the R packages `metafor`, `clubSandwich` and
 - Publication bias for dependent effect sizes: multilevel Egger's test,
   a time-lag (decline effect) test, with PET-PEESE and trim-and-fill as
   sensitivity analyses.
-- Reproducibility: a **session file** reruns the analysis, and a **plot
+- Reproducibility: a **session file** restores the data and the settings of
+  Steps 2–9b (see [Section 4](#4-saving-and-reproducing-an-analysis)), and a **plot
   recipe** (one file per figure) redraws any figure exactly, without
   re-running the analysis.
 - Publication-ready figures with journal size presets, and generated
@@ -80,11 +81,16 @@ with five classic datasets:
 
 | Example | Data type | Good for |
 |---|---|---|
-| Binary (BCG Vaccine, Tuberculosis) | Events / non-events | log OR, log RR, RD |
+| Binary (BCG Vaccine, Tuberculosis; Colditz et al. 1994) | Events / non-events | log OR, log RR, RD |
 | Continuous (Normand 1999, Stroke Rehab) | Means / SDs / N | Hedges' g, MD |
 | 3-Level Pre-Calculated (Konstantopoulos 2011) | Effect + variance | Three-level model |
-| Meta-Regression / Splines (Raudenbush 1985) | Effect + variance | Moderators, splines |
-| Ecology Continuous (Curtis 1998, Plant CO₂) | Means / SDs / N | lnRR, subgroups, shared controls |
+| Meta-Regression / Splines (Raudenbush 1984; Raudenbush & Bryk 1985) | Effect + variance | Moderators, splines |
+| Ecology Continuous (Curtis & Wang 1998, Plant CO₂) | Means / SDs / N | lnRR, subgroups, shared controls |
+
+The examples are the `dat.bcg`, `dat.normand1999`, `dat.konstantopoulos2011`,
+`dat.raudenbush1985` and `dat.curtis1998` datasets of the R package
+[metadat](https://CRAN.R-project.org/package=metadat); the original studies
+are listed under [References](#references).
 
 ---
 
@@ -192,9 +198,22 @@ default and applies the second-order corrections of Lajeunesse (2015). For log-s
 
 **Step 6 – Effect Size Calculation.** Computes the effect sizes and their
 sampling variances.
-- *Missing SDs*: impute with the median CV, impute with the pooled CV (missing
-  cases only), replace all SDs with the pooled CV, or drop the rows.
+- *Missing SDs*: impute with the median CV; impute with the pooled CV of
+  Nakagawa et al. (2023) (missing cases only), or replace all SDs with it
+  (all cases); or drop the rows. The pooled CV is the sample-size-weighted mean
+  CV within each study, averaged across studies with weights equal to each
+  study's mean sample size, then squared (separately for treatment and control
+  groups). The method of earlier versions (the root of the (n − 1)-weighted
+  mean of squared, small-sample-corrected CVs over all rows) remains available
+  as *Pooled CV² across effect sizes* to reproduce earlier results.
 - *Zero SDs*: treat them as missing (then impute) or drop the rows.
+- *Geary's test* (lnRR): each effect size is checked with the modified Geary
+  test of Lajeunesse (2015), (|mean| / SD) × 4n^{3/2} / (1 + 4n) ≥ 3 in both
+  groups, which flags means too close to zero for the log response ratio to be
+  approximately normal (rows with an imputed SD are tested with it). Failing
+  effect sizes stay in the analysis and are counted in the log and in every
+  Detailed Statistics tab (columns `geary_t`, `geary_c`, `geary_pass` of the
+  processed data); Step 7 refits the overall model without them.
 - Binary data: 0.5 is added to every cell of a table that has a zero cell
   (only those tables, plus any table that shares a control group with one of
   them, so the shared control counts stay identical). For log OR and log RR, studies with zero events in both
@@ -235,7 +254,9 @@ Results are shown in tabs:
   studies, degrees of freedom, model-based vs reported SE); where the
   variation comes from (multilevel I²); whether there is more variation than
   chance (Q test) and how large it is (τ², σ² with CIs). A warning appears
-  when there are fewer than 10 studies.
+  when there are fewer than 10 studies. For lnRR, a note gives the pooled
+  effect without the effect sizes that fail Geary's test and whether the
+  conclusion changes (also in Detailed Statistics and the publication text).
 - *Detailed Statistics*: every number of the analysis at full precision, with
   the method behind it: data (effect sizes, studies, effect sizes per study,
   exclusions, sampling covariances), model and estimation, inference settings,
@@ -247,6 +268,11 @@ Results are shown in tabs:
   compare with R at full precision, run `DETAILED_STATS_DIGITS = 12` in a cell
   and re-run the step (this applies to every Detailed Statistics tab; `None`
   restores the default).
+  Every Detailed Statistics tab ends with a **Data selection (Steps 2–6)**
+  section: the records loaded, each Step 3 filter with the values kept and
+  excluded, the records excluded in Steps 4 and 6 with their reasons, imputed
+  SDs, continuity corrections, shared control groups and the analysis data
+  every step starts from. The same information opens the Step 7 Methods text.
 - *Model Selection*: likelihood-ratio test and AIC comparing the nested
   variance structures. This is for information; the model you chose is the one
   reported.
@@ -262,7 +288,7 @@ to estimate. A preview shows how many studies and observations each level has.
 
 **Step 9 – Subgroup Analysis: Execution.** Fits one three-level model with a
 mean for each group (and common variance components) and tests whether the
-groups differ (HTZ cluster-robust omnibus test).
+groups differ (cluster-robust omnibus test, approximate Hotelling's T², AHZ).
 - *Results Summary*: a dashboard that explains the result in plain language:
   the effect in each subgroup (with CI, prediction interval and the
   back-transformed value), whether the subgroups differ, every pairwise
@@ -276,6 +302,25 @@ groups differ (HTZ cluster-robust omnibus test).
   (subgroup estimates, pairwise differences, omnibus and two-way tests,
   residual τ² and σ² with profile-likelihood CIs, pseudo-R²), with a
   plain-text copy for reports or AI assistants.
+  The tab ends with an optional **wild cluster bootstrap check**: it lists
+  the borderline tests (AHZ df < 4 or 0.01 ≤ p ≤ 0.10), estimates the time,
+  and runs cluster wild bootstrap tests (Joshi et al. 2022) for them or for
+  all tests (shared and separate-variance models); the results join the Detailed Statistics, the publication text
+  and the Excel report (see *Statistical methods*).
+- *Variance Check*: the common τ² and σ² can distort the subgroup estimates
+  and the test of subgroup differences when the subgroups differ in
+  heterogeneity, above all when they are unbalanced (Rubio-Aparicio et al.
+  2017; Rodriguez et al. 2023). The model is therefore refitted with a τ² and
+  a σ² for each subgroup (same estimation and CR2 inference) and shown next to
+  the shared model: the subgroup means, the test of subgroup differences, every
+  pairwise difference (Holm) and, for two moderators, the main effects and the
+  interaction. Flags mark a conclusion that changes, a subgroup mean outside
+  the shared CI, and a τ² + σ² that differs from the shared value by more than
+  a factor of 4 (subgroups with at least 5 studies). For a moderator that does
+  not vary within studies, a likelihood-ratio test checks whether the variance
+  components are equal. Report the model you choose and the other as a
+  sensitivity analysis; the check is in the dashboard, Detailed Statistics,
+  the publication text and the Excel report.
 - *Processing Log*, *Configuration*, *Publication Text* and *Export* (Excel
   report and session file).
 
@@ -330,7 +375,15 @@ fold-change, CI text), axes, labels (rename each group), export and an
 auto-generated figure caption. The orchard plot shows the individual effect
 sizes (scaled by precision), the CI (thick line) and the prediction interval
 (thin line) for each group. In a two-factor analysis both plots group the rows
-by the first moderator.
+by the first moderator. The orchard plot can draw the subgroups from Step 9's
+separate-variance model instead (Orchard Elements tab, "Own variances per
+subgroup": each subgroup's estimate, CI and prediction interval with its own
+τ² and σ²; when no study spans two subgroups these equal fitting each
+subgroup on its own), and can hide the Overall row. In its Labels tab each
+group also has a colour picker that overrides the colour scheme for that
+group (↺ goes back to the scheme). For lnRR, the orchard
+plot's effect axis can be labelled in percent change (Axes & Grid tab), as in
+Step 13; the estimate and CI annotations are then in percent change too.
 
 **Step 12 – Meta-Regression.** Choose one or more moderators. For each, choose
 whether it is continuous or categorical and, for categorical ones, the
@@ -350,6 +403,11 @@ reference level. Click **Run Meta-Regression**.
   (coefficients, CR2 / Knapp–Hartung tests, residual τ² and σ² with
   profile-likelihood CIs, pseudo-R², predictions, the coefficient covariance
   matrix, diagnostics), with a plain-text copy for reports or AI assistants.
+  The tab ends with an optional **wild cluster bootstrap check**: it lists
+  the borderline tests (AHZ df < 4 or 0.01 ≤ p ≤ 0.10), estimates the time,
+  and runs cluster wild bootstrap tests (Joshi et al. 2022) for them or for
+  all tests; the results join the Detailed Statistics, the publication text
+  and the Excel report (see *Statistical methods*).
 - *Publication Text* and *Export* (Excel report).
 
 **Step 13 – Meta-Regression: Visualization.** Bubble plot of the effect against
@@ -357,12 +415,23 @@ a continuous moderator of the model (choose which one for the x-axis), with the
 regression line, confidence band, equation, p and R², bubbles sized by their
 model weight and optional colouring by another moderator. With several
 moderators, the line holds the others at their mean (continuous) or reference
-level (categorical).
+level (categorical). For lnRR, the y-axis can be labelled in percent change,
+100 × (e^lnRR − 1), with round values (−25%, 0%, +50%, +100%…) placed on the
+lnRR scale, so the points and the straight regression line are unchanged; the
+equation box adds the slope as % change per unit of the moderator. Points
+coloured by a moderator can use a colour-blind-safe palette (Okabe-Ito, Paul
+Tol bright, Viridis), Grayscale, Set2 or Dark2 (default Tab10), and each
+category can take a custom colour (colour pickers in the Labels tab). The
+stats box can show the equation (default) or the slope with its CI, p (and the
+bootstrap p when Step 12's bootstrap was run) and the numbers of effect sizes
+and studies; significance stars can be turned off, and custom text can replace
+the box (a button copies the automatic text to edit). The bubble-size legend
+entry can be relabelled (e.g. "Model weight") or hidden.
 
 **Step 14 – Non-Linear Spline Meta-Regression.** Fits a natural cubic spline of
 a continuous moderator (choose the spline df, default 3). A likelihood-ratio
 test against the linear model shows whether the relationship is non-linear,
-and the HTZ omnibus test shows whether the moderator matters at all.
+and the cluster-robust omnibus test (AHZ) shows whether the moderator matters at all.
 - *Adjust for* (optional): other moderators to hold constant, so the curve
   shows the change with the spline moderator after accounting for them.
   - Numeric moderators enter as straight-line terms, centred at their mean.
@@ -414,8 +483,9 @@ numeric column whose ranks match the effect size exactly.
 **Step 17 – Egger's Test & Trim-and-Fill.**
 - *Egger's test*: multilevel regression of the effect on its standard error
   with CR2 inference.
-- *Trim-and-fill*: estimators L0 and R0 to estimate the missing studies and
-  the adjusted effect.
+- *Trim-and-fill*: estimators L0 and R0 to estimate the number of missing
+  effect sizes and the adjusted effect. It treats effect sizes as independent,
+  so it is reported as a sensitivity analysis.
 - *Combined Assessment* summarizes both.
 - *Detailed Statistics*: every number of both methods with its method, with a
   plain-text copy.
@@ -483,7 +553,8 @@ significance. The **Results** dashboard explains the outcome in plain words. It
 shows the pooled effect without each study as a forest, the studies that move
 the estimate most (against the 20% threshold), whether removing one study
 changes the conclusion (the CI crossing no effect), and whether one study
-drives the heterogeneity. **🔢 Detailed Statistics** lists the model with all
+drives the heterogeneity. Each refit uses the three-level model with the
+inference settings of Step 7 (CR2 on or off, t or z). **🔢 Detailed Statistics** lists the model with all
 studies and every refit (estimate, SE, df, CI, p, shift, τ², σ²). **Step 22** plots the results (sorted by effect, by influence or
 by study ID, with significance changers highlighted).
 
@@ -593,20 +664,67 @@ sampling covariance matrix).
   valid when the variance structure is misspecified or effect sizes are
   correlated within studies.
 - Tests of several coefficients (subgroup differences, meta-regression
-  omnibus) use the HTZ approximate F test.
+  omnibus) use the approximate Hotelling's T² F test of Tipton & Pustejovsky
+  (2015), AHZ (called HTZ in the R package clubSandwich).
 - Turning CR2 off gives model-based standard errors with t or z inference.
+- **Cluster wild bootstrap** (optional, Steps 9 and 12; Joshi, Pustejovsky &
+  Beretvas, 2022), following R's wildmeta: the null model is the full design
+  projected onto the hypothesis; its residuals (optionally multiplied by its
+  CR2 adjustment matrices) are multiplied by one auxiliary weight per study
+  (Rademacher or Webb six), added to its fitted values, and the full model is
+  refitted, re-estimating τ² and σ² (or, in *fast* mode, keeping the fitted
+  covariance); the statistic is the Wald F with a CR0 covariance (Q/q), and
+  the p-value is the share of bootstrap statistics above the observed one,
+  reported with its Monte Carlo SE, the number of replications and the seed.
+  Validation 28 compares every bootstrap statistic of every test the panels
+  offer (both subgroup models, the meta-regression tests; raw and CR2
+  residuals, both weight distributions, re-estimating and fast mode) with an
+  R implementation of wildmeta's algorithm (metafor + clubSandwich) given the
+  same weights, and with `wildmeta::Wald_test_cwb` when it is installed
+  (Validations 3 and 4 include the main test of each step). It checks the
+  main test of each model first and has a time budget (`V28_MAX_MINUTES`,
+  default 30); R's fits use sparse matrices on large data and start from
+  CoMeta's estimates, so large datasets (about 1000 effect sizes) take
+  minutes per model rather than hours.
 
 **Heterogeneity.**
-- Cochran's Q.
-- Multilevel I² split into between- and within-study parts.
+- Cochran's Q and I² (Higgins & Thompson, 2002).
+- Multilevel I² split into between- and within-study parts, with the typical
+  sampling variance (Nakagawa & Santos, 2012).
 - Profile-likelihood CIs for the variance components.
-- Prediction intervals.
+- Prediction intervals (Higgins et al., 2009).
+
+**Subgroups.** One model with a mean per subgroup and common τ² and σ²
+(reference-coded moderator). The Variance Check fits the same fixed effects
+with one τ² and one σ² per subgroup: Σ<sub>j</sub> = V<sub>j</sub> +
+diag(σ²<sub>g</sub>) + τ²<sub>g</sub> between effect sizes of the same study and
+subgroup (metafor: `random = list(~ subgroup | study, ~ subgroup | es),
+struct = "DIAG"`), by REML (L-BFGS-B with the analytic gradient), with CR2
+standard errors by study and AHZ tests. Studies that contribute to several
+subgroups keep their rows and sampling covariances together; their study
+effects are independent between subgroups in this working model, and the
+cluster-robust inference protects the tests if they are not (Pustejovsky &
+Tipton, 2022). σ²<sub>g</sub> is fixed at 0 when no study has two effect sizes
+in subgroup g. For a moderator that does not vary within studies, this model
+equals the subgroups fitted separately, so the likelihood-ratio test of equal
+variance components is 2 × (Σ log L<sub>separate</sub> − log
+L<sub>shared</sub>), compared with a χ² distribution (approximate,
+conservative when a component is near 0); both models have the same fixed
+effects, so REML is used. Validation 3 checks the model, its CR2 inference,
+the tests and the likelihood-ratio test against metafor + clubSandwich.
+
+**Shared control groups.** Effect sizes that share a control group get the
+covariance of their sampling errors (Gleser & Olkin, 2009; for lnRR,
+Lajeunesse, 2011) in the sampling variance–covariance matrix.
 
 **Effect sizes** use the standard formulas (Borenstein et al., 2009; Hedges
 et al., 1999 for lnRR; Nakagawa et al., 2015 for lnCVR; Barendregt et al., 2013
 for the logit proportion), with the small-sample corrections for lnRR and lnCVR
 (Lajeunesse, 2015) and the bias-corrected Hedges' g (Hedges, 1981). They are
-checked against R in Validation 20.
+checked against R in Validation 20. For lnRR, Geary's test (Lajeunesse, 2015)
+flags effect sizes whose normal approximation is doubtful; the overall model is
+refitted without them as a sensitivity analysis (Validation 20 recomputes the
+test in R).
 
 **Publication bias.**
 - Egger's test and trim-and-fill use the full sampling covariance matrix
@@ -640,6 +758,45 @@ to the truth when the true effects were skewed, while the parametric share
 CI covered poorly when the true share was below 0.15; use the bootstrap CI
 there. With 15 studies, coverage was slightly below nominal.
 
+### References
+
+Methods (the generated Methods text of each step cites the full set):
+
+- Barendregt, J. J., Doi, S. A., Lee, Y. Y., Norman, R. E., & Vos, T. (2013). Meta-analysis of prevalence. *Journal of Epidemiology and Community Health*, 67(11), 974–978. https://doi.org/10.1136/jech-2013-203104
+- Borenstein, M., Hedges, L. V., Higgins, J. P. T., & Rothstein, H. R. (2009). *Introduction to meta-analysis*. John Wiley & Sons.
+- Efron, B. (1987). Better bootstrap confidence intervals. *Journal of the American Statistical Association*, 82(397), 171–185. https://doi.org/10.1080/01621459.1987.10478410
+- Hedges, L. V. (1981). Distribution theory for Glass's estimator of effect size and related estimators. *Journal of Educational Statistics*, 6(2), 107–128. https://doi.org/10.3102/10769986006002107
+- Hedges, L. V., Gurevitch, J., & Curtis, P. S. (1999). The meta-analysis of response ratios in experimental ecology. *Ecology*, 80(4), 1150–1156. https://doi.org/10.1890/0012-9658(1999)080[1150:TMAORR]2.0.CO;2
+- Gleser, L. J., & Olkin, I. (2009). Stochastically dependent effect sizes. In H. Cooper, L. V. Hedges, & J. C. Valentine (Eds.), *The handbook of research synthesis and meta-analysis* (2nd ed., pp. 357–376). Russell Sage Foundation.
+- Higgins, J. P. T., & Thompson, S. G. (2002). Quantifying heterogeneity in a meta-analysis. *Statistics in Medicine*, 21(11), 1539–1558. https://doi.org/10.1002/sim.1186
+- Higgins, J. P. T., Thompson, S. G., & Spiegelhalter, D. J. (2009). A re-evaluation of random-effects meta-analysis. *Journal of the Royal Statistical Society: Series A*, 172(1), 137–159. https://doi.org/10.1111/j.1467-985X.2008.00552.x
+- Lajeunesse, M. J. (2011). On the meta-analysis of response ratios for studies with correlated and multi-group designs. *Ecology*, 92(11), 2049–2055. https://doi.org/10.1890/11-0423.1
+- Lajeunesse, M. J. (2015). Bias and correction for the log response ratio in ecological meta-analysis. *Ecology*, 96(8), 2056–2063. https://doi.org/10.1890/14-2402.1
+- Mathur, M. B., & VanderWeele, T. J. (2019). New metrics for meta-analyses of heterogeneous effects. *Statistics in Medicine*, 38(8), 1336–1342. https://doi.org/10.1002/sim.8057
+- Mathur, M. B., & VanderWeele, T. J. (2020). Robust metrics and sensitivity analyses for meta-analyses of heterogeneous effects. *Epidemiology*, 31(3), 356–358. https://doi.org/10.1097/EDE.0000000000001180
+- Nakagawa, S., & Santos, E. S. A. (2012). Methodological issues and advances in biological meta-analysis. *Evolutionary Ecology*, 26(5), 1253–1274. https://doi.org/10.1007/s10682-012-9555-5
+- Nakagawa, S., Lagisz, M., Jennions, M. D., et al. (2022). Methods for testing publication bias in ecological and evolutionary meta-analyses. *Methods in Ecology and Evolution*, 13(1), 4–21. https://doi.org/10.1111/2041-210X.13724
+- Nakagawa, S., Noble, D. W. A., Lagisz, M., et al. (2023). A robust and readily implementable method for the meta-analysis of response ratios with and without missing standard deviations. *Ecology Letters*, 26(2), 232–244. https://doi.org/10.1111/ele.14144
+- Nakagawa, S., Poulin, R., Mengersen, K., Reinhold, K., Engqvist, L., Lagisz, M., & Senior, A. M. (2015). Meta-analysis of variation: ecological and evolutionary applications and beyond. *Methods in Ecology and Evolution*, 6(2), 143–152. https://doi.org/10.1111/2041-210X.12309
+- Pustejovsky, J. E., & Tipton, E. (2018). Small-sample methods for cluster-robust variance estimation and hypothesis testing in fixed effects models. *Journal of Business & Economic Statistics*, 36(4), 672–683. https://doi.org/10.1080/07350015.2016.1247004
+- Pustejovsky, J. E., & Tipton, E. (2022). Meta-analysis with robust variance estimation: Expanding the range of working models. *Prevention Science*, 23(3), 425–438. https://doi.org/10.1007/s11121-021-01246-3
+- Joshi, M., Pustejovsky, J. E., & Beretvas, S. N. (2022). Cluster wild bootstrapping to handle dependent effect sizes in meta-analysis with a small number of studies. *Research Synthesis Methods*, 13(4), 457–477. https://doi.org/10.1002/jrsm.1554
+- Rodriguez, J. E., Williams, D. R., & Bürkner, P.-C. (2023). Heterogeneous heterogeneity by default: Testing categorical moderators in mixed-effects meta-analysis. *British Journal of Mathematical and Statistical Psychology*, 76(2), 402–433. https://doi.org/10.1111/bmsp.12299
+- Rubio-Aparicio, M., López-López, J. A., Viechtbauer, W., et al. (2020). Testing categorical moderators in mixed-effects meta-analysis in the presence of heteroscedasticity. *The Journal of Experimental Education*, 88(2), 288–310. https://doi.org/10.1080/00220973.2018.1561404
+- Rubio-Aparicio, M., Sánchez-Meca, J., López-López, J. A., et al. (2017). Analysis of categorical moderators in mixed-effects meta-analysis: Consequences of using pooled versus separate estimates of the residual between-studies variances. *British Journal of Mathematical and Statistical Psychology*, 70(3), 439–456. https://doi.org/10.1111/bmsp.12092
+- Stanley, T. D., & Doucouliagos, H. (2014). Meta-regression approximations to reduce publication selection bias. *Research Synthesis Methods*, 5(1), 60–78. https://doi.org/10.1002/jrsm.1095
+- Tipton, E., & Pustejovsky, J. E. (2015). Small-sample adjustments for tests of moderators and model fit using robust variance estimation in meta-regression. *Journal of Educational and Behavioral Statistics*, 40(6), 604–634. https://doi.org/10.3102/1076998615606099
+- Wang, C.-C., & Lee, W.-C. (2019). A simple method to estimate prediction intervals and predictive distributions: Summarizing meta-analyses beyond means and confidence intervals. *Research Synthesis Methods*, 10(2), 255–266. https://doi.org/10.1002/jrsm.1345
+
+Built-in example datasets:
+
+- Colditz, G. A., Brewer, T. F., Berkey, C. S., Wilson, M. E., Burdick, E., Fineberg, H. V., & Mosteller, F. (1994). Efficacy of BCG vaccine in the prevention of tuberculosis: Meta-analysis of the published literature. *JAMA*, 271(9), 698–702. https://doi.org/10.1001/jama.1994.03510330076038
+- Curtis, P. S., & Wang, X. (1998). A meta-analysis of elevated CO₂ effects on woody plant mass, form, and physiology. *Oecologia*, 113(3), 299–313. https://doi.org/10.1007/s004420050381
+- Konstantopoulos, S. (2011). Fixed effects and variance components estimation in three-level meta-analysis. *Research Synthesis Methods*, 2(1), 61–76. https://doi.org/10.1002/jrsm.35
+- Normand, S.-L. T. (1999). Meta-analysis: Formulating, evaluating, combining, and reporting. *Statistics in Medicine*, 18(3), 321–359. https://doi.org/10.1002/(SICI)1097-0258(19990215)18:3<321::AID-SIM28>3.0.CO;2-P
+- Raudenbush, S. W. (1984). Magnitude of teacher expectancy effects on pupil IQ as a function of the credibility of expectancy induction: A synthesis of findings from 18 experiments. *Journal of Educational Psychology*, 76(1), 85–97. https://doi.org/10.1037/0022-0663.76.1.85
+- Raudenbush, S. W., & Bryk, A. S. (1985). Empirical Bayes meta-analysis. *Journal of Educational Statistics*, 10(2), 75–98. https://doi.org/10.3102/10769986010002075
+
 ---
 
 ## 6. Outputs
@@ -647,8 +804,8 @@ there. With 15 studies, coverage was slightly below nominal.
 - **Tables and results** in each step's tabs.
 - **Publication text**: Methods and Results paragraphs in the *Publication
   Text* tab of each analysis, with the numbers filled in.
-- **Excel reports**: audit report (Step 7) and reports for subgroups,
-  meta-regression, splines, publication bias, time-lag test and cumulative analysis; a CSV
+- **Excel reports**: audit report (Step 7) and reports for subgroups (with
+  a *Variance Check* sheet), meta-regression, splines, publication bias, time-lag test and cumulative analysis; a CSV
   table of the meaningful-effect shares (Step 9b).
 - **Figures**: forest, orchard, meaningful-effects, bubble, spline,
   trim-and-fill, time-lag, funnel, leave-one-out, Baujat, cumulative trend and map plots.
@@ -666,6 +823,26 @@ there. With 15 studies, coverage was slightly below nominal.
   (PNG/PDF/SVG too if the `kaleido` package is installed). In Colab, saved files
   appear in the *Files* panel on the left.
 - **Session file** and **plot recipes** for reproducibility (Section 4).
+
+**File names.** Every file is named after what it contains, so the files can be
+uploaded as supplementary material as they are:
+
+`<Analysis>_<settings>_<k>ES-<studies>st[_F-<filters>].<ext>`
+
+| Part | Meaning | Example |
+|---|---|---|
+| Analysis | the analysis or plot | `Subgroups`, `MetaRegression`, `ForestPlot` |
+| settings | moderators (first 4 letters; more than two: `+Nmore`) and settings that differ from the defaults (`2level`, `noCR2`, `z`, `90CI`) | `meth`, `time+meth`, `time-adj-meth` |
+| `ES-st` | effect sizes and studies used by that analysis | `102ES-29st` |
+| `F-` | Step 3 filters: column (first 3 letters, more if two columns start alike), then the kept value (3 letters) or how many values were kept | `F-hab-mar`, `F-met2of3` |
+
+Examples: `Overall_102ES-29st.xlsx`, `Subgroups_meth_95ES-27st_F-hab-mar.xlsx`,
+`ForestPlot_meth_95ES-27st_F-hab-mar.pdf` and its recipe
+`ForestPlot_meth_95ES-27st_F-hab-mar_recipe.json`, `Session_102ES-29st.json`.
+The full settings and filters are inside each file (protocol sheet, recipe,
+Data selection section). A name that was already written in the session gets
+`_v2`, `_v3`. A name typed in a plot cell's *Filename* box replaces the
+automatic one.
 
 ---
 

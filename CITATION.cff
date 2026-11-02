@@ -8,6 +8,7 @@ cff-version: 1.2.0
 message: "If you use CoMeta, please cite it as below."
 title: "CoMeta: A no-code, glass-box platform for multilevel meta-analysis"
 version: 1.0.0
+date-released: "2026-10-24"   # set to the date of the GitHub release
 # doi: 10.5281/zenodo.XXXXXXX
 license: GPL-3.0-or-later
 repository-code: "https://github.com/ErickJLA/CoMeta"

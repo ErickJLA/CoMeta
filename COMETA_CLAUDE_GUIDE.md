@@ -1,12 +1,14 @@
 # CoMeta: working guide for Claude
 
-Written by Claude for a future Claude session, at the end of a long working
-session (state as of **release 1.0.0**, October 2026; last change: the
-start-of-notebook cleanup after commit `5a18b93`). The repository owner
-(the user) keeps this file outside the repo and attaches it when they need
-help. **Read it first, then verify against the code**: the notebook changes,
-and anything here can be stale. Run `git log --oneline` and compare with the
-history in section 10 to see what changed since.
+Written by Claude for a future Claude session (state as of **November 2026**,
+release 1.0.0 plus the work since; last commit described here: `4a943a2`,
+"Meta-regression plot: editable stats box and bubble legend"). Since November
+2026 the user keeps this file **in the repository root** (they asked for it;
+an earlier copy had been removed because it was added by mistake). Update it
+at the end of a working session when the user asks. **Read it first, then
+verify against the code**: the notebook changes, and anything here can be
+stale. Run `git log --oneline` and compare with the history in section 10 to
+see what changed since.
 
 ---
 
@@ -15,6 +17,10 @@ history in section 10 to see what changed since.
 1. Read this file. Then `git log --oneline | head -20` and `git status`.
 2. Rebuild the test harness (section 9). It lives only in the scratchpad, so it
    is gone in a new session. Recreate the scripts from section 9 verbatim.
+   The scratchpad can also become unavailable in the middle of a session;
+   then work in a folder outside the repo (e.g. `~/cometa_work`), never in
+   the repo. Section 9.7 has a light harness for the plot cells that needs
+   only Cells 1 and 1b.
 3. Install R packages if validations are needed (section 9.1); that takes a
    few minutes, so start it in the background early.
 4. Dump the cells to files (`mine/c{i}.py`) so `grep`/`sed` work on them.
@@ -31,7 +37,7 @@ history in section 10 to see what changed since.
 - **The "glass box" design is deliberate**: all code stays visible in the
   notebook cells. Do **not** propose moving it into a library or package; the
   user decided this.
-- **Validation suite** (cells 32–60): every validation runs on the user's own
+- **Validation suite** (cells 32–61): every validation runs on the user's own
   analysis in the session and compares it with R (metafor, clubSandwich,
   MetaUtility). Reference datasets are optional (a checkbox).
 - **Independence from metafor**: text the user reads (Methods/Results text,
@@ -46,13 +52,25 @@ history in section 10 to see what changed since.
   - wants results that are easy to understand for non-experts (a "tool to
     learn", not just "metafor for Python");
   - uses CoMeta mostly on PCs; phone layouts are not a concern.
+- **The user's own paper** uses CoMeta: lnRR, about 970 effect sizes from
+  75 studies, a year moderator (meta-regression) and a site moderator whose
+  levels have very different variances. Several recent features answer it
+  or its reviewers: the subgroup variance check and separate-variance model,
+  the wild bootstrap, the Nakagawa et al. (2023) pooled CV, Geary's test,
+  percent-change axes, the orchard "own variances" option and the bubble
+  plot's editable stats box. The user also asks for help with the paper's
+  Methods text and reviewer replies.
+- **"If it is risky, don't do it"**: the user prefers a low-risk subset of a
+  feature (and answering a reviewer differently) over a risky change. Say
+  which parts are low risk, do those, and explain what was left out.
 - **Release 1.0.0 is prepared** (section 2b) on the development branch. The
   user chose to keep it off `main` for now and will merge it themselves.
   The steps still theirs: author names, a Colab run, the merge, Zenodo and
   the DOI.
 - **The user maintains the tested package versions** (`REQUIRED_PACKAGES`,
   top of Cell 1) themselves, updating them periodically. Do not change them
-  unless asked. Differences from the tested set are not shown in Cell 1; they
+  unless asked. (scikit-learn and pycountry were added in the pre-submission
+  review at the headless-tested versions.) Differences from the tested set are not shown in Cell 1; they
   go to the Step 27 log (section 2b).
 
 ### Working conventions with this user
@@ -80,7 +98,7 @@ history in section 10 to see what changed since.
 
 ---
 
-## 2. Notebook map (61 cells)
+## 2. Notebook map (62 cells)
 
 | Cell | Title / step | Key functions, classes | Saves to `ANALYSIS_CONFIG` |
 |---|---|---|---|
@@ -94,11 +112,12 @@ history in section 10 to see what changed since.
 | 7 | 🧮 6. Effect Size Calculation | `run_calculation`, `build_vcv_matrices` (Gleser–Olkin / Lajeunesse covariances), `_expand_to_shared_controls`, SD imputation | `analysis_data`, `vcv_matrices`, `cc_shared_group_rows`, `sd_missing_strategy` … |
 | 8 | 📊 7. Overall Meta-Analysis (~3400) | `TwoLevelEngine.calculate_pooled_effect` (GLS with full V), `ThreeLevelEngine`, `OverallEngine`, `OverallController` (`model_selector`, `ci_dist_widget`, `use_kh_widget`, …), `overall_dashboard_html`, `overall_statistics_rows`, `_dash_small_k_html`, `_n_shared_cov_studies` | `global_settings`, `overall_results` (`['reported']` = the model shown), `overall_text` |
 | 9 | ⚙️ 8. Subgroup Configuration | `save_configuration`, widgets `moderator1_widget` … | `subgroup_config` |
-| 10 | 🔬 9. Subgroup Execution (~4400) | engine, `_pairwise_contrasts` (Holm), `subgroup_dashboard_html`, `subgroup_statistics_rows`; tabs include the Processing Log (the user wants it kept) | `subgroup_results`, `subgroup_text` |
+| 10 | 🔬 9. Subgroup Execution (~4700) | engine, `_pairwise_contrasts` (Holm), `subgroup_variance_check` + `variance_check_html`/`_rows`/`_results_text`/`_summary` (⚖️ Variance Check tab), `subgroup_dashboard_html`, `subgroup_statistics_rows`; tabs include the Processing Log (the user wants it kept) | `subgroup_results`, `subgroup_text` |
 | 11 | 📏 9b. Proportion of Meaningful Effects | `_meaningful_effects_cell()`, `meaningful_dashboard_html`, `meaningful_statistics_rows` | `meaningful_config`, `meaningful_results` (`table`, `settings`, `info`), `meaningful_text` |
-| 12–13 | 10/11 Subgroup forest / orchard plots | plot recipes | |
+| 12 | 📊 10. Subgroup forest plot | `_forest_plot_cell()`, plot recipes | |
+| 13 | 🍎 11. Orchard plot | `_orchard_cell()`: `build_data` (rows of Overall + Step 9 subgroups; `rows_own` from `subgroup_results['variance_check']['separate_model']['levels']`, PI = μ ± t(df)·√(SE² + τ²_g + σ²_g)), `plot_rows(data, s)` (shared/own, Overall shown or not), `default_colors`, `COL` colour pickers, `percent_change_axis`. Settings: `estimates` ('shared'/'own'), `show_overall`, `percent_axis`, `color::<key>` | |
 | 14 | 📈 12. Meta-Regression (~3800) | `RegressionEngine`, `predict_from_fit` (t/z follows Step 7), `default_prediction_grid`, `regression_dashboard_html`, `regression_statistics_rows`, `_regression_controller.run_analysis(moderator_cols, categorical_cols, reference_levels)` | `meta_regression_RVE_results`, `regression_text`; `LAST_REGRESSION_RESULT` global |
-| 15 | 📈 13. Meta-Regression plot | | |
+| 15 | 📈 13. Meta-Regression plot (bubble plot) | `_meta_regression_plot_cell()`: `build_data` (slopes with `ci` and `boot_p` from `meta_regression_RVE_results['cwb']`), `stats_lines(data, s)`, `copy_auto_text`, `palette_colors`/`FIXED_PALETTES` (Okabe-Ito, Paul Tol bright), `refresh_color_box`. Settings: `percent_axis`, `palette`, `color::<col>::<level>`, `stats_style` ('equation'/'slope'), `show_stars`, `stats_text` (custom, replaces the box), `weight_label`, `show_weight_legend` | |
 | 16 | 📈📈 14. Spline | `SplineMetaRegressionModel` (`run_analysis(mod, df_spline, adjust)`, `_compare_linear_spline`, `_variance_r2_linear`, `get_adjust_candidates`), `spline_dashboard_html`, `spline_statistics_rows`, `_spline_adjust_text`; `_spline_model`, `_spline_view`, `_spline_controller` | `spline_model_results`, `spline_text` |
 | 17 | 📈📈 15. Spline plot | `_spline_plot_cell()` | |
 | 18 | 🌳 16. Meta-Forest | `ClusterBootstrapForest`, `MetaForestModel`, `metaforest_dashboard_html`, `metaforest_statistics_rows`; `_mf_view.feature_checkboxes`, `_mf_view.run_button` | `meta_forest_results` |
@@ -116,8 +135,40 @@ history in section 10 to see what changed since.
 | 30 | 📊 26. Cumulative trends plot | | |
 | 31 | 💾 27. Export Session | session file; log = `_package_versions_html()` (package differences) + warnings summary | |
 | 32 | 🧪 Validation: Imports & R Setup | `R_SNAPSHOT_DATE = "2026-10-01"` (Posit snapshot), `record_validation`, `VALIDATION_RESULTS`, `ValidationPrerequisiteError`, `validation_prerequisite_missing`, `validation_user_data`, `validation_sources`, `validation_block_V`, `record_validation_skipped`, `reference_only_validation`, `VALIDATION_INCLUDE_REFERENCE` | |
-| 33–59 | Validations 1–27 | V(n) is cell 32+n. V2 (cell 34) and V27 (cell 59) are button-driven Monte Carlo runs. V11 (cell 43) is the pytest unit tests (77). V22 (cell 54) needs the Baujat cell (27) run first. | |
-| 60 | Validation Summary & Export | `N_VALIDATIONS = 27` | |
+| 33–60 | Validations 1–28 | V(n) is cell 32+n. V2 (cell 34) and V27 (cell 59) are button-driven Monte Carlo runs. V11 (cell 43) is the pytest unit tests (84). V28 (cell 60) is the cluster wild bootstrap. V22 (cell 54) needs the Baujat cell (27) run first. | |
+| 61 | Validation Summary & Export | `N_VALIDATIONS = 28` | |
+
+**Validation 28 (cluster wild bootstrap).** Takes the test lists the
+panels use (`subgroup_cwb_tests(ANALYSIS_CONFIG['subgroup_results'])`,
+`regression_cwb_tests(LAST_REGRESSION_RESULT)`); each test dict carries
+`inputs` (y/X/V blocks, cluster ids, C, fitter, full fit, two_level, and
+grp/s2_fixed for the separate-variance model). Every test: CR0 Rademacher
+re-estimated vs `cwb_reference` (cell 32) with the same weights
+(`V28_N_REP = 8`); first test of each model also CR2, Webb six, fast mode
+(`fixed = TRUE` in R), the panel-closure identity, and F*(w) = F*(−w);
+wildmeta's `Wald_test_cwb` p as INFO when `WILDMETA_VERSION` is set (cell 32
+tries `install.packages("wildmeta")`, optional; this branch has never run,
+because the sandbox can't reach CRAN). Reference datasets: simulated
+3-subgroup nested data (shared + DIAG), 3-level and aggregated 2-level
+regression. Pairwise/coefficient tests capped at `V28_MAX_PER_KIND = 3`.
+Jobs run in priority order (`_v28_jobs`: main test default → its other
+settings + Python checks → other tests → wildmeta) under `V28_MAX_MINUTES`
+(default 30; skipped jobs are INFO); an `RRuntimeError` is INFO, any other
+exception FAIL. `cwb_reference` (cell 32): `sparse` when n ≥ 250 (≈50× faster
+at 1000 rows, slower below ~250); full fit started from CoMeta's (τ², σ²)
+(`init_tau2/init_sigma2`), null and refits from R's full fit; each REML fit
+from two starts (near-0 components at 0.05·mean v, then at 1e-6; plus
+metafor's default below 250 rows), highest logLik kept — a single warm start
+sometimes stalls near the boundary (log-scale optimizer). Only the first
+start falls back to nlminb / Nelder-Mead; the extra starts get BFGS only
+(on large data the 1e-6 start makes BFGS stop at once, and Nelder-Mead took
+2–3 min per fit: that was the user's 2 h + "Error during the optimization"
+in Colab). `grp_levels` passes CoMeta's subgroup order (tests carry
+`inputs['grp_levels']`); without it R ordered levels by first appearance,
+mismatching `s2_fixed` and starts. Timing at ~1000 effect sizes, 75 studies
+(stress test, no budget): 53 min, 102/102 PASS; one separate-variance
+comparison ≈ 3.5 min, almost all of it R (CoMeta ≈ 3 s). Fixture + reference
+datasets: 186/186 in ≈ 15 min.
 
 **Validation 27 (meaningful effects, Monte Carlo).** `_v27_preset`
 (Quick 100 reps / 15 bootstrap reps × 200; Standard 500 / 60 × 500;
@@ -379,6 +430,18 @@ README, CONTRIBUTING and CHANGELOG wording.
   `register_banner(module_id, widget)`.
 - `make_json_safe`, `ci_pct_label(alpha)`, `_alpha()`, `es_null_value()`,
   `is_text_dtype`, `cometa_save_figure`, `show_figure`, `caption_html`.
+- Percent-change axis for lnRR plots (just before `cometa_save_figure`):
+  `es_is_lnrr(es)`, `percent_change(lnrr)` = 100(e^x − 1),
+  `fmt_percent_change(p, digits, fixed)`, `percent_change_axis(ax, 'x'|'y')`
+  (round values, roundest first, ≤ ~10 ticks, placed at ln(1 + p/100); the
+  data stay on the lnRR scale), `PERCENT_CHANGE_LABEL = 'Change (%)'`. Used
+  by the orchard and bubble plots; reuse them for other plots.
+- Plot colour overrides (orchard, bubble plot): a `ColorPicker` per group
+  stored in the settings (`color::...`); a value different from the
+  scheme/palette colour overrides it, so recipes need no extra flag; untouched
+  pickers follow a scheme change (observer compares with the old scheme's
+  colours); a ↺ button resets. Don't add a "custom" checkbox: settings are
+  restored in dict order and it would be overwritten.
 
 ---
 
@@ -401,7 +464,9 @@ README, CONTRIBUTING and CHANGELOG wording.
 - **Expected baseline for the full suite on the fixture** (section 9.4):
   - 21 validations record results, all PASS (V6 and V8 SKIP when the
     reference checkbox is off).
-  - Unit tests: 77 passed.
+  - Unit tests: 84 passed.
+  - V28 passes (84/84 on the fixture, about 6.5 min; 186/186 with the
+    reference datasets).
   - Cell 54 (V22) fails with "Baujat cell not found" because the harness
     doesn't run the Baujat cell; run it separately (section 9.5).
   - V10, V12 and V13 aren't in the full run (spline, meta-forest, two-way
@@ -452,6 +517,16 @@ README, CONTRIBUTING and CHANGELOG wording.
   Sparse ends make the curve unstable (dashboard warning when fewer than 3
   studies in the outer 10%).
 - **pyplot in headless runs**: `matplotlib.use('Agg')` (run_cells does this).
+- **Killing test runs**: `pkill -f run_pre.py` also kills the shell that
+  runs it (its own command line matches) and the tool call fails. Use
+  `pgrep -f "[p]ython run_pre.py ..."` (the bracket keeps the pattern from
+  matching itself) and `kill` the pids.
+- **Waiting for background runs**: foreground `sleep` is blocked; use a
+  background Bash `until ! pgrep -f "[t]_script.py"; do sleep 10; done`.
+- **Plot-cell tests without the fixture**: a synthetic `ANALYSIS_CONFIG`
+  with the keys the cell's `build_data` reads is enough (section 9.7).
+  `ANALYSIS_CONFIG` is created by Cell 2/3, so assign a new dict rather
+  than calling `.clear()` after only Cells 1 and 1b.
 - **Screenshots**: headless Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` (path may change; look
   in `/opt/pw-browsers`).
@@ -516,6 +591,21 @@ README, CONTRIBUTING and CHANGELOG wording.
   6. Session file: settings for Step 12 onward aren't saved.
   7. Remove dead code and narrow the broad `except Exception` handlers in
      statistical code; add MEE figure-size presets.
+  8. **Capture cell for overall analyses** (discussed with the user, not
+     built): a cell after Step 7 that snapshots the current overall result
+     with a label (e.g. "site = A"), and an orchard data source "Captured
+     overall analyses". Guardrails: same effect-size type, warn on different
+     CI level / t-z / CR2 / estimator, caption says the rows are separate
+     models (no test of differences), saved in the session file and recipes.
+     For two levels of one moderator, the orchard's "own variances" option
+     (done) is the better answer.
+  9. Add Okabe-Ito and Paul Tol bright to the orchard plot's colour schemes
+     (the bubble plot has them).
+  10. Add to Validation 3: "own variances = separate per-subgroup fits when
+     no study spans two subgroups" (checked once on the fixture: μ, CR2 SE,
+     Satterthwaite df, τ², σ² equal to 6 decimals; not a permanent check).
+  11. Untested paths: the orchard colour pickers in a two-way analysis and
+     after a recipe reload; V28's wildmeta comparison (needs CRAN).
 - **Known limitations, documented**:
   - The cumulative "study" and "obs" options ignore within-study
     heterogeneity.
@@ -719,7 +809,7 @@ nb = json.load(open('/home/user/CoMeta/CoMeta.ipynb'))
 cell = lambda i: ''.join(nb['cells'][i]['source'])
 get_ipython().run_cell(cell(32))
 VALIDATION_INCLUDE_REFERENCE = os.environ.get('REF') == '1'
-for i in range(33, 61):
+for i in range(33, 62):
     if i in (34, 59): continue     # V2 and V27 Monte Carlo are button-driven
     t0 = time.time(); r = get_ipython().run_cell(cell(i))
     print(f"[cell {i}] success={r.success} {time.time()-t0:.0f}s", (repr(r.error_in_exec)[:150] if not r.success else ''))
@@ -750,6 +840,36 @@ open('dash/x.html','w').write("<html><body style='background:#fff;margin:0'>" + 
   --window-size=1200,1600 --screenshot=x.png file://$PWD/dash/x.html
 ```
 
+### 9.7 Light harness for plot cells (no R, no fixture)
+
+```python
+# run_plot.py — run Cells 1 and 1b, a synthetic setup, then a driver script
+import json, os, glob
+from IPython.testing.globalipapp import start_ipython
+ip = start_ipython()
+nb = json.load(open('/home/user/CoMeta/CoMeta.ipynb'))
+cell = lambda i: ''.join(nb['cells'][i]['source'])
+for i in (1, 2):
+    print(i, ip.run_cell(cell(i), silent=True).success)
+ip.run_cell(open('setup.py').read())          # assigns ANALYSIS_CONFIG = {...}
+os.makedirs('out', exist_ok=True); os.chdir('out')
+ip.user_ns['cell15'] = cell(15)               # the plot cell to test
+print(ip.run_cell(open('../drive.py').read()).success)
+```
+`setup.py` for the bubble plot: `ANALYSIS_CONFIG = {'es_config': {...,
+'type': 'lnRR'}, 'effect_col', 'var_col', 'global_settings': {'alpha',
+'dist_type'}, 'analysis_data': reg, 'meta_regression_RVE_results': {'reg_df',
+'effect_col', 'term_names', 'moderator_col_name', 'betas',
+'var_betas_robust', 'df_robust', 'p_values_all', 'model_type', 'tau_sq',
+'sigma_sq', 'k_studies', 'n_obs', 'R_squared_adj', 'cwb': [{'label':
+'Coefficient x', 'p_value': ...}]}}`. For the orchard: `overall_results`
+(`k`, `k_papers`, `reported` with mu/se/ci/pi/tau_squared/sigma_squared/model)
+and `subgroup_results` (`analysis_type`, `moderator1`, `results_df` with
+group, k, n_papers, pooled_effect_re, pooled_se_re, ci_*_re, pi_*_re,
+model_type). `drive.py`: run the cell, collect widgets from
+`ipywidgets.Widget.widgets`, set values, click "Generate…", rename the
+newest PNG; read the PNG to check it.
+
 Excel export, inspected headless: replace `display` with a collector, call
 `export_analysis_report(report_type=..., filename_prefix=...)`, then
 regex-extract `base64,(...)` from the Javascript and read it with
@@ -767,6 +887,218 @@ and inspect `analysis_data` and `vcv_matrices`. Pre-run cells `1,2,3,5,7`.
 ## 10. Collaboration history (what was done, in order)
 
 Most recent first, all on one long-running branch:
+
+- *(plots, November 2026, same branch; commits `eee5781` … `4a943a2`)*:
+  - **Percent-change axis for lnRR** (shared helpers in Cell 1, section 4.4):
+    bubble plot (y axis; equation box adds the slope as % per unit; caption
+    explains) and orchard plot (effect axis x or y with the orientation;
+    estimate/CI annotations in % with the ES/CI decimals; Min/Max stay in
+    lnRR units, a note says so). Default axis label switches to
+    "Change (%)" and back unless the user typed one.
+  - **Orchard "own variances"** (`estimates` = 'own'): subgroups drawn from
+    Step 9's separate-variance model; "Show Overall row" can hide Overall.
+    Use case from the user: sites A and B fitted separately because their
+    variances differ — the separate-variance model gives the same numbers
+    when no study spans two sites, plus a formal A vs B test.
+  - **Colours**: orchard colour picker per group (Labels tab); bubble plot
+    Palette dropdown (Tab10 default, Okabe-Ito, Paul Tol bright, Viridis,
+    Grayscale, Set2, Dark2) and a picker per category of the Color By
+    moderator (Labels tab, "Colours" section).
+  - **Bubble-plot stats box and legend** (reviewer comment on the user's
+    paper): `stats_style` 'slope' = "slope = b per unit of <x label> (95% CI
+    lo to hi)" with equal decimals, "p = 0.020; bootstrap p = 0.041" (boot p
+    only if Step 12's bootstrap panel ran before the plot cell), "k effect
+    sizes, m studies"; stars switch; custom text box replaces the box, with
+    a button that copies the automatic text; bubble legend label and on/off.
+    Defaults reproduce the old plot.
+- *(Validation 28 speed and robustness, November 2026)*: `9577c36`,
+  `8d7d0ca`. The user's first Colab run (969 effect sizes, 75 studies) ran
+  2 h 20 min and crashed with "Error during the optimization" (an
+  unguarded R fit). Fixes: sparse R fits from 250 rows, warm starts,
+  best-of-starts REML, fallback optimizers on the first start only,
+  per-comparison error handling (R failure = INFO), priority order,
+  progress line, `V28_MAX_MINUTES = 30`, `grp_levels`, reference datasets
+  only for steps whose cells ran, non-finite bootstrap statistics handled
+  explicitly. Where R and CoMeta disagreed, CoMeta always had the higher
+  REML log-likelihood (R stalled). Details in section 2 (V28 paragraph).
+- *(Validation 28, October 2026)*: `272298d`, dedicated cluster wild
+  bootstrap validation (section 2); the test builders carry `inputs`.
+
+- *(file names, October 2026, same branch)*: every saved file is named
+  `<Analysis>_<settings>_<k>ES-<studies>st[_F-<filters>].<ext>` (user's design:
+  no "CoMeta", no step number, no timestamp). Cell 1 "FILE NAMES" block:
+  `_name_part`, `cometa_moderator_tag` (4 letters, `+Nmore` after 2),
+  `cometa_filter_tag` (column 3 letters, longer if two columns clash; one kept
+  value → 3 letters, several → `2of5`; filters that keep everything ignored),
+  `cometa_setting_tags` (`2level`, `noCR2`, `z`, `90CI`), `cometa_analysis_stem(key, name)`
+  (knows where each analysis stores its counts), `cometa_plot_stem` (typed name
+  > `data['file_stem']` > analysis), `cometa_unique_stem`/`cometa_file_name`
+  (`_vN` against `COMETA_FILES_WRITTEN` and the working directory). Plot cells:
+  Filename box empty by default (placeholder "automatic…"), `file_stem` stored
+  in `state['data']` after `build_data()` so recipes keep the name; Bubble plot
+  adds `-<x-axis>` after `BubblePlot`. Add new outputs through these helpers.
+- *(subgroup shared-variance check, Stage 1, October 2026, same branch)*:
+  - Problem the user hit: the shared τ²/σ² of the unified subgroup model
+    pulls a small, very heterogeneous subgroup toward the others' precision.
+  - `subgroup_variance_check(fit, levels, L, results_df, alpha, dist_type,
+    robust)` (Cell 10, module level, before `_largest_complete_subgrid`):
+    rows of each subgroup found by matching design rows to `L`; blocks from
+    `fit.spec` (V sliced with `np.ix_`); `fit_blocks` per subgroup (σ² = 0 if
+    the shared fit fixed it, or no replication in the subgroup); CR2 via
+    `fit_cr2` when the unified fit used CR2, else model-based, df = studies − 1;
+    subgroups with < 2 studies are not fitted. Flags: `conclusion`
+    (significance differs or opposite signs), `shift` (own mean outside the
+    shared CI), `variance` ((τ²+σ²) ratio > 4 or < 1/4, only with ≥ 5 studies,
+    `VARIANCE_CHECK_MIN_STUDIES`, `VARIANCE_CHECK_RATIO`). Verdict:
+    `estimates differ` / `variances differ` / `consistent`.
+  - Equal-variance LRT = 2(Σ ll_separate − ll_shared), REML, df = Σ free
+    variance params − shared; only for between-study moderators (additivity
+    of REML ll, invariant to the X parametrisation with REMLf). Verified: Σ ll
+    equals metafor's `struct = c("DIAG","DIAG")` heteroscedastic model.
+  - Called in `analyze_all_subgroups` after the pairwise contrasts (not in the
+    fallback); stored in `heterogeneity['variance_check']` and
+    `subgroup_results['variance_check']` (plain JSON-safe values).
+  - Shown in: new tab 2 "⚖️ Variance Check" (tabs after it shifted by one),
+    dashboard (warning for `estimates differ`, a story sentence otherwise),
+    Detailed Statistics section, Methods paragraph + refs [5–7]
+    (Rubio-Aparicio 2017, 2020; Rodriguez et al. 2023, checked with Scite;
+    authors after the third are "et al." — complete them), Results paragraph,
+    Excel sheet "Variance Check". README (Step 9, Methods, References),
+    CHANGELOG.
+  - Validation 3 section 6: per-subgroup rma.mv (free REML) + clubSandwich
+    CR2, Σ logLik, the DIAG model and the LRT; unit tests
+    `test_variance_check_identical_subgroups` (LRT = 0) and
+    `test_variance_check_within_study_moderator_skips_lrt`.
+  - **Stage 2 (done, same branch):** `fit_separate_variance_model` (REML of
+    Σ_j = V_j + diag(σ²_g) + τ²_g within subgroup; metafor random =
+    list(~g|study, ~g|es), struct = "DIAG"), `_diag_loglik` /
+    `_diag_loglik_grad` (analytic REML gradient, checked by a unit test;
+    L-BFGS-B ftol 1e-12, gtol 1e-8; "converged" = success or projected
+    gradient < 1e-3, because the line search ends ABNORMAL at machine
+    precision), `_separate_variance_inference` (CR2 with
+    `_compute_robust_var_betas(..., phi_blocks=...)`, the new working-model
+    argument; AHZ omnibus on eye(p)[1:], pairwise via
+    `SubgroupAnalysisEngine._pairwise_contrasts`, two-way via
+    `_factorial_wald_tests`). When no study and no sampling covariance spans
+    two subgroups, the separate fits are the exact optimum and are used
+    directly; otherwise joint REML from three starts. The tab's "Own τ², σ²"
+    columns now show this model (not the per-subgroup fits, which remain for
+    the LRT: `rows[i]['log_lik_alone']`). `vc['separate_model']`,
+    `vc['test_change']`, `vc['n_pairwise_change']`, pairwise rows get
+    `shared_p_holm` / `changes`. Verdict 'estimates differ' also when the
+    omnibus or a Holm pairwise conclusion changes. Timing: ~8 s for 2200
+    effect sizes, 80 studies, 10 subgroups.
+  - Validation 3 section 6 now fits metafor DIAG (cell-means, `gamma2` fixed
+    at 0 where σ²_g is), clubSandwich CR2 with `cluster = study_id`, HTZ via
+    `constrain_equal`, every pairwise contrast and the two-way terms
+    (constraints `bases[key].T`); Σ logLik alone vs DIAG for the LRT. Tested
+    also with a random 'hgroup' that splits shared-control groups
+    (`t_v3c.py`): 71/71.
+- *(cluster wild bootstrap, October 2026, same branch)*: engine in Cell 1b
+  section 7b: `cwb_test(y_blocks, X_blocks, C, fitter, R, aux, adjust, mode,
+  seed, full, eta, progress)`, `cr0_wald_F`, `cr2_adjustment_blocks`,
+  `constrain_predictors`, `cwb_weights` (Rademacher, Webb six),
+  `cwb_multilevel_fitter(V_blocks, sigma2_fixed)`, `CWB_DEFAULTS` (999,
+  Rademacher, CR0, reestimate, seed 2024). Algorithm = wildmeta 0.3.3
+  (read from its source: null model by projection, residuals × weight per
+  cluster, refit with update(), CR0 Naive-F, p = mean(F* > F)); 'fast' mode
+  keeps the full model's Φ (one GLS per replication). Separate-variance refit:
+  `cwb_separate_fitter` (Cell 10). Panel `cwb_panel(tests, alpha, on_done)`
+  (Cell 1): borderline = AHZ df < 4 or 0.01 ≤ p ≤ 0.10; time estimate from 2
+  and 6 replications per model family; results JSON-safe (`ref_test`, `kind`,
+  `agree`, ...). Text: `cwb_methods_sentence`, `cwb_results_sentence`,
+  `cwb_result_rows`, `CWB_REFERENCE`, Excel `_cwb_sheet`. Step 9:
+  `subgroup_cwb_tests(het)`; the view's Detailed Statistics now has
+  `stats_out` + `cwb_out` (`refresh_statistics`); controller global
+  `_subgroup_controller`; results in `subgroup_results['cwb']`; the
+  separate-variance model kept in memory as `separate_model_fit`. Step 12:
+  `regression_cwb_tests(result)`, `RegressionResult.cwb_inputs` (the fit, or
+  y/v/X of the aggregated two-level model, compared with Knapp-Hartung) and
+  `.cwb`; `_run_three_level_reml_regression_v2` now returns 'fit'.
+  Validation: Cell 32 defines `CWB_R_REFERENCE` (R `cwb_reference`,
+  `cwb_wildmeta`) and `cwb_validation_checks`; V3 section 7 and V4 compare
+  every bootstrap F with injected weights (rel. tol 1e-3, p within 1/R; R's
+  optim can stop slightly off at boundaries, Python matches the separable
+  per-subgroup optimum). wildmeta itself could not be installed in the
+  sandbox (installing code from GitHub was refused); its branch is INFO only
+  and untested. Speed: ~25 ms/replication at 100 ES (diagonal V), ~70 ms
+  with shared-control V, ~0.5 s at 2000 ES with shared controls.
+- *(Geary's test, October 2026, same branch)*: `geary_number`, `GEARY_THRESHOLD`
+  (Cell 7); Step 6 adds `geary_t`, `geary_c`, `geary_pass` to analysis_data
+  (lnRR, raw data; imputed SDs used) and `calc_info['geary']` (n, n_fail,
+  n_fail_imputed, n_studies_fail). The columns are in EFFECT_DERIVED_COLUMNS
+  (never moderators). Step 7: the SD complete-case refit was moved into
+  `OverallController._refit_overall_on_rows(df, vcv, result, alpha, dist,
+  use_kh)`; the Geary refit uses it on `geary_pass` rows (VCV rebuilt) and is
+  stored in `ANALYSIS_CONFIG['geary_check']` (calc_info geary + 'refit'; in
+  RESULT_KEYS). Shown: `_dash_geary_html` (dashboard note, amber when the
+  conclusion changes), Step 7 Detailed Statistics section, data-selection row,
+  Methods sentence (cites Lajeunesse 2015 via ref_bias), Results paragraph.
+  Failing rows are kept (Lajeunesse recommends a sensitivity analysis); no
+  exclude option yet. V20 `_geary_rows` recomputes in R with the authors'
+  function. Unit test `test_geary_number_lajeunesse_2015`.
+- *(pooled CV, October 2026, same branch)*: `calculate_pooled_cv_nakagawa`
+  (Cell 7): n-weighted mean CV within study, weighted by the study's mean n
+  across studies (the authors' simulation code, `Miss_SD_Sim/R/MLMA_HPC.R`,
+  averages within study unweighted; equal when n is constant). Used by
+  'nakagawa_missing_cases' / 'nakagawa_all_cases'; the old estimator
+  (`calculate_pooled_cv`, CV² averaged over rows, weights n − 1, CV(1+1/4n))
+  is 'pooled_cv2_missing_cases'. Methods text describes the formula. V20
+  recomputes both pooled CVs in R (`_pooled_cv_rows`, runs even with old
+  metafor). The sampling variance stays first order (Hedges 1999); the paper
+  adds second-order terms (Lajeunesse 2015) — not implemented.
+- *(publication-text review, October 2026, same branch)*:
+  - **Data selection** (Cell 1: `data_selection_info`, `data_selection_rows`,
+    `_with_data_selection`): `statistics_table_text`/`_html` append a
+    "Data selection (Steps 2–6)" section to every Detailed Statistics table.
+    Inputs: Step 3 `prefilter_counts`; Step 4 `n_observations_step4_in` (and
+    `removed_records` for pre-calculated data); Step 6 `calc_removed_records`
+    and `calc_info` (`cc_rows`, `sd`: strategy, n_imputed, pooled CVs). These
+    three are in `RESULT_KEYS` (not saved in the session file).
+  - **Step 7 Methods** is data-driven: records, filters, exclusions (reason
+    map `_REASONS`), SD sentence only when SDs were imputed, continuity
+    correction only when applied, shared-control covariances (Gleser & Olkin
+    2009; Lajeunesse 2011 for lnRR), inference/heterogeneity/PI sentences
+    (Higgins & Thompson 2002; Nakagawa & Santos 2012; Higgins et al. 2009, all
+    checked with Scite). `_cite(key)` adds a reference once; a final pass
+    renumbers `[n]` and `[n, m]` by first citation and drops uncited ones.
+  - Results texts: multilevel I² for the three-level model (the Q-based I² of
+    86.8% vs multilevel 88.7% disagreed); subgroup Q_E test replaces the
+    Q_M + Q_E "partition"; test name "approximate Hotelling's T² (AHZ)";
+    cumulative CIs back-transformed; Step 16 CoMeta reference.
+  - **Leave-one-out follows Step 7's CR2 and t/z** (`_LOOModelBased`, Cell 25);
+    V22's R side takes `cr2`/`use_t` from the Step 7 settings. The refits are
+    always three-level; the text says so when Step 7 reported two-level.
+  - Text-review harness: `t_alltext.py` (captures every displayed HTML block
+    per step, VARIANT=base/twolevel/z_nocr2) + `strip_caps.py`; strip tags
+    with `</?[a-zA-Z][^>]*>` because the HTML contains raw "<" (p < 0.001).
+- *(pre-submission review, October 2026, branch `claude/sweet-cori-xqlhn3`)*
+  A review for the MEE submission, then the fixes:
+  - this guide had been uploaded to the repo by mistake; it was removed
+    (it stays in git history). Since November 2026 the user wants it in the
+    repo root again (section header);
+  - trim-and-fill counts effect sizes, so every user-visible text says
+    "missing effect sizes" (Steps 17, 18, 19c); no "convergent evidence";
+  - PET-PEESE Results text states the p threshold and why its slope can
+    differ in sign from Egger's;
+  - `k` = number of effect sizes in the publication texts (Steps 12, 13, 15);
+  - Step 7 Methods: references renumbered in order of first citation;
+  - meta-regression coefficients use 3 significant digits when |β| and SE
+    are < 0.01 (`_coef_strings`, Cell 14);
+  - BCG example: `id` = author + year (13 studies; reproduces −0.7145);
+    built-in example dicts no longer have `np.str_` keys;
+  - session-file wording: restores Steps 2–9b only (README, CHANGELOG, Step 2);
+  - `REQUIRED_PACKAGES` gained scikit-learn 1.9.1 and pycountry 26.2.16 (the
+    versions tested headless; replace them with Colab's after a Colab run);
+    Cells 25 and 32 install pycountry / rpy2 at the pinned versions;
+  - README: References subsection (methods + example datasets, checked with
+    Scite) and the metadat origin of the examples; CITATION.cff
+    `date-released`.
+  - An anonymiser for double-anonymous review, `make_review_copy.py`, was
+    given to the user (not in the repo).
+  - Headless check: 23 validations PASS + 77 unit tests with metafor 4.4.0 /
+    clubSandwich 0.5.10 (CRAN was blocked); V12 and V25 need R packages
+    that could not be installed there.
 
 - *(latest)* Full-height outputs:
   - `cometa_full_height()` (Cell 1) calls Colab's

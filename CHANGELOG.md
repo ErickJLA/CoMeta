@@ -18,12 +18,23 @@ First public release.
 - Effect sizes: lnRR, Hedges' g, Cohen's d, mean difference, lnCVR, log odds
   ratio, log risk ratio, risk difference and logit proportion, or
   pre-calculated effect sizes. Missing SDs can be imputed, with a complete-case
-  sensitivity check.
+  sensitivity check. For lnRR, Geary's test (Lajeunesse 2015) flags effect sizes
+  whose normal approximation is doubtful, and the overall model is refitted
+  without them as a sensitivity analysis.
 - Subgroups (one or two moderators), with all pairwise differences
-  (Holm-adjusted). Meta-regression with predictions. Natural cubic splines,
+  (Holm-adjusted) and a shared-variance check: the model refitted with a τ²
+  and a σ² per subgroup (metafor's `struct = "DIAG"`, CR2 by study), with its
+  subgroup means, test of subgroup differences, pairwise differences and
+  two-way terms next to the shared model's, and a likelihood-ratio test of
+  equal variance components for between-study moderators. Meta-regression with predictions. Natural cubic splines,
   optionally adjusted for other moderators. An exploratory meta-forest.
 - Proportion of meaningful effects (parametric and calibrated, with
   cluster-bootstrap BCa intervals), overall and per subgroup.
+- Optional cluster wild bootstrap tests (Joshi et al. 2022; the algorithm of
+  R's wildmeta) for the subgroup tests (shared and separate-variance models)
+  and the meta-regression tests, from a panel in Detailed Statistics that
+  lists the borderline tests and estimates the run time; re-estimating or
+  fast mode, Rademacher or Webb six weights, raw or CR2-adjusted residuals.
 - Publication bias: multilevel Egger's test, a time-lag test, and PET-PEESE and
   trim-and-fill (sensitivity analyses), with an overview.
 - Sensitivity and complementary analyses: leave-one-out, Baujat plot,
@@ -37,17 +48,45 @@ First public release.
   the significant digits (default 6), e.g. 12 to compare with R.
 - Methods and Results text cites the published sources of each method.
 - Publication-ready figures, with plot recipes that redraw a figure exactly.
-- A session file that reruns the whole analysis.
+  The meta-regression bubble plot (Step 13) and the orchard plot (Step 11)
+  can label an lnRR effect axis in percent change. The orchard plot can show
+  the subgroups from the separate-variance model (own τ² and σ² per
+  subgroup), hide the Overall row, and take a custom colour per group (colour
+  pickers in its Labels tab). The bubble plot (Step 13) offers colour-blind-safe
+  palettes and grayscale for Color By, and a custom colour per category; its
+  stats box can show the slope with CI, p, bootstrap p and k, without stars,
+  or custom text, and the bubble legend can be relabelled or hidden.
+- A session file that restores the data and the settings of Steps 2–9b, so
+  those steps rerun without clicking (choices from Step 12 onward are selected
+  again).
 
 ### Validation
-- 27 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
+- 28 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
   the user's own analysis, with optional reference datasets. They also include
-  77 unit tests. R packages are pinned to a dated CRAN snapshot.
+  84 unit tests. R packages are pinned to a dated CRAN snapshot.
 - Validation 27 checks the proportion of meaningful effects on simulated
   three-level data (bias and CI coverage, with Quick / Standard / Publication
   presets).
+- Validation 28 checks the cluster wild bootstrap tests of Steps 9 and 12
+  against an R implementation of wildmeta's algorithm with the same auxiliary
+  weights (every bootstrap statistic, every setting), and against
+  `wildmeta::Wald_test_cwb` when that package installs. Main tests first,
+  a progress line with the time left, and a time budget (`V28_MAX_MINUTES`);
+  a model R cannot fit is reported, not a crash. The R reference uses sparse
+  matrices on large data, starts its fits near CoMeta's estimates and keeps
+  the best REML fit over several starts, and orders the separate-variance
+  model's subgroups as CoMeta does (σ² fixed at 0 for the right subgroup).
 
 ### Changes that affect results compared with pre-release versions
+- Missing SDs, pooled CV: the "Pooled CV (Nakagawa et al. 2023)" options now
+  compute the pooled CV as in that paper (the sample-size-weighted mean CV
+  within each study, averaged across studies weighted by each study's mean
+  sample size, then squared). Before, they averaged the squared,
+  small-sample-corrected CVs over all rows with weights n − 1, which gives a
+  larger CV. That method is kept as "Pooled CV² across effect sizes (earlier
+  CoMeta method)" to reproduce earlier results; session files that used the
+  pooled CV now get the new estimator. Validation 20 recomputes the pooled CVs
+  in R.
 - Two-level model with shared controls: the mean is now the GLS estimate with
   the full sampling covariance matrix, matching its CR2 standard error.
 - Binary data: the 0.5 continuity correction is also applied to every table
@@ -66,6 +105,43 @@ First public release.
   CI bounds) are no longer offered as moderators.
 - Plot recipes saved with the funnel-plot shade "Gray (dark to light)" still
   load, under the new internal name.
+- The built-in BCG example uses author and year as the study ID, so its 13
+  trials are 13 studies (two Rosenthal et al. and two Comstock et al. trials
+  were merged before) and it reproduces the published estimates.
+- Trim-and-fill reports the number of missing *effect sizes* (it was called
+  "missing studies"), and its text no longer calls agreement with Egger's test
+  "convergent evidence".
+- Leave-one-out refits follow the inference settings of Step 7 (CR2 on or off,
+  t or z); before, they always used CR2 with a t distribution.
+- Cumulative meta-analysis text: confidence intervals of log ratios are
+  back-transformed like the estimate (they were left on the log scale).
+
+### File names
+- Every file is named `<Analysis>_<settings>_<k>ES-<studies>st[_F-<filters>]`
+  (e.g. `Subgroups_meth_95ES-27st_F-hab-mar.xlsx`), ready to upload as
+  supplementary material: the analysis, its moderators and non-default
+  settings, the effect sizes and studies it used, and the Step 3 filters. No
+  timestamp; a repeated name gets `_v2`, `_v3`. A figure and its plot recipe
+  share the name. Names typed in a plot cell still take precedence.
+
+### Publication text and Detailed Statistics
+- Every Detailed Statistics tab ends with a *Data selection (Steps 2–6)*
+  section: records loaded, Step 3 filters (values kept and excluded), records
+  excluded in Steps 4 and 6 with their reasons, imputed SDs, continuity
+  corrections, shared control groups and the analysis data.
+- Step 7 Methods: the Data Preparation paragraph reports the records, filters,
+  exclusions, imputed SDs (only when some were imputed), continuity
+  corrections (only when applied) and shared-control covariances; the
+  inference, heterogeneity (Q, I², multilevel I²) and prediction-interval
+  methods are described with their references; references are numbered in
+  order of citation and uncited ones are left out.
+- Step 7 Results: one I² (the multilevel I² for the three-level model), ΔAIC
+  defined, plain wording of the SD sensitivity check.
+- Subgroups: the test for residual heterogeneity replaces the Q_M + Q_E
+  "partition" (the two use different weights).
+- Wording fixes in Steps 9b, 12, 14, 16, 17, 21 and 24 (test names, k = number
+  of effect sizes, AIC comparison, missing CoMeta reference in Step 16,
+  reference order in Step 24).
 
 ### License
 - Released under the GNU General Public License v3.0 or later (see `LICENSE`).
