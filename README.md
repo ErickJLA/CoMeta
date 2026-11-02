@@ -421,7 +421,12 @@ lnRR scale, so the points and the straight regression line are unchanged; the
 equation box adds the slope as % change per unit of the moderator. Points
 coloured by a moderator can use a colour-blind-safe palette (Okabe-Ito, Paul
 Tol bright, Viridis), Grayscale, Set2 or Dark2 (default Tab10), and each
-category can take a custom colour (colour pickers in the Labels tab).
+category can take a custom colour (colour pickers in the Labels tab). The
+stats box can show the equation (default) or the slope with its CI, p (and the
+bootstrap p when Step 12's bootstrap was run) and the numbers of effect sizes
+and studies; significance stars can be turned off, and custom text can replace
+the box (a button copies the automatic text to edit). The bubble-size legend
+entry can be relabelled (e.g. "Model weight") or hidden.
 
 **Step 14 – Non-Linear Spline Meta-Regression.** Fits a natural cubic spline of
 a continuous moderator (choose the spline df, default 3). A likelihood-ratio
