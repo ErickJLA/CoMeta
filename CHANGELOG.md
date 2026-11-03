@@ -63,7 +63,9 @@ First public release.
   the step's own options) and its key results. Each save downloads a new revision
   (`<project>_project_r012.json`) with a log of the changes. Step 2 (tab
   *Project*) and Step 27 list the saved analyses to restore, rename, annotate or
-  delete; a restored analysis reruns its steps without clicking. Restoring is strict: a saved setting that is not available
+  delete; a restored analysis reruns its steps without clicking (Step 9b waits
+  for *Compute Proportions*), and the saved options of Steps 12–24 are applied
+  once. Opening the same project file twice in a row works. Restoring is strict: a saved setting that is not available
   stops the step with a message instead of running a different analysis. Session
   files of pre-release versions open as a project with one analysis. This
   replaces the session file of Step 27 and the "Download Settings JSON" buttons
@@ -110,6 +112,9 @@ First public release.
   analysis.
 - The control-group column is used only when selected in Step 2. Older session
   files that relied on automatic use of a `control_id` column must select it.
+- The "Stale Results" warning now also appears in Steps 9b, 16, 17, 19, 19b,
+  21 and 24 when Step 7 (or Step 9, for 9b) is run again after them; before,
+  their tabs kept showing the earlier results without a warning.
 - Columns derived from the effect size (e.g. `fold_change`, `Response_Ratio`,
   CI bounds) are no longer offered as moderators.
 - Plot recipes saved with the funnel-plot shade "Gray (dark to light)" still

@@ -645,6 +645,12 @@ analysis ran) are not saved: run the step again first.
    running a different analysis.
 5. Compare the results with the ones stored in the list.
 
+You only run the cells: after a restore, no button needs to be clicked, except
+*Compute Proportions* in Step 9b (its bootstrap can take minutes, so it waits
+for you). The saved options of Steps 12–24 are applied once: if you then choose
+other options and run, re-running the cell keeps your choices. Click
+**↺ Restore** again to replay the saved analysis.
+
 You can then change settings and save new analyses to the same project, or load
 new data in Step 2 and save analyses on it (a new data version is added).
 
@@ -902,6 +908,7 @@ automatic one.
 | A dashboard shows an inner scroll bar, or you prefer one | In Colab each step's output grows to its full height. To get Colab's scrolling back, set `COMETA_FULL_HEIGHT_OUTPUT = False` in Cell 1 (just above `es_null_value`) and re-run Cell 1. |
 | Package versions differ from the tested set (log of Step 27) | Usually harmless; the analysis runs with the installed versions. |
 | A step says an earlier step is missing | Run the steps in order. If you change something in an early step, re-run the following steps. |
+| A yellow *Stale Results Detected* box | An earlier step was run again (e.g. Step 7, or Step 9 for Step 9b) after this one: its results are still the old ones. Run this step again. Out-of-date results cannot be saved to the project. |
 | "'year' column not found" (cumulative analysis) | Add a `year` column to your data. |
 | No map types available | Map latitude/longitude or country in Step 2. |
 | A subgroup is missing from the results | It has fewer papers or observations than the Step 8 thresholds; see the processing log in Step 9. |

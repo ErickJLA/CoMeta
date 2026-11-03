@@ -509,6 +509,20 @@ in Colab, and accepts that people may work on an old revision.
   `project_restore_note_html(step, problems)` (red, nothing runs). Steps 17
   and 21 have no options: they just run. Bootstrap (CWB) is never re-run;
   its p, R and seed are stored in the regression's key results.
+- Follow-up fixes (user's request): (1) stale banners registered in 9b
+  ('meaningful'), 17 ('pub_bias'), 19 ('pet_peese'), 19b ('timelag'), 21
+  ('loo'), 24 ('cumulative'); `ALL_DOWNSTREAM` and Step 7's `mark_stale`
+  list now include 'meaningful', 'meta_forest', 'timelag'; Step 9 marks
+  'meaningful'; Step 16 now calls `clear_stale('meta_forest')`;
+  `PROJECT_STEPS` banners set, so stale results are refused by the banner
+  too. (2) `project_restore_options` returns the options only until
+  `project_restore_note_html(step)` (no problems) sets
+  `_project_restored['options_applied']`. (3) `project_open_widget`
+  empties the upload after reading (`reset_upload`: ipywidgets 8 sets
+  `value = ()`; ipywidgets 7.7.1, Colab's version, has a read-only value
+  rebuilt from `data`/`metadata` when `_counter` changes, so it empties
+  those, then `_counter = 0`; tested in a 7.7.1 venv: same file twice →
+  opened twice, once each).
 - Round trip (fixture → cell path): all 8 later steps reproduce to 1e-6
   except the meta-forest when the first session used the fixture: the
   forest weights use Step 7's T², which differs in the 9th digit between
