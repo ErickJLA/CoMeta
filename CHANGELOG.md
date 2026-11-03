@@ -78,7 +78,12 @@ First public release.
   colour-blind-safe palette by default, and so does the Step 9b dashboard.
   Plot recipes saved earlier load and draw as before.
 - Error messages of Steps 6, 8, 9, 19, 21 and 24 appear in the same red box as
-  in the other steps (they were plain text), with up-to-date wording.
+  in the other steps (they were plain text), with up-to-date wording. Step 8
+  shows one short summary of the data and the candidate moderators instead of
+  a console-style log.
+- Steps 8 and 12 no longer offer `shared_group_id` (the internal key of the
+  shared-control groups) as a moderator, and Step 8 skips columns with a
+  single level.
 - A project file that keeps the work of several days in one file: the data
   (each version once, with a fingerprint) and every analysis saved with
   **💾 Save analysis** (in the *Export & Save* or *Save* tab of every analysis

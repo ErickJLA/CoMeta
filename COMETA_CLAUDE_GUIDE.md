@@ -222,8 +222,10 @@ Other files in the repo:
 - `CONTRIBUTING.md`: the developer guide, with a cell map, the license of
   contributions and the versioning rule.
 - `LICENSE`: GNU GPL v3, the official text from gnu.org (674 lines).
-- `CITATION.cff`: CFF 1.2.0, valid against the official schema. Authors are
-  placeholders for Erick, Karla and Hugo; the `doi:` line is commented out.
+- `CITATION.cff`: CFF 1.2.0, valid against the official schema. Authors:
+  Erick J. Lopez-Arredondo, Karla Y. Ledesma Medina, Hugo V. Perales-Vela
+  (filled in November 2026); affiliation, ORCID and `doi:` lines are
+  commented out until the user adds them.
 - `CHANGELOG.md`: 1.0.0, including "changes that affect results compared
   with pre-release versions". Add an entry for every release.
 
@@ -299,8 +301,14 @@ Changelog" with links to `main`.
    (section 9.6).
 
 **Remaining release steps (the user's)**:
-1. Real names, affiliations and ORCIDs in three places: `CITATION.cff`,
-   `COMETA_AUTHORS` in Cell 1, and the copyright line at the top of Cell 1.
+1. Names are done (`CITATION.cff`, `COMETA_AUTHORS` = "Lopez-Arredondo,
+   E. J., Ledesma Medina, K. Y., & Perales-Vela, H. V.", copyright line of
+   Cell 1). Left: affiliations and ORCIDs in `CITATION.cff`, and the release
+   date (`date-released` and the CHANGELOG `[1.0.0]` heading, both still
+   2026-10-24). Also recommended before going public: move this guide out of
+   the public repository (it describes the user and their paper; the user
+   was told and decides), and replace scikit-learn / pycountry in
+   `REQUIRED_PACKAGES` with Colab's versions after a Colab run.
 2. A Colab run, keeping `cometa_validation_results.json`.
 3. Merge the branch to `main` (the user does it; don't open a PR unless asked).
 4. Enable the Zenodo–GitHub integration **before** creating the release.
