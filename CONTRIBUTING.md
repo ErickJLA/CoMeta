@@ -253,8 +253,11 @@ statistics must not live inside widget callbacks.
   shows `figure_common_box(C)`, draws inside `with figure_style(s):`, and calls
   `apply_axis_ranges(ax, s, ...)` (before `percent_change_axis`) and
   `add_panel_label(fig, s, size)`. `preset_dropdown` starts every cell at
-  `FIGURE_DEFAULT_PRESET` (175 mm); pass the cell's legend-size widget as
-  `'legend'` so presets set it too. New settings must keep old recipes drawing
+  `FIGURE_DEFAULT_PRESET` (full page width). Pass it every size widget of the
+  cell: 'title', 'label', 'tick', 'legend' (lists allowed, e.g. group labels
+  with 'label', annotations with 'legend'), 'points' for marker areas and
+  'markers' for marker sizes in points; otherwise that size stays fixed when
+  the figure gets smaller or larger. New settings must keep old recipes drawing
   as before: read them with `s.get(key, old_default)`.
 - **Project file** (Cell 1, "PROJECT FILE"). `COMETA_PROJECT` is the open
   project: `datasets` (each data version once: canonical CSV, column types,

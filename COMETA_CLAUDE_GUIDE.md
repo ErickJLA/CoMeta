@@ -432,9 +432,21 @@ README, CONTRIBUTING and CHANGELOG wording.
   `is_text_dtype`, `cometa_save_figure`, `show_figure`, `caption_html`.
 - **Shared figure options** (Cell 1, block "SHARED FIGURE OPTIONS", just
   before `cometa_save_figure`; November 2026, user request after a figure
-  review): `FIGURE_DEFAULT_PRESET` ('Generic · full width (175 mm)', applied by
-  `preset_dropdown` at creation; presets also set a 'legend' target to the tick
-  size), `FIGURE_FONT` (kept across Cell 1 re-runs) with
+  review): `FIGURE_DEFAULT_PRESET` ('Full page width (16.5 cm)', applied by
+  `preset_dropdown` at creation). Presets were replaced (user request) by page
+  shares: full page width 6.5×4.6 in 11/10/9 pt, two-thirds 4.33×3.4 9/8/7,
+  half page 3.15×2.7 8/7/6, full page tall 6.5×8.66, slide 13.33×7.5 22/18/16;
+  `fonts_for_width(w)` interpolates these anchors (`_FONT_BY_WIDTH`) for any
+  width. `preset_dropdown(targets)`: 'legend' defaults to the tick size; a
+  target can be a list; 'points' (marker areas, × width ratio) and 'markers'
+  (marker sizes, × √ratio) are scaled relative to the previous width; changing
+  the width by hand sets `fonts_for_width` and rescales markers; while
+  `apply_widget_values` runs (`_COMETA_APPLYING_SETTINGS`) nothing is
+  rescaled, so recipes restore exactly. Orchard: label → label_fs, grp_fs,
+  subtitle_fs; legend → annot_fs, footnote_fs; points pt_size; markers
+  fruit_size. Points targets also in 15 (bubble_base/range), 17, 20, 22
+  (size_scale), 24, 26, 27. Tooltip: `tooltip` (ipywidgets 8) or
+  `description_tooltip` (7). `FIGURE_FONT` (kept across Cell 1 re-runs) with
   `FIGURE_FONT_CHOICES` and `figure_font_name` (Arial → Helvetica / Liberation
   Sans / Arimo …; Times → Liberation Serif / Tinos …; else DejaVu Sans),
   `figure_style(s)` (rc_context with the concrete font name, so saving outside
@@ -584,7 +596,7 @@ in Colab, and accepts that people may work on an old revision.
 - **Expected baseline for the full suite on the fixture** (section 9.4):
   - 21 validations record results, all PASS (V6 and V8 SKIP when the
     reference checkbox is off).
-  - Unit tests: 90 passed.
+  - Unit tests: 91 passed.
   - V28 passes (84/84 on the fixture, about 6.5 min; 186/186 with the
     reference datasets).
   - Cell 54 (V22) fails with "Baujat cell not found" because the harness
@@ -619,7 +631,7 @@ in Colab, and accepts that people may work on an old revision.
   (cell 34) defines its own `PRESETS` (Monte Carlo settings). The figure-size
   presets are therefore `FIGURE_SIZE_PRESETS` (Cell 1, used by
   `preset_dropdown`). Before adding a module-level name, grep all cells for it.
-- **Figure presets**: Generic (85/120/175 mm), Elsevier (90/140/190 mm),
+- **Figure presets** (replaced in November 2026 by page shares, see 4.4; this note is history): Generic (85/120/175 mm), Elsevier (90/140/190 mm),
   Nature (89/183 mm, fonts 5–7 pt, height ≤ 170 mm), PLOS (≤ 190.5 mm, fonts
   8–12 pt), thesis, slide. These were checked against the publishers' artwork
   pages in October 2026. The user replaced the old Cell Press / STAR Protocols

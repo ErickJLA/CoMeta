@@ -56,8 +56,13 @@ First public release.
   palettes and grayscale for Color By, and a custom colour per category; its
   stats box can show the slope with CI, p, bootstrap p and k, without stars,
   or custom text, and the bubble legend can be relabelled or hidden.
-- Figures: every plot cell starts at a journal page width (175 mm) with the
-  font sizes as printed, and legends at the tick size. New in every plot cell:
+- Figures: size presets are shares of a page (full page width, two-thirds,
+  half page or one column, full page tall, 16:9 slide) instead of
+  publisher-specific sizes; each sets every font of the plot to sizes
+  balanced for that size (smaller figures get smaller text, slides larger)
+  and scales marker and bubble sizes with the width. Changing the width by
+  hand rebalances the fonts and markers too. Every plot cell starts at the
+  full page width. New in every plot cell:
   a panel letter, one font choice for all figures (Arial and Times New Roman
   fall back to the metric-compatible Liberation fonts when missing) and manual
   axis ranges; PDF/EPS text stays editable (TrueType). Percent-change axis for
@@ -90,7 +95,7 @@ First public release.
 ### Validation
 - 28 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
   the user's own analysis, with optional reference datasets. They also include
-  90 unit tests. R packages are pinned to a dated CRAN snapshot.
+  91 unit tests. R packages are pinned to a dated CRAN snapshot.
 - Validation 27 checks the proportion of meaningful effects on simulated
   three-level data (bias and CI coverage, with Quick / Standard / Publication
   presets).

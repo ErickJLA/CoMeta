@@ -881,16 +881,28 @@ Built-in example datasets:
   Every plot can be customized (size, fonts, colours, labels, axis limits) and
   saved as PDF, PNG
   (adjustable DPI) and SVG, with an optional transparent background. Each plot
-  cell has a **figure size preset** and generates a figure caption. The
-  presets set the width, height and font sizes at printed size:
-  - **Generic** 1 column (85 mm), 1.5 columns (120 mm) and full width (175 mm),
-    which fit most journals;
-  - the exact column widths of **Elsevier** (90, 140, 190 mm), **Nature** (89,
-    183 mm) and **PLOS** (190 mm);
-  - a thesis page and a 16:9 presentation slide.
-  Every plot cell starts with **Generic · full width (175 mm)**, so the font
-  sizes are the printed sizes; legend and small labels take the tick size.
-  Check your target journal's instructions, which take precedence.
+  cell has a **size preset** (📏 Size) and generates a figure caption. The
+  presets are shares of a page (the text width of an A4 or Letter page is about
+  16.5 cm); a journal's single column is close to half a page and its full
+  width close to a full page:
+
+  | Preset | Size | Title / axis labels / ticks |
+  |---|---|---|
+  | Full page width (the default) | 16.5 × 11.7 cm | 11 / 10 / 9 pt |
+  | Two-thirds of the page | 11 × 8.6 cm | 9 / 8 / 7 pt |
+  | Half page or one column | 8 × 6.9 cm | 8 / 7 / 6 pt |
+  | Full page, tall | 16.5 × 22 cm | 11 / 10 / 9 pt |
+  | Presentation slide (16:9) | 33.9 × 19 cm | 22 / 18 / 16 pt |
+
+  Font sizes are the printed sizes, balanced for each size: smaller figures
+  get smaller text (6 pt ticks at half a page, the smallest size most journals
+  accept), slides larger text. Every font of the plot follows the preset
+  (legends, annotations, group labels and footnotes take the tick or label
+  size), and so do marker and bubble sizes, in proportion to the width. If you
+  change the width by hand, the fonts move to the balanced sizes for that width
+  and the markers are rescaled; a font you change after that is kept. Settings
+  loaded from a plot recipe are not changed. Check your target journal's
+  instructions, which take precedence.
 - **Options in every plot cell** (except the map):
   - **Font (all figures)**: DejaVu Sans (matplotlib's default), Arial /
     Helvetica or Times New Roman. The choice applies to every figure drawn
