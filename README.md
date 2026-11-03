@@ -278,9 +278,8 @@ Results are shown in tabs:
 - *Model Selection*: likelihood-ratio test and AIC comparing the nested
   variance structures. This is for information; the model you chose is the one
   reported.
-- *Settings*, *Publication Text* and *Export* (Excel audit report).
-- **💾 Save analysis** (below the tabs) adds this analysis to the project file
-  (Section 4).
+- *Settings*, *Publication Text* and *Export & Save*: **💾 Save analysis** adds
+  this analysis to the project file (Section 4); the Excel audit report.
 
 ### Moderator analyses
 
@@ -324,10 +323,9 @@ groups differ (cluster-robust omnibus test, approximate Hotelling's T², AHZ).
   components are equal. Report the model you choose and the other as a
   sensitivity analysis; the check is in the dashboard, Detailed Statistics,
   the publication text and the Excel report.
-- *Processing Log*, *Configuration*, *Publication Text* and *Export* (Excel
-  report).
-- **💾 Save analysis** (below the tabs) adds this analysis to the project file
-  (Section 4).
+- *Processing Log*, *Configuration*, *Publication Text* and *Export & Save*:
+  **💾 Save analysis** adds this analysis to the project file (Section 4); the
+  Excel report.
 
 **Step 9b – Proportion of Meaningful Effects.** The pooled mean says how large
 the effect is on average; with heterogeneity, the true effects of individual
@@ -361,7 +359,8 @@ decreases** and **negligible** (Mathur & VanderWeele 2019, 2020):
   intervals). A progress bar shows the time left.
 
 The results come as a dashboard, a **🔢 Detailed Statistics** tab, publication
-text, a CSV export and a figure. The dashboard explains the shares in plain
+text, a CSV export and a figure; the *💾 Export & Save* tab also has the
+**💾 Save analysis** bar (Section 4). The dashboard explains the shares in plain
 words. It shows stacked bars for every group (calibrated and parametric), the
 distribution of true effects with the thresholds marked, and the overall shares
 with their confidence intervals. It also gives warnings for exploratory runs,
@@ -614,7 +613,8 @@ A **project file** (`.json`) keeps your work across days in one file:
   (e.g. the pooled effect with its CI, or each subgroup's estimate);
 - a **log** of what changed in each revision.
 
-**Saving.** Steps 7, 9 and 9b have a **💾 Save analysis** bar below their tabs.
+**Saving.** Steps 7, 9 and 9b have a **💾 Save analysis** bar in their
+*💾 Export & Save* tab.
 Type a name (and, if you like, a note), then click *Save analysis & download
 project*. The analysis is added to the open project and the whole project is
 downloaded as a new revision, `<project>_project_r012.json`: the newest file is

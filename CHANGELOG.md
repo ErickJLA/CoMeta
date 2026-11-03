@@ -58,7 +58,7 @@ First public release.
   or custom text, and the bubble legend can be relabelled or hidden.
 - A project file that keeps the work of several days in one file: the data
   (each version once, with a fingerprint) and every analysis saved with
-  **💾 Save analysis** (Steps 7, 9 and 9b), with its name, a note, all its
+  **💾 Save analysis** (tab *Export & Save* of Steps 7, 9 and 9b), with its name, a note, all its
   settings (Steps 2–9b) and its key results. Each save downloads a new revision
   (`<project>_project_r012.json`) with a log of the changes. Step 2 (tab
   *Project*) and Step 27 list the saved analyses to restore, rename, annotate or

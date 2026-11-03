@@ -473,8 +473,10 @@ in Colab, and accepts that people may work on an old revision.
 - The stored data is `raw_data_standardized` (Step 2 output, **before** the
   Step 3 filters), so analyses on different subsets share one data version.
   (The old session file stored `clean_dataframe`, i.e. the filtered rows.)
-- Save bars: Step 7 (after the tabs), Step 9 (after `controller.run_analysis()`),
-  Step 9b (after its tabs). The "Download Settings JSON" buttons are gone.
+- Save bars: at the top of the "💾 Export & Save" tab (renamed from "💾 Export"
+  at the user's request) of Step 7 and Step 9 (`render_export_tab`, so a new
+  bar after every run) and Step 9b (built with the tabs). The "Download
+  Settings JSON" buttons are gone.
 - Strict restore: Steps 3 (missing filter / common-row-set column), 5 (effect
   size), 7 (`set_silent` collects `not_restored`; the model is not fitted),
   8 (analysis type / moderators) and 9b (`apply_widget_values` skipped names)
