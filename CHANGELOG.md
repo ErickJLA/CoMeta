@@ -75,8 +75,10 @@ First public release.
   notation; the spline plot sizes points by weight and gives p with 3
   decimals; the cumulative plot's legend no longer covers the curves and it
   can be saved with a transparent background; the Step 9b plot uses a
-  colour-blind-safe palette by default. Plot recipes saved earlier load and
-  draw as before.
+  colour-blind-safe palette by default, and so does the Step 9b dashboard.
+  Plot recipes saved earlier load and draw as before.
+- Error messages of Steps 6, 8, 9, 19, 21 and 24 appear in the same red box as
+  in the other steps (they were plain text), with up-to-date wording.
 - A project file that keeps the work of several days in one file: the data
   (each version once, with a fingerprint) and every analysis saved with
   **💾 Save analysis** (in the *Export & Save* or *Save* tab of every analysis

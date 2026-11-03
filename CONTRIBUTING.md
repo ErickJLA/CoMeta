@@ -289,6 +289,9 @@ statistics must not live inside widget callbacks.
 
 ### 2.7 Messages and warnings
 
+- An error that stops a step is shown with `cometa_error(message, title=None)`
+  (Cell 1): the red box every step uses. Say what to do ("run Step 4 (Data
+  Cleaning) first"), not only what went wrong.
 - `warnings.warn("…")` is the way to tell the user something about their
   results (e.g. a fallback was used). The router in Cell 1 shows CoMeta's
   own messages once, compactly, and keeps every warning (CoMeta's and the

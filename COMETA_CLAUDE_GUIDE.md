@@ -428,6 +428,12 @@ README, CONTRIBUTING and CHANGELOG wording.
   `on_load`.**
 - Staleness: `results_token(key)`, `stale_warning_html(step)`,
   `register_banner(module_id, widget)`.
+- `cometa_error(message, title=None)`: the red error box (since the last
+  pass of November 2026 no step prints "❌ ERROR" as plain text).
+  `load_reproducibility_config` was removed (dead since the project file);
+  `export_config_for_reproducibility` stays (project settings and the V11
+  test use it). The Step 9b dashboard colours (`_ME_COLORS`, Cell 11) are
+  Okabe-Ito like its plot.
 - `make_json_safe`, `ci_pct_label(alpha)`, `_alpha()`, `es_null_value()`,
   `is_text_dtype`, `cometa_save_figure`, `show_figure`, `caption_html`.
 - **Shared figure options** (Cell 1, block "SHARED FIGURE OPTIONS", just
