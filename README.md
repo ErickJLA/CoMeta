@@ -360,7 +360,9 @@ decreases** and **negligible** (Mathur & VanderWeele 2019, 2020):
 
 The results come as a dashboard, a **🔢 Detailed Statistics** tab, publication
 text, a CSV export and a figure; the *💾 Export & Save* tab also has the
-**💾 Save analysis** bar (Section 4). The dashboard explains the shares in plain
+**💾 Save analysis** bar (Section 4). The figure's colours start from a
+colour-blind-safe scheme (orange / grey / blue, Okabe-Ito); red / grey / green
+and grayscale are also offered, and each colour can be picked. The dashboard explains the shares in plain
 words. It shows stacked bars for every group (calibrated and parametric), the
 distribution of true effects with the thresholds marked, and the overall shares
 with their confidence intervals. It also gives warnings for exploratory runs,
@@ -387,7 +389,9 @@ subgroup on its own), and can hide the Overall row. In its Labels tab each
 group also has a colour picker that overrides the colour scheme for that
 group (↺ goes back to the scheme). For lnRR, the orchard
 plot's effect axis can be labelled in percent change (Axes & Grid tab), as in
-Step 13; the estimate and CI annotations are then in percent change too.
+Step 13; the estimate and CI annotations are then in percent change too. The
+forest plot offers the same percent-change axis (Axes tab), next to its
+fold-change axis.
 
 **Step 12 – Meta-Regression.** Choose one or more moderators. For each, choose
 whether it is continuous or categorical and, for categorical ones, the
@@ -466,7 +470,9 @@ and the cluster-robust omnibus test (AHZ) shows whether the moderator matters at
 **Step 15** plots the fitted curve
 with its confidence band and the non-linearity test. With adjustment
 moderators, it plots the adjusted points and the caption says where the curve
-is drawn.
+is drawn. Points are sized by their weight in the model, 1/(vᵢ + τ² + σ²), as in
+the bubble plot (can be switched off); for lnRR the y-axis can be labelled in
+percent change.
 
 **Step 16 – Exploratory Meta-Forest.** A random forest that ranks many
 moderators by their importance, with cross-validation by study. Use it to
@@ -496,7 +502,9 @@ numeric column whose ranks match the effect size exactly.
 - Also has publication text and an Excel report.
 
 **Step 18 – Trim-and-Fill Plot.** Funnel plot with observed and imputed effect
-sizes, pseudo-confidence guides and the original and adjusted means.
+sizes, pseudo-confidence guides and the original and adjusted means. The
+legend says what the pseudo-confidence funnel is centred on (the mirror axis of
+the imputation by default, or the adjusted or original estimate).
 
 **Step 19 – PET-PEESE.** Precision-effect test and precision-effect estimate
 with standard error (Stanley & Doucouliagos 2014), fitted as multilevel
@@ -547,7 +555,10 @@ them.
 **Step 20 – Funnel Plot.** Contour-enhanced funnel plot: shaded significance
 regions (p ≤ 0.10, 0.05, 0.01) around the no-effect value, an optional
 pseudo-confidence region around the pooled effect, optional colouring by a
-moderator and the result of Egger's test from Step 17.
+moderator and the result of Egger's test from Step 17. With the significance
+regions shown, the pseudo-confidence region is drawn as dashed lines only
+(filling it on top of the shaded regions would make extra stripes); without
+them it is filled.
 
 ### Sensitivity analyses
 
@@ -560,7 +571,10 @@ changes the conclusion (the CI crossing no effect), and whether one study
 drives the heterogeneity. Each refit uses the three-level model with the
 inference settings of Step 7 (CR2 on or off, t or z). **🔢 Detailed Statistics** lists the model with all
 studies and every refit (estimate, SE, df, CI, p, shift, τ², σ²). **Step 22** plots the results (sorted by effect, by influence or
-by study ID, with significance changers highlighted).
+by study ID, with significance changers highlighted). The no-effect line is
+drawn when it lies near the estimates (or inside a manual x-axis range); far
+away, it would squeeze the estimates into a corner. For lnRR the x-axis can be
+labelled in percent change.
 
 **Step 23 – Baujat Plot.** Each study's contribution to heterogeneity (Q)
 against its influence on the pooled effect, (μ − μ₋ᵢ)²/SE²₋ᵢ (Baujat et al.,
@@ -583,7 +597,9 @@ and says whether the estimate has stabilized (less than 10% change over the
 last five steps). **🔢 Detailed Statistics** lists the settings, a summary and
 every step (estimate, SE, df, CI, τ², σ², I², inference). **Step 26 –
 Cumulative Trends** plots the cumulative effect with its confidence band and,
-optionally, the I² trajectory on a second axis.
+optionally, the I² trajectory on a second axis. The legend sits below the
+plot by default (or inside, at a corner you choose); for lnRR the effect axis
+can be labelled in percent change.
 
 **Step 25 – Geographic Distribution.** Interactive world map of the studies.
 Bubble map from coordinates, choropleth by country, or both side by side. You
@@ -872,7 +888,31 @@ Built-in example datasets:
   - the exact column widths of **Elsevier** (90, 140, 190 mm), **Nature** (89,
     183 mm) and **PLOS** (190 mm);
   - a thesis page and a 16:9 presentation slide.
-  Check your target journal's instructions, which take precedence. The map is saved as an interactive HTML file
+  Every plot cell starts with **Generic · full width (175 mm)**, so the font
+  sizes are the printed sizes; legend and small labels take the tick size.
+  Check your target journal's instructions, which take precedence.
+- **Options in every plot cell** (except the map):
+  - **Font (all figures)**: DejaVu Sans (matplotlib's default), Arial /
+    Helvetica or Times New Roman. The choice applies to every figure drawn
+    afterwards. When Arial or Times New Roman is not installed (as in Colab),
+    the figure uses Liberation Sans or Liberation Serif, which have the same
+    letter widths, and the cell says so. The orchard plot's own font list
+    follows the same choice.
+  - **Panel label**: a bold letter (A, B, …) at the top-left corner, for
+    multi-panel figures.
+  - **Axis ranges**: untick *Automatic X-axis range* (or Y) to type the
+    limits, e.g. to give several panels the same scale (bubble, spline,
+    leave-one-out, cumulative, funnel, time-lag and Baujat plots; the forest,
+    orchard and trim-and-fill plots have their own range settings). The boxes
+    start from the range of the last figure drawn.
+  - **Percent-change axis** for lnRR: forest, orchard, bubble, spline,
+    leave-one-out, cumulative and time-lag plots. The data stay on the lnRR
+    scale; round percentages are placed at their lnRR positions, with evenly
+    spaced ones when the range is narrow.
+  - PDF and EPS files keep the text as editable TrueType text (font type 42),
+    which journals ask for.
+  These settings are saved in plot recipes; recipes saved before they existed
+  load and redraw as before. The map is saved as an interactive HTML file
   (PNG/PDF/SVG too if the `kaleido` package is installed). In Colab, saved files
   appear in the *Files* panel on the left.
 - **Project file** and **plot recipes** for reproducibility (Section 4).

@@ -247,7 +247,15 @@ statistics must not live inside widget callbacks.
   `results_token(key)` notices when the analysis was re-run after the plot
   (`stale_warning_html`). `plot_recipe_bar` / `build_plot_recipe` save a
   figure's data and settings in a small file, so the figure can be redrawn
-  exactly without the analysis.
+  exactly without the analysis. Every plot cell also adds
+  `figure_common_controls()` to its settings (panel label, the font of all
+  figures, optional manual axis ranges and the lnRR percent-change checkbox),
+  shows `figure_common_box(C)`, draws inside `with figure_style(s):`, and calls
+  `apply_axis_ranges(ax, s, ...)` (before `percent_change_axis`) and
+  `add_panel_label(fig, s, size)`. `preset_dropdown` starts every cell at
+  `FIGURE_DEFAULT_PRESET` (175 mm); pass the cell's legend-size widget as
+  `'legend'` so presets set it too. New settings must keep old recipes drawing
+  as before: read them with `s.get(key, old_default)`.
 - **Project file** (Cell 1, "PROJECT FILE"). `COMETA_PROJECT` is the open
   project: `datasets` (each data version once: canonical CSV, column types,
   12-hex SHA-256 fingerprint `id`, label `v1`, `v2`, …), `analyses` (name,

@@ -430,6 +430,35 @@ README, CONTRIBUTING and CHANGELOG wording.
   `register_banner(module_id, widget)`.
 - `make_json_safe`, `ci_pct_label(alpha)`, `_alpha()`, `es_null_value()`,
   `is_text_dtype`, `cometa_save_figure`, `show_figure`, `caption_html`.
+- **Shared figure options** (Cell 1, block "SHARED FIGURE OPTIONS", just
+  before `cometa_save_figure`; November 2026, user request after a figure
+  review): `FIGURE_DEFAULT_PRESET` ('Generic · full width (175 mm)', applied by
+  `preset_dropdown` at creation; presets also set a 'legend' target to the tick
+  size), `FIGURE_FONT` (kept across Cell 1 re-runs) with
+  `FIGURE_FONT_CHOICES` and `figure_font_name` (Arial → Helvetica / Liberation
+  Sans / Arimo …; Times → Liberation Serif / Tinos …; else DejaVu Sans),
+  `figure_style(s)` (rc_context with the concrete font name, so saving outside
+  the context keeps it), `figure_common_controls(limits, percent)` →
+  'panel', 'figure_font', '<a>_range_auto/_min/_max', 'percent_axis';
+  `figure_common_box(C, limits)`, `apply_axis_ranges(ax, s, axes, C)` (keeps
+  inverted axes inverted; with an automatic range it copies the drawn range
+  into C's boxes), `add_panel_label`, `link_percent_label`. `pdf.fonttype` /
+  `ps.fonttype` = 42. `percent_change_axis` falls back to MaxNLocator ticks
+  when fewer than 3 round ones fit. Wired into cells 11, 12, 13 (panel only;
+  its own font list now uses figure_font_name and sets FIGURE_FONT), 15, 17,
+  20, 22 (time-lag: `self.c`), 24, 26, 27, 30. Per-plot fixes: LOO
+  `null_drawn` (null within a quarter of the CI span, or inside a manual
+  range) and x ticks 'bottom' only; funnel fills the pseudo-CI region only
+  without contours, legend 'outside', label 'p > 0.10'; trim-and-fill legend
+  "(centred on …)", legend 'outside'; bubble `plain()` (no e-notation) and
+  p (slope) with 3 decimals; spline `pts['w']` + `size_by_weight` (old
+  recipes have no 'w' → equal sizes), `_fmt_p` 3 decimals; cumulative
+  `legend_loc` ('below' via ScaledTranslation under the x label; old recipes:
+  upper left) and `transparent`; 9b `palette` (okabe_ito default; key placed
+  before the colour pickers so recipes restore in the right order). Recipes
+  saved with the previous version were loaded headless: all 11 draw. Not done
+  (the user may ask later): estimate [CI] column and PI in the forest plot,
+  a study-level forest plot, a shared house style.
 - Percent-change axis for lnRR plots (just before `cometa_save_figure`):
   `es_is_lnrr(es)`, `percent_change(lnrr)` = 100(e^x − 1),
   `fmt_percent_change(p, digits, fixed)`, `percent_change_axis(ax, 'x'|'y')`
@@ -555,7 +584,7 @@ in Colab, and accepts that people may work on an old revision.
 - **Expected baseline for the full suite on the fixture** (section 9.4):
   - 21 validations record results, all PASS (V6 and V8 SKIP when the
     reference checkbox is off).
-  - Unit tests: 89 passed.
+  - Unit tests: 90 passed.
   - V28 passes (84/84 on the fixture, about 6.5 min; 186/186 with the
     reference datasets).
   - Cell 54 (V22) fails with "Baujat cell not found" because the harness
