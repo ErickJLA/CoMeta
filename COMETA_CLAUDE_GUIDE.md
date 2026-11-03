@@ -285,7 +285,8 @@ These constants feed:
   because the user must act on them.
 
 **GPL notice**: the top of Cell 1 carries the standard GPL "or any later
-version" notice, with a copyright line using the author placeholders.
+version" notice, with the copyright line "Copyright (C) 2026 Erick J. Lopez-Arredondo,
+Karla Y. Ledesma Medina, Hugo V. Perales-Vela".
 
 **First (markdown) cell**: the Colab badge (points to
 `blob/main/CoMeta.ipynb`), then one line: "CoMeta 1.0.0 · GPL · How to cite ·
