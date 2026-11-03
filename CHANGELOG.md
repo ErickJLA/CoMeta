@@ -58,12 +58,12 @@ First public release.
   or custom text, and the bubble legend can be relabelled or hidden.
 - A project file that keeps the work of several days in one file: the data
   (each version once, with a fingerprint) and every analysis saved with
-  **💾 Save analysis** (tab *Export & Save* of Steps 7, 9 and 9b), with its name, a note, all its
-  settings (Steps 2–9b) and its key results. Each save downloads a new revision
+  **💾 Save analysis** (in the *Export & Save* or *Save* tab of every analysis
+  step, 7 to 24), with its name, a note, all its settings (Steps 2–7, plus
+  the step's own options) and its key results. Each save downloads a new revision
   (`<project>_project_r012.json`) with a log of the changes. Step 2 (tab
   *Project*) and Step 27 list the saved analyses to restore, rename, annotate or
-  delete; a restored analysis reruns Steps 3–9 without clicking (Step 12 onward
-  is not saved yet). Restoring is strict: a saved setting that is not available
+  delete; a restored analysis reruns its steps without clicking. Restoring is strict: a saved setting that is not available
   stops the step with a message instead of running a different analysis. Session
   files of pre-release versions open as a project with one analysis. This
   replaces the session file of Step 27 and the "Download Settings JSON" buttons
@@ -72,7 +72,7 @@ First public release.
 ### Validation
 - 28 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
   the user's own analysis, with optional reference datasets. They also include
-  88 unit tests. R packages are pinned to a dated CRAN snapshot.
+  89 unit tests. R packages are pinned to a dated CRAN snapshot.
 - Validation 27 checks the proportion of meaningful effects on simulated
   three-level data (bias and CI coverage, with Quick / Standard / Publication
   presets).

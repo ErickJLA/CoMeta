@@ -488,8 +488,35 @@ in Colab, and accepts that people may work on an old revision.
   9b) → open → restore → rerun → key results equal to 1e-6 (the fixture
   path and the cell path differ by ~1e-9 from the optimiser); also the
   Konstantopoulos pre-calculated example.
-- Agreed phases: (1) done; (2) data versions — done with phase 1;
-  (3) save/restore for Steps 12–24; (4) "Export for publication" (tick
+- **Steps 12–24 (phase 3, done)**: `PROJECT_STEPS` also has `regression`,
+  `spline`, `meta_forest`, `pub_bias` (result key `trimfill_results`, needs
+  `funnel_results` too), `pet_peese`, `timelag`, `loo`, `cumulative`
+  (`cumulative_metadata`); they drop subgroup/9b settings and keep their
+  own options in `analysis['options']` (`project_step_options`, from the
+  results; Step 12 now stores `meta_regression_RVE_results['selection']`,
+  Step 16 `meta_forest_results['features']`). Key results: `_pr_<step>`
+  functions in `_PROJECT_LATER_RESULTS`; text `_project_later_text`,
+  options text `_project_options_text`. Stale check: the result's
+  `timestamp` older than `overall_results['timestamp']` → refused (plus the
+  stale banners of 12, 14, 16). `project_settings` also drops every key
+  ending in `_results`, `_text`, `_metadata` (spline_text etc. had leaked
+  into settings: 117 KB → 25 KB for 8 analyses). Save tab: wrapped
+  `VBox([project_save_bar(step), tab_export])` ("💾 Export & Save") in
+  12, 14, 17, 19b, 24; a new "💾 Save" tab in 16, 19, 21. Each cell, after
+  building its UI, calls `project_restore_options(step)`; if not None, a
+  `restore_and_run(opts)` checks the options against its widgets
+  (`project_widget_values`) and runs, or shows
+  `project_restore_note_html(step, problems)` (red, nothing runs). Steps 17
+  and 21 have no options: they just run. Bootstrap (CWB) is never re-run;
+  its p, R and seed are stored in the regression's key results.
+- Round trip (fixture → cell path): all 8 later steps reproduce to 1e-6
+  except the meta-forest when the first session used the fixture: the
+  forest weights use Step 7's T², which differs in the 9th digit between
+  the fixture path and the cell path, and the OOB R² moves in the 3rd
+  digit. Cell path → cell path is identical (checked in two sessions).
+  The forest is that sensitive to tiny numerical differences; tell the user
+  if a Verify cell is built (looser tolerance for the meta-forest).
+- Agreed phases: (1)–(3) done; (4) "Export for publication" (tick
   analyses, readable table) and a Verify cell that reruns every saved
   analysis and compares with the stored key results.
 
@@ -514,7 +541,7 @@ in Colab, and accepts that people may work on an old revision.
 - **Expected baseline for the full suite on the fixture** (section 9.4):
   - 21 validations record results, all PASS (V6 and V8 SKIP when the
     reference checkbox is off).
-  - Unit tests: 88 passed.
+  - Unit tests: 89 passed.
   - V28 passes (84/84 on the fixture, about 6.5 min; 186/186 with the
     reference datasets).
   - Cell 54 (V22) fails with "Baujat cell not found" because the harness
@@ -638,9 +665,8 @@ in Colab, and accepts that people may work on an old revision.
   5. Further spline options: several spline moderators added together, or a
      spline × factor interaction. They need many studies; option 1
      (adjustment) is done.
-  6. Project file (section 4.5): analyses of Step 12 onward can't be saved
-     yet (phase 3 of the agreed plan); then an "Export for publication"
-     table and a Verify cell (phase 4).
+  6. Project file (section 4.5): phase 4 left — an "Export for
+     publication" table and a Verify cell.
   7. Remove dead code and narrow the broad `except Exception` handlers in
      statistical code; add MEE figure-size presets.
   8. **Capture cell for overall analyses** (discussed with the user, not

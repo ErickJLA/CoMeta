@@ -412,7 +412,7 @@ reference level. Click **Run Meta-Regression**.
   and runs cluster wild bootstrap tests (Joshi et al. 2022) for them or for
   all tests; the results join the Detailed Statistics, the publication text
   and the Excel report (see *Statistical methods*).
-- *Publication Text* and *Export* (Excel report).
+- *Publication Text* and *Export & Save* (**💾 Save analysis**, Excel report).
 
 **Step 13 – Meta-Regression: Visualization.** Bubble plot of the effect against
 a continuous moderator of the model (choose which one for the x-axis), with the
@@ -610,11 +610,17 @@ A **project file** (`.json`) keeps your work across days in one file:
   the settings that produced it (column mapping, filters and common row set,
   effect size, bias correction and SD handling, the overall-model settings, and
   for subgroups and meaningful effects their configuration) and its key results
-  (e.g. the pooled effect with its CI, or each subgroup's estimate);
+  (e.g. the pooled effect with its CI, or each subgroup's estimate). For Steps
+  12–24 the step's own options are kept too (moderators, types and reference
+  levels; spline moderator, df and adjustments; meta-forest moderators;
+  PET-PEESE threshold and precision term; time-lag precision term; cumulative
+  aggregation and order);
 - a **log** of what changed in each revision.
 
-**Saving.** Steps 7, 9 and 9b have a **💾 Save analysis** bar in their
-*💾 Export & Save* tab.
+**Saving.** Every analysis step has a **💾 Save analysis** bar: Steps 7, 9, 9b,
+12 (meta-regression), 14 (spline), 17 (Egger and trim-and-fill), 19b (time-lag)
+and 24 (cumulative) in their *💾 Export & Save* tab; Steps 16 (meta-forest),
+19 (PET-PEESE) and 21 (leave-one-out) in a *💾 Save* tab.
 Type a name (and, if you like, a note), then click *Save analysis & download
 project*. The analysis is added to the open project and the whole project is
 downloaded as a new revision, `<project>_project_r012.json`: the newest file is
@@ -630,10 +636,13 @@ analysis ran) are not saved: run the step again first.
    saved analysis with its result and settings.
 3. Click **↺ Restore** on the analysis you want. Its data and settings become the
    current session.
-4. Run the cells in order from Step 3. Each step restores its settings and runs
-   with no clicking needed (in Step 9b, click *Compute Proportions*). If a saved
-   setting is not available (for example, a filter column that is not in the
-   data), the step stops and says so instead of running a different analysis.
+4. Run the cells in order from Step 3 up to the analysis' step (the restore
+   message says which). For an analysis of Step 12 onward, run Steps 3–7, then
+   that step, skipping the steps in between. Each step restores its settings
+   and runs with no clicking needed (in Step 9b, click *Compute Proportions*).
+   If a saved setting is not available (for example, a filter column or a
+   moderator that is not in the data), the step stops and says so instead of
+   running a different analysis.
 5. Compare the results with the ones stored in the list.
 
 You can then change settings and save new analyses to the same project, or load
@@ -650,10 +659,11 @@ reported analyses: one file instead of one per analysis. Reviewers and
 co-authors open it in Step 2 with the notebook link. Session files saved by
 earlier versions open as a project with one analysis.
 
-**Not saved yet.** Analyses of Step 12 onward (meta-regression, splines,
-publication bias, sensitivity and complementary analyses): select their options
-again after a restore. Their settings are listed in each step's Detailed
-Statistics tab and Excel report.
+**Not saved.** Bootstrap runs are not repeated by a restore: the wild cluster
+bootstrap p-values of Step 12 are stored with the analysis (with their seed and
+number of replications), so run the bootstrap panel again with the same seed to
+check them. Plots are saved with plot recipes (below), and the summaries of
+Steps 19c, 23, 25 and 26 are redrawn from the analyses they show.
 
 ### Plot recipes (one file per figure)
 

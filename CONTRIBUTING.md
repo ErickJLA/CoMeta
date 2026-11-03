@@ -85,7 +85,7 @@ Step 7  Overall model       → ['global_settings'] (inference choices used by e
                               ['overall_results'], ['overall_text']
 Steps 8–26  Analyses        → read analysis_data + vcv_matrices + global_settings,
                               write '<analysis>_results' and '<analysis>_text'
-Steps 7, 9, 9b "Save analysis" → project file (data versions + named analyses:
+Steps 7–24 "Save analysis" → project file (data versions + named analyses:
                               settings, key results; no full results)
 ```
 
@@ -256,7 +256,7 @@ statistics must not live inside widget callbacks.
   `project_settings` takes the settings from `export_config_for_reproducibility`
   (which skips the results listed in `RESULT_KEYS`) and drops later steps'
   settings the analysis does not use (`PROJECT_STEPS[step]['drop']`).
-  `project_save_bar(step)` (Steps 7, 9, 9b) adds an analysis and downloads a new
+  `project_save_bar(step)` (save tab of Steps 7–24) adds an analysis and downloads a new
   revision (`project_commit`); `project_manager_widget()` (Steps 2 and 27)
   renames, annotates, deletes and restores. `project_restore` puts the data and
   settings in `ANALYSIS_CONFIG` with `is_reproducing = True`; Steps 3–9b then
@@ -264,9 +264,17 @@ statistics must not live inside widget callbacks.
   not available stops the step with a red "Reproducibility Mode stopped"
   message instead of falling back to a default. Running the cells recomputes
   the results; they are never loaded from the file. Old session files open
-  through `_project_from_session`. To save a new kind of analysis, add it to
-  `PROJECT_STEPS`, `project_key_results` and `project_results_text`, and make
-  its step restore its settings in Reproducibility Mode.
+  through `_project_from_session`. Steps 12–24 keep their own options in
+  `analysis['options']` (`project_step_options`, read from the step's results;
+  Step 12 stores its selection in `meta_regression_RVE_results['selection']`).
+  On restore, `project_restore_options(step)` returns them only for the
+  restored step; the cell checks them against its widgets
+  (`project_widget_values`), shows `project_restore_note_html` and runs, or
+  stops. To save a new kind of analysis: add it to `PROJECT_STEPS`, write its
+  `_pr_<step>` key-results function, its text in `_project_later_text` and
+  its options in `project_step_options` / `_project_options_text`, put
+  `project_save_bar('<step>')` in its tabs and a `restore_and_run` in its
+  cell.
 
 ### 2.7 Messages and warnings
 
