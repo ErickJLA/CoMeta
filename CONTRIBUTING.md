@@ -16,7 +16,7 @@ license. A fork you distribute must keep the license and make its source code
 available. When you change results, add an entry to
 [CHANGELOG.md](CHANGELOG.md) and raise the version in three places (`COMETA_VERSION` in Cell 1, the first
 notebook cell and `CITATION.cff`): MAJOR for
-changes that alter results or break saved sessions, MINOR for new features,
+changes that alter results or break saved project files, MINOR for new features,
 PATCH for fixes.
 
 ---

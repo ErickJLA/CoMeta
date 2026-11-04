@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to CoMeta. Versions follow [semantic versioning](https://semver.org/):
-MAJOR for changes that alter results or break saved sessions, MINOR for new
+MAJOR for changes that alter results or break saved project files, MINOR for new
 features, PATCH for fixes. The version is set once in Cell 1 (`COMETA_VERSION`)
 and recorded in project files, Excel reports and validation exports.
 
@@ -42,62 +42,57 @@ First public release.
 
 ### Results for every analysis
 - A plain-language **Results** dashboard explains what the numbers mean, with
-  warnings when the data are thin.
+  warnings when the data are thin. A yellow *Stale Results* box appears when
+  an earlier step was run again after this one.
 - A **Detailed Statistics** tab gives every number with its method, and a
   plain-text copy for reports or AI assistants. `DETAILED_STATS_DIGITS` sets
   the significant digits (default 6), e.g. 12 to compare with R.
 - Methods and Results text cites the published sources of each method.
-- Publication-ready figures, with plot recipes that redraw a figure exactly.
-  The meta-regression bubble plot (Step 13) and the orchard plot (Step 11)
-  can label an lnRR effect axis in percent change. The orchard plot can show
-  the subgroups from the separate-variance model (own τ² and σ² per
-  subgroup), hide the Overall row, and take a custom colour per group (colour
-  pickers in its Labels tab). The bubble plot (Step 13) offers colour-blind-safe
-  palettes and grayscale for Color By, and a custom colour per category; its
-  stats box can show the slope with CI, p, bootstrap p and k, without stars,
-  or custom text, and the bubble legend can be relabelled or hidden.
-- Figures: size presets are shares of a page (full page width, two-thirds,
-  half page or one column, full page tall, 16:9 slide) instead of
-  publisher-specific sizes; each sets every font of the plot to sizes
-  balanced for that size (smaller figures get smaller text, slides larger)
-  and scales marker and bubble sizes with the width. Changing the width by
-  hand rebalances the fonts and markers too. Every plot cell starts at the
-  full page width. New in every plot cell:
-  a panel letter, one font choice for all figures (Arial and Times New Roman
-  fall back to the metric-compatible Liberation fonts when missing) and manual
-  axis ranges; PDF/EPS text stays editable (TrueType). Percent-change axis for
-  lnRR also in the forest, spline, leave-one-out, cumulative and time-lag
-  plots, with evenly spaced ticks on narrow ranges. Fixes: the leave-one-out
-  plot draws the no-effect line only near the estimates and has no stray top
-  ticks; the funnel plot no longer fills the pseudo-confidence region over the
-  significance contours (legend outside by default); the trim-and-fill legend
-  says where its funnel is centred; the bubble-plot equation has no scientific
-  notation; the spline plot sizes points by weight and gives p with 3
-  decimals; the cumulative plot's legend no longer covers the curves and it
-  can be saved with a transparent background; the Step 9b plot uses a
-  colour-blind-safe palette by default, and so does the Step 9b dashboard.
-  Plot recipes saved earlier load and draw as before.
-- Error messages of Steps 6, 8, 9, 19, 21 and 24 appear in the same red box as
-  in the other steps (they were plain text), with up-to-date wording. Step 8
-  shows one short summary of the data and the candidate moderators instead of
-  a console-style log.
-- Steps 8 and 12 no longer offer `shared_group_id` (the internal key of the
-  shared-control groups) as a moderator, and Step 8 skips columns with a
-  single level.
-- A project file that keeps the work of several days in one file: the data
+
+### Figures
+- Forest, orchard, meaningful-effects, bubble, spline, trim-and-fill,
+  time-lag, funnel, leave-one-out, Baujat, cumulative-trend and map plots,
+  each with a generated caption and a plot recipe (one file per figure) that
+  redraws it exactly without re-running the analysis.
+- Size presets as shares of a page (full page width, two-thirds, half page or
+  one column, full page tall, 16:9 slide). Each sets every font of the plot to
+  sizes balanced for that size and scales marker and bubble sizes; changing
+  the width by hand rebalances them too.
+- In every plot cell: one font choice for all figures (Arial and Times New
+  Roman fall back to the metric-compatible Liberation fonts when missing), a
+  panel letter for multi-panel figures, manual axis ranges, and PDF/EPS text
+  kept editable (TrueType).
+- For lnRR, the effect axis of the forest, orchard, bubble, spline,
+  leave-one-out, cumulative and time-lag plots can be labelled in percent
+  change.
+- Colour-blind-safe defaults where colours carry meaning (the Step 9b plot and
+  dashboard; Okabe-Ito and Paul Tol palettes in the bubble plot), and a custom
+  colour per group in the orchard and bubble plots.
+- The orchard plot can show the subgroups from the separate-variance model
+  (own τ² and σ² per subgroup) and hide the Overall row; the bubble plot's
+  stats box can show the slope with CI, p, bootstrap p and k, or custom text.
+
+### Saving and reproducing
+- A **project file** keeps the work of several days in one file: the data
   (each version once, with a fingerprint) and every analysis saved with
   **💾 Save analysis** (in the *Export & Save* or *Save* tab of every analysis
-  step, 7 to 24), with its name, a note, all its settings (Steps 2–7, plus
-  the step's own options) and its key results. Each save downloads a new revision
-  (`<project>_project_r012.json`) with a log of the changes. Step 2 (tab
-  *Project*) and Step 27 list the saved analyses to restore, rename, annotate or
-  delete; a restored analysis reruns its steps without clicking (Step 9b waits
-  for *Compute Proportions*), and the saved options of Steps 12–24 are applied
-  once. Opening the same project file twice in a row works. Restoring is strict: a saved setting that is not available
-  stops the step with a message instead of running a different analysis. Session
-  files of pre-release versions open as a project with one analysis. This
-  replaces the session file of Step 27 and the "Download Settings JSON" buttons
-  of Steps 7 and 9.
+  step, 7 to 24), with its name, a note, all its settings (Steps 2–7, plus the
+  step's own options) and its key results. Each save downloads a new revision
+  (`<project>_project_r012.json`) with a log of the changes.
+- Step 2 (tab *Project*) and Step 27 list the saved analyses to restore,
+  rename, annotate or delete. A restored analysis reruns its steps without
+  clicking (Step 9b waits for *Compute Proportions*). Restoring is strict: a
+  saved setting that is not available stops the step with a message instead
+  of running a different analysis.
+- Session files of pre-release versions open as a project with one analysis.
+
+### File names
+- Every file is named `<Analysis>_<settings>_<k>ES-<studies>st[_F-<filters>]`
+  (e.g. `Subgroups_meth_95ES-27st_F-hab-mar.xlsx`), ready to upload as
+  supplementary material: the analysis, its moderators and non-default
+  settings, the effect sizes and studies it used, and the Step 3 filters. No
+  timestamp; a repeated name gets `_v2`, `_v3`. A figure and its plot recipe
+  share the name. Names typed in a plot cell still take precedence.
 
 ### Validation
 - 28 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
@@ -140,31 +135,36 @@ First public release.
   analysis.
 - The control-group column is used only when selected in Step 2. Older session
   files that relied on automatic use of a `control_id` column must select it.
-- The "Stale Results" warning now also appears in Steps 9b, 16, 17, 19, 19b,
-  21 and 24 when Step 7 (or Step 9, for 9b) is run again after them; before,
-  their tabs kept showing the earlier results without a warning.
+- The built-in BCG example uses author and year as the study ID, so its 13
+  trials are 13 studies (two Rosenthal et al. and two Comstock et al. trials
+  were merged before) and it reproduces the published estimates.
+- Leave-one-out refits follow the inference settings of Step 7 (CR2 on or off,
+  t or z); before, they always used CR2 with a t distribution.
+
+### Other changes compared with pre-release versions
 - Columns derived from the effect size (e.g. `fold_change`, `Response_Ratio`,
   CI bounds) are no longer offered as moderators.
 - Plot recipes saved with the funnel-plot shade "Gray (dark to light)" still
   load, under the new internal name.
-- The built-in BCG example uses author and year as the study ID, so its 13
-  trials are 13 studies (two Rosenthal et al. and two Comstock et al. trials
-  were merged before) and it reproduces the published estimates.
 - Trim-and-fill reports the number of missing *effect sizes* (it was called
   "missing studies"), and its text no longer calls agreement with Egger's test
   "convergent evidence".
-- Leave-one-out refits follow the inference settings of Step 7 (CR2 on or off,
-  t or z); before, they always used CR2 with a t distribution.
 - Cumulative meta-analysis text: confidence intervals of log ratios are
   back-transformed like the estimate (they were left on the log scale).
-
-### File names
-- Every file is named `<Analysis>_<settings>_<k>ES-<studies>st[_F-<filters>]`
-  (e.g. `Subgroups_meth_95ES-27st_F-hab-mar.xlsx`), ready to upload as
-  supplementary material: the analysis, its moderators and non-default
-  settings, the effect sizes and studies it used, and the Step 3 filters. No
-  timestamp; a repeated name gets `_v2`, `_v3`. A figure and its plot recipe
-  share the name. Names typed in a plot cell still take precedence.
+- The figures were reviewed: the leave-one-out plot draws the no-effect line
+  only near the estimates; the funnel plot draws the pseudo-confidence region
+  as dashed lines over the significance contours (they made extra stripes);
+  the trim-and-fill legend says where its funnel is centred; the bubble-plot
+  equation has no scientific notation; spline points are sized by weight;
+  legends no longer cover the data at the default size. Plot recipes saved
+  earlier load and draw as before.
+- Steps 8 and 12 no longer offer `shared_group_id` (the internal key of the
+  shared-control groups) as a moderator; Step 8 skips columns with a single
+  level and shows one short summary instead of a console-style log.
+- Error messages of Steps 6, 8, 9, 19, 21 and 24 appear in the same red box as
+  in the other steps.
+- The session file of Step 27 and the "Download Settings JSON" buttons of
+  Steps 7 and 9 are replaced by the project file.
 
 ### Publication text and Detailed Statistics
 - Every Detailed Statistics tab ends with a *Data selection (Steps 2–6)*

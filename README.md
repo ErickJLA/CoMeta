@@ -31,7 +31,8 @@ results were checked against the R packages `metafor`, `clubSandwich` and
   them can be restored and run again (see
   [Section 4](#4-saving-and-reproducing-an-analysis)); a **plot recipe** (one
   file per figure) redraws any figure exactly, without re-running the analysis.
-- Publication-ready figures with journal size presets, and generated
+- Publication-ready figures with page-size presets (full page, half page or
+  one column, slide) that balance font and marker sizes, and generated
   Methods/Results text with references.
 
 ---
@@ -960,6 +961,7 @@ automatic one.
 | A dashboard shows an inner scroll bar, or you prefer one | In Colab each step's output grows to its full height. To get Colab's scrolling back, set `COMETA_FULL_HEIGHT_OUTPUT = False` in Cell 1 (just above `es_null_value`) and re-run Cell 1. |
 | Package versions differ from the tested set (log of Step 27) | Usually harmless; the analysis runs with the installed versions. |
 | A step says an earlier step is missing | Run the steps in order. If you change something in an early step, re-run the following steps. |
+| A red *Reproducibility Mode stopped* box after restoring an analysis | A saved setting is not available with the data in this session (e.g. a filter column or a moderator that is not in the data). Check that you restored the right analysis and that the earlier steps ran with its data; nothing was run, so no wrong result was produced. |
 | A yellow *Stale Results Detected* box | An earlier step was run again (e.g. Step 7, or Step 9 for Step 9b) after this one: its results are still the old ones. Run this step again. Out-of-date results cannot be saved to the project. |
 | "'year' column not found" (cumulative analysis) | Add a `year` column to your data. |
 | No map types available | Map latitude/longitude or country in Step 2. |
