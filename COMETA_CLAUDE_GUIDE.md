@@ -1,8 +1,10 @@
 # CoMeta: working guide for Claude
 
 Written by Claude for a future Claude session (state as of **November 2026**,
-release 1.0.0 plus the work since; last commit described here: `4a943a2`,
-"Meta-regression plot: editable stats box and bubble legend"). Since November
+release 1.0.0 plus the work since; last commit described here: `d3b7a64`,
+"Tidy-ups: red error boxes everywhere, dead code removed, 9b dashboard
+colours", on branch `claude/youthful-pasteur-hm1pmf`, not yet merged to `main`
+by the user when this was written). Since November
 2026 the user keeps this file **in the repository root** (they asked for it;
 an earlier copy had been removed because it was added by mistake). Update it
 at the end of a working session when the user asks. **Read it first, then
@@ -24,7 +26,13 @@ see what changed since.
 3. Install R packages if validations are needed (section 9.1); that takes a
    few minutes, so start it in the background early.
 4. Dump the cells to files (`mine/c{i}.py`) so `grep`/`sed` work on them.
-5. Before editing a cell, read the relevant part: line numbers in this file
+   `nbpatch.py` (9.2) re-dumps them after every patch, and `drive.py` runs
+   cells from these dumps, so they must stay current.
+5. `pip install` what the sandbox lacks: scipy, pandas, patsy, statsmodels,
+   ipywidgets, matplotlib, seaborn, xlsxwriter, scikit-learn, pycountry,
+   **tqdm** (Step 21 needs it). `plotly` is usually missing, so the map
+   (cell 29) cannot be tested headless.
+6. Before editing a cell, read the relevant part: line numbers in this file
    are approximate, but function names are stable.
 
 ---
@@ -95,6 +103,18 @@ see what changed since.
   recommendation. The user then decides.
 - **Ask only real decisions** (two valid designs with trade-offs). Otherwise
   pick the sensible option and say so.
+- **Review requests** ("is there something to improve?", "do a last pass"):
+  look at the code and the output (render the figures, screenshot the
+  dashboards), then give a **numbered list** grouped by risk (fixes /
+  additions / bigger pieces / "your call" for anything that changes
+  defaults), with a recommendation. The user answers with numbers ("1–7 and
+  8–12"); do those, then report per number. Don't implement from a review
+  request alone.
+- **The user tests in Colab** after each piece and reports back ("it works
+  great", or a new request). Say clearly what was only tested headless and
+  what to check in Colab (widgets, downloads, fonts).
+- The user writes in English with Spanish influence; answer in plain English,
+  short sentences, no jargon without a gloss.
 
 ---
 
@@ -103,17 +123,17 @@ see what changed since.
 | Cell | Title / step | Key functions, classes | Saves to `ANALYSIS_CONFIG` |
 |---|---|---|---|
 | 0 | markdown header, Colab badge | | |
-| 1 | ⚙️ 1. Environment Setup & Core Functions (~3160 lines) | GPL notice; release constants `COMETA_VERSION` … (section 2b), `check_and_lockdown`/`package_check_rows`, header banner; CR2 core `_compute_robust_var_betas`, `_run_three_level_reml_regression_v2`, spline engine `_run_robust_spline_analysis`, `spline_prediction_band`, `spline_adjustment_design`, Excel export `export_analysis_report`, `_get_protocol_metadata`, widget helpers, plot-recipe system, **dashboard and Detailed-Statistics helpers**, `effect_derived_columns`, `es_null_value`, `ci_pct_label`, `COMETA_CITATION` | |
+| 1 | ⚙️ 1. Environment Setup & Core Functions (~4900 lines; blocks "SHARED FIGURE OPTIONS" (4.4) and "PROJECT FILE" (4.5) added November 2026) | GPL notice; release constants `COMETA_VERSION` … (section 2b), `check_and_lockdown`/`package_check_rows`, header banner; CR2 core `_compute_robust_var_betas`, `_run_three_level_reml_regression_v2`, spline engine `_run_robust_spline_analysis`, `spline_prediction_band`, `spline_adjustment_design`, Excel export `export_analysis_report`, `_get_protocol_metadata`, widget helpers, plot-recipe system, **dashboard and Detailed-Statistics helpers**, `effect_derived_columns`, `es_null_value`, `ci_pct_label`, `COMETA_CITATION` | |
 | 2 | ⚙️ 1b. Statistical Engine: Multilevel Models, Tests & Checks (~1750; renamed from "Unified Model Engine") | `FitSpec`, `build_fit_spec`, `fit_mv`, `fit_blocks`, `fit_estimates`, `fit_cr2`, `compare_fits`, `pseudo_r2`, `pseudo_r2_report`, `profile_ci`, `tau2_univariate`, `var_components_vcov`, `select_rows`/`RowAccounting`, `attach_vcv_row_pos`, `cluster_vcv`, `slice_vcv_block`, meaningful-effects engine (`MeaningfulModel`, `meaningful_proportions`, `bca_interval`); ends with `cometa_engine_selftest()` (BCG trials, REML: τ² 0.3132433, μ −0.7145323, SE 0.1797815 from metafor, tol 1e-4; plus CR2 computable) → `COMETA_ENGINE_SELFTEST`, sets `COMETA_SETUP_DONE`, shows a green/red status line | |
-| 3 | ⚙️ 2. Data Ingestion | upload, column mapping, `CURTIS_DATA` built-in example, opt-in control-group column (`_build_control_mapping_widget`) | `shared_control_column` |
+| 3 | ⚙️ 2. Data Ingestion | upload, column mapping, `CURTIS_DATA` built-in example, opt-in control-group column (`_build_control_mapping_widget`); tab 3 "Project" = `project_open_widget()` (Cell 1) | `shared_control_column` |
 | 4 | ⚙️ 3. Global Filtering | | `complete_case_moderators` |
 | 5 | ⚙️ 4. Data Cleaning | `run_processing`, `detect_shared_controls`, `user_control_column` | `removed_records`, counts |
 | 6 | 🔬 5. Effect Size Selection | effect-size type, bias correction option | `effect_size_type`, `es_config`, `effect_col`, `var_col`, `se_col`, `bias_correction`, `data_type` |
 | 7 | 🧮 6. Effect Size Calculation | `run_calculation`, `build_vcv_matrices` (Gleser–Olkin / Lajeunesse covariances), `_expand_to_shared_controls`, SD imputation | `analysis_data`, `vcv_matrices`, `cc_shared_group_rows`, `sd_missing_strategy` … |
 | 8 | 📊 7. Overall Meta-Analysis (~3400) | `TwoLevelEngine.calculate_pooled_effect` (GLS with full V), `ThreeLevelEngine`, `OverallEngine`, `OverallController` (`model_selector`, `ci_dist_widget`, `use_kh_widget`, …), `overall_dashboard_html`, `overall_statistics_rows`, `_dash_small_k_html`, `_n_shared_cov_studies` | `global_settings`, `overall_results` (`['reported']` = the model shown), `overall_text` |
 | 9 | ⚙️ 8. Subgroup Configuration | `save_configuration`, widgets `moderator1_widget` … | `subgroup_config` |
-| 10 | 🔬 9. Subgroup Execution (~4700) | engine, `_pairwise_contrasts` (Holm), `subgroup_variance_check` + `variance_check_html`/`_rows`/`_results_text`/`_summary` (⚖️ Variance Check tab), `subgroup_dashboard_html`, `subgroup_statistics_rows`; tabs include the Processing Log (the user wants it kept) | `subgroup_results`, `subgroup_text` |
-| 11 | 📏 9b. Proportion of Meaningful Effects | `_meaningful_effects_cell()`, `meaningful_dashboard_html`, `meaningful_statistics_rows` | `meaningful_config`, `meaningful_results` (`table`, `settings`, `info`), `meaningful_text` |
+| 10 | 🔬 9. Subgroup Execution (~4700) | engine, `_pairwise_contrasts` (Holm), `subgroup_variance_check` + `variance_check_html`/`_rows`/`_results_text`/`_summary` (⚖️ Variance Check tab), `subgroup_dashboard_html`, `subgroup_statistics_rows`; tabs include the Processing Log (the user wants it kept); the last tab is "💾 Export & Save" (save bar + Excel) | `subgroup_results`, `subgroup_text` |
+| 11 | 📏 9b. Proportion of Meaningful Effects | `_meaningful_effects_cell()`, `meaningful_dashboard_html`, `meaningful_statistics_rows`; plot `palette` (Okabe-Ito default), `_ME_COLORS` (dashboard, Okabe-Ito); stale banner 'meaningful'; save bar in its "💾 Export & Save" tab | `meaningful_config`, `meaningful_results` (`table`, `settings`, `info`), `meaningful_text` |
 | 12 | 📊 10. Subgroup forest plot | `_forest_plot_cell()`, plot recipes | |
 | 13 | 🍎 11. Orchard plot | `_orchard_cell()`: `build_data` (rows of Overall + Step 9 subgroups; `rows_own` from `subgroup_results['variance_check']['separate_model']['levels']`, PI = μ ± t(df)·√(SE² + τ²_g + σ²_g)), `plot_rows(data, s)` (shared/own, Overall shown or not), `default_colors`, `COL` colour pickers, `percent_change_axis`. Settings: `estimates` ('shared'/'own'), `show_overall`, `percent_axis`, `color::<key>` | |
 | 14 | 📈 12. Meta-Regression (~3800) | `RegressionEngine`, `predict_from_fit` (t/z follows Step 7), `default_prediction_grid`, `regression_dashboard_html`, `regression_statistics_rows`, `_regression_controller.run_analysis(moderator_cols, categorical_cols, reference_levels)` | `meta_regression_RVE_results`, `regression_text`; `LAST_REGRESSION_RESULT` global |
@@ -133,10 +153,17 @@ see what changed since.
 | 28 | 📈 24. Cumulative MA | `CumulativeEngine` (multilevel / study / obs), `cumulative_dashboard_html`, `cumulative_statistics_rows`; `_cumulative_controller` (`agg_method_widget`, `sort_order_widget`, `run_analysis()`) | `cumulative_results` (steps DataFrame), `cumulative_metadata`, `cumulative_text` |
 | 29 | 🗺️ 25. Map | | |
 | 30 | 📊 26. Cumulative trends plot | | |
-| 31 | 💾 27. Export Session | session file; log = `_package_versions_html()` (package differences) + warnings summary | |
+| 31 | 💾 27. Project File | `project_manager_widget()`; log = `_package_versions_html()` (package differences) + warnings summary | |
 | 32 | 🧪 Validation: Imports & R Setup | `R_SNAPSHOT_DATE = "2026-10-01"` (Posit snapshot), `record_validation`, `VALIDATION_RESULTS`, `ValidationPrerequisiteError`, `validation_prerequisite_missing`, `validation_user_data`, `validation_sources`, `validation_block_V`, `record_validation_skipped`, `reference_only_validation`, `VALIDATION_INCLUDE_REFERENCE` | |
-| 33–60 | Validations 1–28 | V(n) is cell 32+n. V2 (cell 34) and V27 (cell 59) are button-driven Monte Carlo runs. V11 (cell 43) is the pytest unit tests (84). V28 (cell 60) is the cluster wild bootstrap. V22 (cell 54) needs the Baujat cell (27) run first. | |
+| 33–60 | Validations 1–28 | V(n) is cell 32+n. V2 (cell 34) and V27 (cell 59) are button-driven Monte Carlo runs. V11 (cell 43) is the pytest unit tests (91; the project and figure tests are at the end). V28 (cell 60) is the cluster wild bootstrap. V22 (cell 54) needs the Baujat cell (27) run first. | |
 | 61 | Validation Summary & Export | `N_VALIDATIONS = 28` | |
+
+**Analysis steps and the project file** (section 4.5): Steps 7, 9, 9b, 12,
+14, 17, 19b and 24 have the save bar at the top of their "💾 Export & Save"
+tab (renamed from "💾 Export"); Steps 16, 19 and 21 have a "💾 Save" tab. Each
+of Steps 12–24 has a `restore_and_run(opts)` (or inline code at the end of the
+cell) and a stale banner. Every plot cell (11, 12, 13, 15, 17, 20, 22, 24, 26,
+27, 30) uses the shared figure options of section 4.4.
 
 **Validation 28 (cluster wild bootstrap).** Takes the test lists the
 panels use (`subgroup_cwb_tests(ANALYSIS_CONFIG['subgroup_results'])`,
@@ -195,8 +222,10 @@ Other files in the repo:
 - `CONTRIBUTING.md`: the developer guide, with a cell map, the license of
   contributions and the versioning rule.
 - `LICENSE`: GNU GPL v3, the official text from gnu.org (674 lines).
-- `CITATION.cff`: CFF 1.2.0, valid against the official schema. Authors are
-  placeholders for Erick, Karla and Hugo; the `doi:` line is commented out.
+- `CITATION.cff`: CFF 1.2.0, valid against the official schema. Authors:
+  Erick J. Lopez-Arredondo, Karla Y. Ledesma Medina, Hugo V. Perales-Vela
+  (filled in November 2026); affiliation, ORCID and `doi:` lines are
+  commented out until the user adds them.
 - `CHANGELOG.md`: 1.0.0, including "changes that affect results compared
   with pre-release versions". Add an entry for every release.
 
@@ -225,8 +254,10 @@ These constants feed:
   verified" bar. The user asked to remove the yellow "Instruction: execute
   cells sequentially… reproduces the associated manuscript" box; don't add it
   back.
-- **The session file** (`_reproducibility.co_met_version`; the key name is
-  kept for old files) and `_reproducibility.package_check`.
+- **The project file**: `cometa_project.cometa_version`, each analysis's
+  `cometa_version`, and `software` (`cometa_version`, `python`,
+  `package_check`). (Old session files had `_reproducibility.co_met_version`;
+  they still open as projects.)
 - **The Excel protocol sheet** (System → CoMeta version).
 - **The validation export** (`cometa_version`).
 
@@ -249,12 +280,13 @@ These constants feed:
 - Cell 1 **no longer displays** the "package versions differ" notice (the
   user asked for this). The list is shown in **Step 27's log**
   (`_package_versions_html()`, above the warnings summary) and recorded in
-  the session file.
+  the project file (`software.package_check`).
 - Outside Colab, missing packages are still printed by `check_and_lockdown`,
   because the user must act on them.
 
 **GPL notice**: the top of Cell 1 carries the standard GPL "or any later
-version" notice, with a copyright line using the author placeholders.
+version" notice, with the copyright line "Copyright (C) 2026 Erick J. Lopez-Arredondo,
+Karla Y. Ledesma Medina, Hugo V. Perales-Vela".
 
 **First (markdown) cell**: the Colab badge (points to
 `blob/main/CoMeta.ipynb`), then one line: "CoMeta 1.0.0 · GPL · How to cite ·
@@ -270,8 +302,14 @@ Changelog" with links to `main`.
    (section 9.6).
 
 **Remaining release steps (the user's)**:
-1. Real names, affiliations and ORCIDs in three places: `CITATION.cff`,
-   `COMETA_AUTHORS` in Cell 1, and the copyright line at the top of Cell 1.
+1. Names are done (`CITATION.cff`, `COMETA_AUTHORS` = "Lopez-Arredondo,
+   E. J., Ledesma Medina, K. Y., & Perales-Vela, H. V.", copyright line of
+   Cell 1). Left: affiliations and ORCIDs in `CITATION.cff`, and the release
+   date (`date-released` and the CHANGELOG `[1.0.0]` heading, both still
+   2026-10-24). Also recommended before going public: move this guide out of
+   the public repository (it describes the user and their paper; the user
+   was told and decides), and replace scikit-learn / pycountry in
+   `REQUIRED_PACKAGES` with Colab's versions after a Colab run.
 2. A Colab run, keeping `cometa_validation_results.json`.
 3. Merge the branch to `main` (the user does it; don't open a PR unless asked).
 4. Enable the Zenodo–GitHub integration **before** creating the release.
@@ -428,20 +466,160 @@ README, CONTRIBUTING and CHANGELOG wording.
   `on_load`.**
 - Staleness: `results_token(key)`, `stale_warning_html(step)`,
   `register_banner(module_id, widget)`.
+- `cometa_error(message, title=None)`: the red error box (since the last
+  pass of November 2026 no step prints "❌ ERROR" as plain text).
+  `load_reproducibility_config` was removed (dead since the project file);
+  `export_config_for_reproducibility` stays (project settings and the V11
+  test use it). The Step 9b dashboard colours (`_ME_COLORS`, Cell 11) are
+  Okabe-Ito like its plot.
 - `make_json_safe`, `ci_pct_label(alpha)`, `_alpha()`, `es_null_value()`,
   `is_text_dtype`, `cometa_save_figure`, `show_figure`, `caption_html`.
+- **Shared figure options** (Cell 1, block "SHARED FIGURE OPTIONS", just
+  before `cometa_save_figure`; November 2026, user request after a figure
+  review): `FIGURE_DEFAULT_PRESET` ('Full page width (16.5 cm)', applied by
+  `preset_dropdown` at creation). Presets were replaced (user request) by page
+  shares: full page width 6.5×4.6 in 11/10/9 pt, two-thirds 4.33×3.4 9/8/7,
+  half page 3.15×2.7 8/7/6, full page tall 6.5×8.66, slide 13.33×7.5 22/18/16;
+  `fonts_for_width(w)` interpolates these anchors (`_FONT_BY_WIDTH`) for any
+  width. `preset_dropdown(targets)`: 'legend' defaults to the tick size; a
+  target can be a list; 'points' (marker areas, × width ratio) and 'markers'
+  (marker sizes, × √ratio) are scaled relative to the previous width; changing
+  the width by hand sets `fonts_for_width` and rescales markers; while
+  `apply_widget_values` runs (`_COMETA_APPLYING_SETTINGS`) nothing is
+  rescaled, so recipes restore exactly. Orchard: label → label_fs, grp_fs,
+  subtitle_fs; legend → annot_fs, footnote_fs; points pt_size; markers
+  fruit_size. Points targets also in 15 (bubble_base/range), 17, 20, 22
+  (size_scale), 24, 26, 27. Tooltip: `tooltip` (ipywidgets 8) or
+  `description_tooltip` (7). `FIGURE_FONT` (kept across Cell 1 re-runs) with
+  `FIGURE_FONT_CHOICES` and `figure_font_name` (Arial → Helvetica / Liberation
+  Sans / Arimo …; Times → Liberation Serif / Tinos …; else DejaVu Sans),
+  `figure_style(s)` (rc_context with the concrete font name, so saving outside
+  the context keeps it), `figure_common_controls(limits, percent)` →
+  'panel', 'figure_font', '<a>_range_auto/_min/_max', 'percent_axis';
+  `figure_common_box(C, limits)`, `apply_axis_ranges(ax, s, axes, C)` (keeps
+  inverted axes inverted; with an automatic range it copies the drawn range
+  into C's boxes), `add_panel_label`, `link_percent_label`. `pdf.fonttype` /
+  `ps.fonttype` = 42. `percent_change_axis` falls back to MaxNLocator ticks
+  when fewer than 3 round ones fit. Wired into cells 11, 12, 13 (panel only;
+  its own font list now uses figure_font_name and sets FIGURE_FONT), 15, 17,
+  20, 22 (time-lag: `self.c`), 24, 26, 27, 30. Per-plot fixes: LOO
+  `null_drawn` (null within a quarter of the CI span, or inside a manual
+  range) and x ticks 'bottom' only; funnel fills the pseudo-CI region only
+  without contours, legend 'outside', label 'p > 0.10'; trim-and-fill legend
+  "(centred on …)", legend 'outside'; bubble `plain()` (no e-notation) and
+  p (slope) with 3 decimals; spline `pts['w']` + `size_by_weight` (old
+  recipes have no 'w' → equal sizes), `_fmt_p` 3 decimals; cumulative
+  `legend_loc` ('below' via ScaledTranslation under the x label; old recipes:
+  upper left) and `transparent`; 9b `palette` (okabe_ito default; key placed
+  before the colour pickers so recipes restore in the right order). Recipes
+  saved with the previous version were loaded headless: all 11 draw. Not done
+  (the user may ask later): estimate [CI] column and PI in the forest plot,
+  a study-level forest plot, a shared house style.
 - Percent-change axis for lnRR plots (just before `cometa_save_figure`):
   `es_is_lnrr(es)`, `percent_change(lnrr)` = 100(e^x − 1),
   `fmt_percent_change(p, digits, fixed)`, `percent_change_axis(ax, 'x'|'y')`
   (round values, roundest first, ≤ ~10 ticks, placed at ln(1 + p/100); the
   data stay on the lnRR scale), `PERCENT_CHANGE_LABEL = 'Change (%)'`. Used
-  by the orchard and bubble plots; reuse them for other plots.
+  by the orchard, bubble, forest, spline, leave-one-out, cumulative and
+  time-lag plots (each stores `percent_ok` / checks `es_type` in its data
+  snapshot, so recipes know whether the option applies).
 - Plot colour overrides (orchard, bubble plot): a `ColorPicker` per group
   stored in the settings (`color::...`); a value different from the
   scheme/palette colour overrides it, so recipes need no extra flag; untouched
   pickers follow a scheme change (observer compares with the old scheme's
   colours); a ↺ button resets. Don't add a "custom" checkbox: settings are
   restored in dict order and it would be overwritten.
+
+### 4.5 Project file (replaces the session file; November 2026)
+
+Design agreed with the user after a long discussion: no Drive, no text
+"code" strings; one JSON **project** that is downloaded again (as a new
+revision) on every save. The user tested that repeated downloads are fine
+in Colab, and accepts that people may work on an old revision.
+
+- Cell 1, block "PROJECT FILE" (just before the dashboards block):
+  `COMETA_PROJECT` (kept when Cell 1 re-runs), `PROJECT_STEPS`
+  (`overall`/`subgroup`/`meaningful`: result key, stale-banner id, settings
+  to drop, "run to" text), `project_data_entry` (canonical CSV via one
+  reload, 12-hex SHA-256 `id`), `project_add_data` (labels v1, v2…),
+  `project_settings` (export_config_for_reproducibility minus `_*` keys and
+  later steps' settings), `project_check_ready` (no results / stale banner /
+  9b older than Step 7 or 9 by timestamp), `project_key_results`,
+  `project_results_text`, `project_settings_text`, `project_add_analysis`
+  (raises `ProjectNameExists`; `replace=True`), `project_rename`,
+  `project_set_note`, `project_delete`, `project_commit` (revision + log,
+  drops unused data), `project_payload` (readable keys first, `datasets`
+  last), `project_download` (JS data URL; also sets `PROJECT_LAST_FILE`
+  for tests), `project_from_bytes` (+ `_project_from_session` for old
+  session files), `project_restore` (sets `ANALYSIS_CONFIG`,
+  `raw_data_standardized`, `DATA_TYPE_SELECTED`, `VARIANCE_TYPE_SELECTED`,
+  `GEO_COLUMNS_MAPPED`; `is_reproducing = True`), widgets
+  `project_save_bar(step)`, `project_manager_widget()`,
+  `project_open_widget()`; `_PROJECT_LISTENERS` / `_project_notify()`
+  redraw every bar and manager on screen.
+- The stored data is `raw_data_standardized` (Step 2 output, **before** the
+  Step 3 filters), so analyses on different subsets share one data version.
+  (The old session file stored `clean_dataframe`, i.e. the filtered rows.)
+- Save bars: at the top of the "💾 Export & Save" tab (renamed from "💾 Export"
+  at the user's request) of Step 7 and Step 9 (`render_export_tab`, so a new
+  bar after every run) and Step 9b (built with the tabs). The "Download
+  Settings JSON" buttons are gone.
+- Strict restore: Steps 3 (missing filter / common-row-set column), 5 (effect
+  size), 7 (`set_silent` collects `not_restored`; the model is not fitted),
+  8 (analysis type / moderators) and 9b (`apply_widget_values` skipped names)
+  show a red "Reproducibility Mode stopped" box. Step 6 already refused
+  unknown SD strategies.
+- Tests: V11 `test_project_*` (4; they isolate session globals with
+  `monkeypatch.setitem(globals(), …)`). Headless round trip on the fixture:
+  save 4 analyses (overall, filtered overall through Steps 3–7, subgroups,
+  9b) → open → restore → rerun → key results equal to 1e-6 (the fixture
+  path and the cell path differ by ~1e-9 from the optimiser); also the
+  Konstantopoulos pre-calculated example.
+- **Steps 12–24 (phase 3, done)**: `PROJECT_STEPS` also has `regression`,
+  `spline`, `meta_forest`, `pub_bias` (result key `trimfill_results`, needs
+  `funnel_results` too), `pet_peese`, `timelag`, `loo`, `cumulative`
+  (`cumulative_metadata`); they drop subgroup/9b settings and keep their
+  own options in `analysis['options']` (`project_step_options`, from the
+  results; Step 12 now stores `meta_regression_RVE_results['selection']`,
+  Step 16 `meta_forest_results['features']`). Key results: `_pr_<step>`
+  functions in `_PROJECT_LATER_RESULTS`; text `_project_later_text`,
+  options text `_project_options_text`. Stale check: the result's
+  `timestamp` older than `overall_results['timestamp']` → refused (plus the
+  stale banners of 12, 14, 16). `project_settings` also drops every key
+  ending in `_results`, `_text`, `_metadata` (spline_text etc. had leaked
+  into settings: 117 KB → 25 KB for 8 analyses). Save tab: wrapped
+  `VBox([project_save_bar(step), tab_export])` ("💾 Export & Save") in
+  12, 14, 17, 19b, 24; a new "💾 Save" tab in 16, 19, 21. Each cell, after
+  building its UI, calls `project_restore_options(step)`; if not None, a
+  `restore_and_run(opts)` checks the options against its widgets
+  (`project_widget_values`) and runs, or shows
+  `project_restore_note_html(step, problems)` (red, nothing runs). Steps 17
+  and 21 have no options: they just run. Bootstrap (CWB) is never re-run;
+  its p, R and seed are stored in the regression's key results.
+- Follow-up fixes (user's request): (1) stale banners registered in 9b
+  ('meaningful'), 17 ('pub_bias'), 19 ('pet_peese'), 19b ('timelag'), 21
+  ('loo'), 24 ('cumulative'); `ALL_DOWNSTREAM` and Step 7's `mark_stale`
+  list now include 'meaningful', 'meta_forest', 'timelag'; Step 9 marks
+  'meaningful'; Step 16 now calls `clear_stale('meta_forest')`;
+  `PROJECT_STEPS` banners set, so stale results are refused by the banner
+  too. (2) `project_restore_options` returns the options only until
+  `project_restore_note_html(step)` (no problems) sets
+  `_project_restored['options_applied']`. (3) `project_open_widget`
+  empties the upload after reading (`reset_upload`: ipywidgets 8 sets
+  `value = ()`; ipywidgets 7.7.1, Colab's version, has a read-only value
+  rebuilt from `data`/`metadata` when `_counter` changes, so it empties
+  those, then `_counter = 0`; tested in a 7.7.1 venv: same file twice →
+  opened twice, once each).
+- Round trip (fixture → cell path): all 8 later steps reproduce to 1e-6
+  except the meta-forest when the first session used the fixture: the
+  forest weights use Step 7's T², which differs in the 9th digit between
+  the fixture path and the cell path, and the OOB R² moves in the 3rd
+  digit. Cell path → cell path is identical (checked in two sessions).
+  The forest is that sensitive to tiny numerical differences; tell the user
+  if a Verify cell is built (looser tolerance for the meta-forest).
+- Agreed phases: (1)–(3) done; (4) "Export for publication" (tick
+  analyses, readable table) and a Verify cell that reruns every saved
+  analysis and compares with the stored key results.
 
 ---
 
@@ -464,7 +642,7 @@ README, CONTRIBUTING and CHANGELOG wording.
 - **Expected baseline for the full suite on the fixture** (section 9.4):
   - 21 validations record results, all PASS (V6 and V8 SKIP when the
     reference checkbox is off).
-  - Unit tests: 84 passed.
+  - Unit tests: 91 passed.
   - V28 passes (84/84 on the fixture, about 6.5 min; 186/186 with the
     reference datasets).
   - Cell 54 (V22) fails with "Baujat cell not found" because the harness
@@ -499,7 +677,7 @@ README, CONTRIBUTING and CHANGELOG wording.
   (cell 34) defines its own `PRESETS` (Monte Carlo settings). The figure-size
   presets are therefore `FIGURE_SIZE_PRESETS` (Cell 1, used by
   `preset_dropdown`). Before adding a module-level name, grep all cells for it.
-- **Figure presets**: Generic (85/120/175 mm), Elsevier (90/140/190 mm),
+- **Figure presets** (replaced in November 2026 by page shares, see 4.4; this note is history): Generic (85/120/175 mm), Elsevier (90/140/190 mm),
   Nature (89/183 mm, fonts 5–7 pt, height ≤ 170 mm), PLOS (≤ 190.5 mm, fonts
   8–12 pt), thesis, slide. These were checked against the publishers' artwork
   pages in October 2026. The user replaced the old Cell Press / STAR Protocols
@@ -527,9 +705,41 @@ README, CONTRIBUTING and CHANGELOG wording.
   with the keys the cell's `build_data` reads is enough (section 9.7).
   `ANALYSIS_CONFIG` is created by Cell 2/3, so assign a new dict rather
   than calling `.clear()` after only Cells 1 and 1b.
-- **Screenshots**: headless Chromium at
-  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` (path may change; look
-  in `/opt/pw-browsers`).
+- **Screenshots**: use Playwright from Node (`require('playwright')`,
+  `chromium.launch()` needs no options); the browser folder name in
+  `/opt/pw-browsers` changes between images (1194, 1243, …). Static HTML of
+  a dashboard works; ipywidgets have no frontend headless, so render a widget
+  tree to HTML yourself (a small recursive VBox/HBox/HTML/Text/Button →
+  HTML function was enough for the project manager screenshot).
+- **Colab runs ipywidgets 7.7.1; the sandbox has 8.x.** Differences that
+  bit us: `FileUpload.value` is a read-only dict rebuilt from
+  `data`/`metadata` when `_counter` changes (8.x: a settable tuple of dicts,
+  `last_modified` must be a datetime when you fake one); `tooltip` exists
+  only in 8 (`description_tooltip` in 7: check `'tooltip' in
+  w.trait_names()`). Test 7.7.1 behaviour in a throw-away venv
+  (`python3 -m venv venv7 && venv7/bin/pip install ipywidgets==7.7.1`).
+  Matplotlib: legend handles are `leg.legend_handles` (new) or
+  `leg.legendHandles` (old); use `getattr`.
+- **The sandbox's matplotlib default font is Inter**, Colab's is DejaVu
+  Sans. Since November 2026 the plots draw with `FIGURE_FONT` (DejaVu Sans
+  by default) through `figure_style`, so headless images now match Colab;
+  comparisons with images made before that differ by a pixel or so.
+- **Settings are restored in dict order** (`apply_widget_values`): a widget
+  whose observer changes other widgets (a palette/scheme dropdown) must come
+  *before* them in the controls dict, or a recipe's colours get overwritten.
+- **Widgets created per run**: Step 7's and Step 9's save bars live in
+  `render_export_tab`, so every run makes a new bar; tests must take the
+  last widget with a given description, and the bar they click may belong
+  to a different step than expected (it happened once: a "stale" test
+  saved through Step 7's newest bar).
+- **Time-lag plot**: `save_button` saves `last_fig`; click `draw_button`
+  first after changing settings. **Step 9b**: re-running the cell resets its
+  state; click *Compute Proportions* before *Generate Plot*.
+- **Fixture path vs cell path**: `fixture_user.py` skips Steps 3–4, so its
+  Step 7 estimates differ from the cell path in the ~9th digit. Compare
+  restored analyses with a 1e-6 tolerance; the meta-forest (weights from
+  Step 7's T²) can move in the 3rd digit, so for it compare cell path with
+  cell path.
 
 ---
 
@@ -573,7 +783,7 @@ README, CONTRIBUTING and CHANGELOG wording.
 
 ---
 
-## 8. Open items and ideas (as of release 1.0.0)
+## 8. Open items and ideas (updated November 2026)
 
 - **Release steps left to the user**: see section 2b.
 - **Suggested, not started**:
@@ -581,22 +791,36 @@ README, CONTRIBUTING and CHANGELOG wording.
      Markdown file (Step 27 export). High value for the "tool to learn" goal.
   2. A glossary (τ², σ², I², CR2, Satterthwaite df, PI, …) linked from the
      dashboards and the README.
-  3. Navigation markdown cells between groups of steps. The notebook has
-     only one markdown cell.
+  3. Navigation markdown cells between groups of steps (Setup, Data,
+     Overall, Moderators, Publication bias, Sensitivity, Complementary,
+     Project, Validation). The notebook has only one markdown cell. The README
+     refers to steps by name, so it stays valid; cell indices in this guide,
+     CONTRIBUTING and the harness would shift. Offered, not yet chosen.
   4. A real end-to-end run in Colab, and committing an executed validation
      record (JSON plus the executed notebook) for MEE.
   5. Further spline options: several spline moderators added together, or a
      spline × factor interaction. They need many studies; option 1
      (adjustment) is done.
-  6. Session file: settings for Step 12 onward aren't saved.
-  7. Remove dead code and narrow the broad `except Exception` handlers in
-     statistical code; add MEE figure-size presets.
+  6. Project file (section 4.5): phase 4 left — an "Export for
+     publication" table (tick analyses, readable table for the supplement)
+     and a Verify cell (rerun every saved analysis, compare with the stored
+     key results; looser tolerance for the meta-forest; bootstrap p-values
+     are not rerun). Also offered: a pre-filled analysis name in the save bar
+     (e.g. "Meta-regression: time + method"), and in the manager a mark on
+     the restored analysis, the revision log (collapsed) and a filter by step.
+  7. Narrow the broad `except Exception` handlers in statistical code
+     (`load_reproducibility_config`, the dead session loader, was removed).
+  7b. Figures (offered after the figure review, not chosen yet): an estimate
+     [CI] column and the prediction interval in the forest plot; a
+     study-level forest plot; a shared house style (one palette, bold or
+     plain labels); plot titles off by default (journals put them in the
+     caption; changes every default figure, so it is the user's call).
   8. **Capture cell for overall analyses** (discussed with the user, not
      built): a cell after Step 7 that snapshots the current overall result
      with a label (e.g. "site = A"), and an orchard data source "Captured
      overall analyses". Guardrails: same effect-size type, warn on different
      CI level / t-z / CR2 / estimator, caption says the rows are separate
-     models (no test of differences), saved in the session file and recipes.
+     models (no test of differences), saved in the project file and recipes.
      For two levels of one moderator, the orchard's "own variances" option
      (done) is the better answer.
   9. Add Okabe-Ito and Paul Tol bright to the orchard plot's colour schemes
@@ -605,7 +829,11 @@ README, CONTRIBUTING and CHANGELOG wording.
      no study spans two subgroups" (checked once on the fixture: μ, CR2 SE,
      Satterthwaite df, τ², σ² equal to 6 decimals; not a permanent check).
   11. Untested paths: the orchard colour pickers in a two-way analysis and
-     after a recipe reload; V28's wildmeta comparison (needs CRAN).
+     after a recipe reload; V28's wildmeta comparison (needs CRAN); the map
+     cell (plotly missing headless). To confirm in Colab (asked the user):
+     the font note says Liberation Sans when Arial is chosen; opening the same
+     project file twice; the size presets on a real figure; the
+     `cometa_full_height` behaviour.
 - **Known limitations, documented**:
   - The cumulative "study" and "obs" options ignore within-study
     heterogeneity.
@@ -646,7 +874,6 @@ patchfile defines PATCHES = [(cell_index, old, new), ...]; each old must occur
 exactly once in that cell's source."""
 import json, sys, runpy, os
 NB = '/home/user/CoMeta/CoMeta.ipynb'
-DUMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'nb.py')
 patches = runpy.run_path(sys.argv[1])['PATCHES']
 nb = json.load(open(NB, encoding='utf-8'))
 for ci, old, new in patches:
@@ -659,9 +886,8 @@ for ci, old, new in patches:
     lines = [p + '\n' for p in parts[:-1]] + ([parts[-1]] if parts[-1] else [])
     nb['cells'][ci]['source'] = lines
 open(NB, 'w', encoding='utf-8').write(json.dumps(nb, indent=2, ensure_ascii=False))
-with open(DUMP, 'w') as out:
-    for i, c in enumerate(nb['cells']):
-        out.write(f'# ===== CELL {i} ({c["cell_type"]}) =====\n' + ''.join(c['source']) + '\n')
+for i, c in enumerate(nb['cells']):        # keep mine/c{i}.py current (drive.py runs these)
+    open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mine', f'c{i}.py'), 'w').write(''.join(c['source']))
 print(f"applied {len(patches)} patch(es)")
 ```
 
@@ -731,6 +957,7 @@ _years = {s: int(_rng.integers(1985, 1998)) for s in pd.unique(_raw['id'])}
 _raw['year'] = _raw['id'].map(_years)
 _raw.loc[[3, 17], 'sde'] = np.nan
 ANALYSIS_CONFIG.clear()
+# (for project-file tests also: ANALYSIS_CONFIG['clean_dataframe'] = _raw.copy() after the update below)
 ANALYSIS_CONFIG.update({
     'data_type': 'raw', 'effect_size_type': 'lnRR',
     'es_config': {'effect_col': 'lnRR', 'var_col': 'var_lnRR', 'se_col': 'SE_lnRR',
@@ -884,10 +1111,139 @@ and inspect `analysis_data` and `vcv_matrices`. Pre-run cells `1,2,3,5,7`.
 
 ---
 
+### 9.8 Harness for figures, the project file and old recipes (November 2026)
+
+All in `$SP`, run with `python3 run_pre.py 1,2,3,5,7,8 <script>.py` (Steps 12–24
+need no R). Patches with awkward quoting are easiest as a pickled list:
+build `PATCHES` in a Python heredoc, `pickle.dump` it, and give `nbpatch.py`
+a two-line file that loads it.
+
+`figharness.py` (exec it at the top of a test script):
+
+```python
+import os, glob, json, sys
+exec(open('fixture_user.py').read()); exec(open('mine/drive.py').read())
+import ipywidgets as _w
+def W(desc, cls=None):
+    ws = [w for w in _all_widgets() if getattr(w, 'description', None) == desc and (cls is None or isinstance(w, cls))]
+    if not ws: raise KeyError(desc)
+    return ws[-1]
+def setw(desc, v): W(desc).value = v
+def B(desc): return W(desc, _w.Button)
+PREP = {   # run the analysis a plot cell needs
+ 11: lambda: (drive_step8('method'), drive_step9(), drive_step9b()),
+ 12: lambda: (drive_step8('method'), drive_step9()), 13: lambda: (drive_step8('method'), drive_step9()),
+ 15: lambda: drive_step12(['time'], []),
+ 17: lambda: (_cell(16), setattr(_spline_view.mod_dropdown, 'value', 'time'), _spline_view.run_button.click()),
+ 20: lambda: (_cell(19), B('▶ Run Publication Bias Analysis').click()),
+ 24: lambda: (_cell(19), B('▶ Run Publication Bias Analysis').click()),
+ 26: lambda: (_cell(25), _loo_controller.run_analysis()), 27: lambda: (_cell(25), _loo_controller.run_analysis()),
+ 30: lambda: (_cell(28), _cumulative_controller.run_analysis()), 22: lambda: None}
+GEN = {11: '📊 Generate Plot', 12: '📊 Generate Forest Plot', 13: '🌳 Generate Orchard Plot',
+       15: '📊 Generate Regression Plot', 17: '📊 Generate Spline Plot', 20: '📊 Generate Trim-and-Fill Plot',
+       24: '📊 Generate Funnel Plot', 26: '📊 Generate LOO Plot', 27: '📊 Generate Baujat Plot',
+       30: '📊 Generate Cumulative Plot'}
+def run_variants(cell, variants):          # variants: [(tag, {widget description: value})]
+    PREP[cell](); os.makedirs('figs2', exist_ok=True); base = os.getcwd(); _cell(cell)
+    if cell == 22: timelag_controller.on_run()
+    os.chdir('figs2'); out = []
+    for tag, settings in variants:
+        for d, v in settings.items(): setw(d, v)
+        before = set(glob.glob('*.png'))
+        if cell == 22: timelag_controller.view.draw_button.click(); timelag_controller.view.save_button.click()
+        else: B(GEN[cell]).click()
+        new = sorted(set(glob.glob('*.png')) - before)
+        if new: os.replace(new[0], f"c{cell}_{tag}.png"); out.append(f"c{cell}_{tag}.png")
+    os.chdir(base); print('FIGS', out)
+```
+
+Then e.g. `run_variants(26, [('default', {}), ('pct', {'X-axis as % change
+(lnRR)': True, 'Panel label:': 'B', 'Font (all figures):': 'Arial'})])`, and
+paste the PNGs into one contact sheet with PIL (resize each to the same
+width; 2 per row for an overview, or half / full / slide side by side to judge
+font balance) and look at it with Read. Size presets are set with
+`setw('📏 Size:', 'Half page or one column (8 cm)')`.
+
+**Capturing what a cell displays** (to check for red boxes or messages):
+
+```python
+_shown = []
+_orig = get_ipython().display_pub.publish
+def _pub(data, *a, **k):
+    _shown.append(str(data.get('text/html', ''))); return _orig(data, *a, **k)
+get_ipython().display_pub.publish = _pub
+```
+
+**Project file round trips.**
+- Session A (`t_e2e1.py`): fixture, then click the save bars (`W(_w.Text,
+  'Analysis name:')[-1]`, `B('💾 Save analysis & download project')`; the
+  first save also fills `'Project name:'`). For a filtered analysis, set
+  `ANALYSIS_CONFIG['prefilters']` and `is_reproducing = True` and run cells
+  4–8 (the restore path applies the filter). Write `PROJECT_LAST_FILE[1]`
+  to a file.
+- Session B (`t_e2e2.py`, pre-run 1,2,3 only): `project_from_bytes(file)`,
+  then for each analysis `project_restore(P, id)`, run cells 4–8 and the
+  step's cell (Step 9b: also click Compute), and compare
+  `project_key_results(ANALYSIS_CONFIG, step)` with the stored `results`
+  leaf by leaf (rtol 1e-6) and `project_step_options` with `options`.
+- Strict restore: deep-copy the project, break one option or setting
+  (unknown column, τ² method, moderator, precision term…), restore, run the
+  cell, and check that a "Reproducibility Mode stopped" box was shown and no
+  result was written.
+
+**Old plot recipes still load** (`t_oldrec.py`, `t_newload.py`):
+`git show HEAD:CoMeta.ipynb > old.ipynb`, dump it to `oldmine/`, and run a
+copy of the harness against it (`NB=old.ipynb`, `drive.py` pointing at
+`oldmine/`) to save a recipe per plot with
+`COMETA_PLOT_PANELS[plot_type]['save']()`. Then, in a fresh session of the
+new notebook (cells 1,2,3 only), run each plot cell and call
+`COMETA_PLOT_PANELS[plot_type]['load'](bytes, name)`; expect `True`, a PNG,
+and no "❌" or "Settings not applied" message. Plot types: meaningful_effects,
+forest, orchard, meta_regression, spline, trim_and_fill, timelag, funnel,
+leave_one_out, baujat, cumulative_trends (and map).
+
+---
+
 ## 10. Collaboration history (what was done, in order)
 
-Most recent first, all on one long-running branch:
+Most recent first:
 
+- *(session of 2–3 November 2026, branch `claude/youthful-pasteur-hm1pmf`,
+  commits `0a435f1` … `d3b7a64`; not merged to `main` yet)*. It started as a
+  question about reproducibility for a paper's supplement and ended with a
+  figure review:
+  1. **Reproducibility design discussion.** The old export wrote one JSON per
+     analysis, each with the full data, and covered only Steps 2–9b. Text
+     "codes" (a readable string per analysis) were considered; the user
+     preferred one JSON. Storage options (download/upload, Google Drive, the
+     data's Google Sheet) were compared; the user chose download on every
+     save (repeated downloads tested fine in Colab) with a manager in Step 2.
+  2. `0a435f1` **Project file** for Steps 7, 9, 9b (section 4.5), strict
+     restore in Steps 3, 5, 7, 8, 9b, old session files open as projects.
+  3. `c682c84` Save bar moved into the export tab, renamed "💾 Export & Save"
+     (user request).
+  4. `ea35926` **Steps 12–24** saved and restored (options in
+     `analysis['options']`, `restore_and_run` per step); generated texts no
+     longer leak into settings.
+  5. `fe64f92` After a review the user picked: stale banners in 9b, 17, 19,
+     19b, 21, 24 (they had none; Step 7 marked ids nobody registered);
+     restored options applied once; the upload box emptied so the same file
+     opens twice (ipywidgets 7 and 8).
+  6. `a693e3e` **Figure review** (all 11 figures rendered and inspected):
+     shared options (font for all figures, panel letter, manual axis ranges,
+     editable PDF text), percent-change axis in five more plots, and fixes in
+     the LOO, funnel, trim-and-fill, bubble, spline, cumulative and 9b plots
+     (section 4.4). Old recipes checked.
+  7. `9e07fb0` The user found journal-specific presets a mistake: presets are
+     now page shares with balanced fonts, markers follow the width, the
+     width typed by hand rebalances both (section 4.4).
+  8. `d3b7a64` Last low-risk pass (user picked 1–3 of 7): `cometa_error` red
+     boxes instead of 20 printed "❌ ERROR" lines, dead
+     `load_reproducibility_config` removed, Okabe-Ito colours in the 9b
+     dashboard.
+  Unit tests went from 84 to 91. The full R validation suite was not rerun
+  (no statistical code changed); the smoke run of every step cell, V11 and
+  the project/recipe round trips were.
 - *(plots, November 2026, same branch; commits `eee5781` … `4a943a2`)*:
   - **Percent-change axis for lnRR** (shared helpers in Cell 1, section 4.4):
     bubble plot (y axis; equation box adds the slope as % per unit; caption

@@ -26,11 +26,13 @@ results were checked against the R packages `metafor`, `clubSandwich` and
 - Publication bias for dependent effect sizes: multilevel Egger's test,
   a time-lag (decline effect) test, with PET-PEESE and trim-and-fill as
   sensitivity analyses.
-- Reproducibility: a **session file** restores the data and the settings of
-  Steps 2–9b (see [Section 4](#4-saving-and-reproducing-an-analysis)), and a **plot
-  recipe** (one file per figure) redraws any figure exactly, without
-  re-running the analysis.
-- Publication-ready figures with journal size presets, and generated
+- Reproducibility: one **project file** holds the data and every analysis you
+  save, each with a name, a note, its settings and its key results, so any of
+  them can be restored and run again (see
+  [Section 4](#4-saving-and-reproducing-an-analysis)); a **plot recipe** (one
+  file per figure) redraws any figure exactly, without re-running the analysis.
+- Publication-ready figures with page-size presets (full page, half page or
+  one column, slide) that balance font and marker sizes, and generated
   Methods/Results text with references.
 
 ---
@@ -66,15 +68,15 @@ results were checked against the R packages `metafor`, `clubSandwich` and
    - Cell 1 installs missing packages at the tested versions.
    - If a package that is already installed has a different version, Cell 1
      keeps it, so you do not need to restart. The differences are listed in the
-     log of Step 27 and recorded in the session file and the validation export.
+     log of Step 27 and recorded in the project file and the validation export.
 3. Run the remaining cells **in order** (Step 2, Step 3, ...). Each cell shows
    a form; make your choices and click its button before moving on. Cells that
    depend on an earlier step tell you which step is missing.
 
 If the Colab runtime restarts (or you reconnect after a timeout), all results
-are lost: run Cells 1 and 1b again, then continue. You can save a session file
-(see [Section 4](#4-saving-and-reproducing-an-analysis)) to avoid redoing the
-steps by hand.
+are lost: run Cells 1 and 1b again, then continue. Save your analyses to a
+project file (see [Section 4](#4-saving-and-reproducing-an-analysis)) to restore
+them instead of redoing the steps by hand.
 
 **Try it first with a built-in example.** Step 2 has a *Built-in Examples* tab
 with five classic datasets:
@@ -156,7 +158,8 @@ of Step 7 and, if Step 9 was run, the subgroups.
 - *Google Sheets*: connect your Google account, type the spreadsheet name, pick
   the worksheet and load it.
 - *Upload Excel/CSV*: upload a file and pick the sheet.
-- *Restore Session*: load a session file saved earlier (see Section 4).
+- *Project*: open a project file, see its saved analyses and restore one (see
+  Section 4).
 - *Built-in Examples*: load one of the example datasets.
 
 After loading, choose the data type (raw continuous, raw binary or
@@ -276,8 +279,8 @@ Results are shown in tabs:
 - *Model Selection*: likelihood-ratio test and AIC comparing the nested
   variance structures. This is for information; the model you chose is the one
   reported.
-- *Settings*, *Publication Text* and *Export* (Excel audit report and session
-  file).
+- *Settings*, *Publication Text* and *Export & Save*: **💾 Save analysis** adds
+  this analysis to the project file (Section 4); the Excel audit report.
 
 ### Moderator analyses
 
@@ -321,8 +324,9 @@ groups differ (cluster-robust omnibus test, approximate Hotelling's T², AHZ).
   components are equal. Report the model you choose and the other as a
   sensitivity analysis; the check is in the dashboard, Detailed Statistics,
   the publication text and the Excel report.
-- *Processing Log*, *Configuration*, *Publication Text* and *Export* (Excel
-  report and session file).
+- *Processing Log*, *Configuration*, *Publication Text* and *Export & Save*:
+  **💾 Save analysis** adds this analysis to the project file (Section 4); the
+  Excel report.
 
 **Step 9b – Proportion of Meaningful Effects.** The pooled mean says how large
 the effect is on average; with heterogeneity, the true effects of individual
@@ -356,7 +360,10 @@ decreases** and **negligible** (Mathur & VanderWeele 2019, 2020):
   intervals). A progress bar shows the time left.
 
 The results come as a dashboard, a **🔢 Detailed Statistics** tab, publication
-text, a CSV export and a figure. The dashboard explains the shares in plain
+text, a CSV export and a figure; the *💾 Export & Save* tab also has the
+**💾 Save analysis** bar (Section 4). The figure's colours start from a
+colour-blind-safe scheme (orange / grey / blue, Okabe-Ito); red / grey / green
+and grayscale are also offered, and each colour can be picked. The dashboard explains the shares in plain
 words. It shows stacked bars for every group (calibrated and parametric), the
 distribution of true effects with the thresholds marked, and the overall shares
 with their confidence intervals. It also gives warnings for exploratory runs,
@@ -383,7 +390,9 @@ subgroup on its own), and can hide the Overall row. In its Labels tab each
 group also has a colour picker that overrides the colour scheme for that
 group (↺ goes back to the scheme). For lnRR, the orchard
 plot's effect axis can be labelled in percent change (Axes & Grid tab), as in
-Step 13; the estimate and CI annotations are then in percent change too.
+Step 13; the estimate and CI annotations are then in percent change too. The
+forest plot offers the same percent-change axis (Axes tab), next to its
+fold-change axis.
 
 **Step 12 – Meta-Regression.** Choose one or more moderators. For each, choose
 whether it is continuous or categorical and, for categorical ones, the
@@ -408,7 +417,7 @@ reference level. Click **Run Meta-Regression**.
   and runs cluster wild bootstrap tests (Joshi et al. 2022) for them or for
   all tests; the results join the Detailed Statistics, the publication text
   and the Excel report (see *Statistical methods*).
-- *Publication Text* and *Export* (Excel report).
+- *Publication Text* and *Export & Save* (**💾 Save analysis**, Excel report).
 
 **Step 13 – Meta-Regression: Visualization.** Bubble plot of the effect against
 a continuous moderator of the model (choose which one for the x-axis), with the
@@ -462,7 +471,9 @@ and the cluster-robust omnibus test (AHZ) shows whether the moderator matters at
 **Step 15** plots the fitted curve
 with its confidence band and the non-linearity test. With adjustment
 moderators, it plots the adjusted points and the caption says where the curve
-is drawn.
+is drawn. Points are sized by their weight in the model, 1/(vᵢ + τ² + σ²), as in
+the bubble plot (can be switched off); for lnRR the y-axis can be labelled in
+percent change.
 
 **Step 16 – Exploratory Meta-Forest.** A random forest that ranks many
 moderators by their importance, with cross-validation by study. Use it to
@@ -492,7 +503,9 @@ numeric column whose ranks match the effect size exactly.
 - Also has publication text and an Excel report.
 
 **Step 18 – Trim-and-Fill Plot.** Funnel plot with observed and imputed effect
-sizes, pseudo-confidence guides and the original and adjusted means.
+sizes, pseudo-confidence guides and the original and adjusted means. The
+legend says what the pseudo-confidence funnel is centred on (the mirror axis of
+the imputation by default, or the adjusted or original estimate).
 
 **Step 19 – PET-PEESE.** Precision-effect test and precision-effect estimate
 with standard error (Stanley & Doucouliagos 2014), fitted as multilevel
@@ -543,7 +556,10 @@ them.
 **Step 20 – Funnel Plot.** Contour-enhanced funnel plot: shaded significance
 regions (p ≤ 0.10, 0.05, 0.01) around the no-effect value, an optional
 pseudo-confidence region around the pooled effect, optional colouring by a
-moderator and the result of Egger's test from Step 17.
+moderator and the result of Egger's test from Step 17. With the significance
+regions shown, the pseudo-confidence region is drawn as dashed lines only
+(filling it on top of the shaded regions would make extra stripes); without
+them it is filled.
 
 ### Sensitivity analyses
 
@@ -556,7 +572,10 @@ changes the conclusion (the CI crossing no effect), and whether one study
 drives the heterogeneity. Each refit uses the three-level model with the
 inference settings of Step 7 (CR2 on or off, t or z). **🔢 Detailed Statistics** lists the model with all
 studies and every refit (estimate, SE, df, CI, p, shift, τ², σ²). **Step 22** plots the results (sorted by effect, by influence or
-by study ID, with significance changers highlighted).
+by study ID, with significance changers highlighted). The no-effect line is
+drawn when it lies near the estimates (or inside a manual x-axis range); far
+away, it would squeeze the estimates into a corner. For lnRR the x-axis can be
+labelled in percent change.
 
 **Step 23 – Baujat Plot.** Each study's contribution to heterogeneity (Q)
 against its influence on the pooled effect, (μ − μ₋ᵢ)²/SE²₋ᵢ (Baujat et al.,
@@ -579,7 +598,9 @@ and says whether the estimate has stabilized (less than 10% change over the
 last five steps). **🔢 Detailed Statistics** lists the settings, a summary and
 every step (estimate, SE, df, CI, τ², σ², I², inference). **Step 26 –
 Cumulative Trends** plots the cumulative effect with its confidence band and,
-optionally, the I² trajectory on a second axis.
+optionally, the I² trajectory on a second axis. The legend sits below the
+plot by default (or inside, at a corner you choose); for lnRR the effect axis
+can be labelled in percent change.
 
 **Step 25 – Geographic Distribution.** Interactive world map of the studies.
 Bubble map from coordinates, choropleth by country, or both side by side. You
@@ -588,35 +609,84 @@ value for diverging scales) and what the colour and size represent (effect
 size, weight, study count, ...). Country names are matched to ISO codes; names
 that could only be guessed are flagged.
 
-**Step 27 – Export Session.** Downloads the session file (see Section 4).
+**Step 27 – Project File.** The open project: rename, annotate or delete saved
+analyses and download the project again (see Section 4); also the warnings log.
 
 ---
 
 ## 4. Saving and reproducing an analysis
 
-The **session file** (`.json`) contains the data as loaded in Step 2 and all
-settings of Steps 2–9b:
-- column mapping, filters and common row set;
-- effect size, bias correction and SD handling;
-- the overall-model settings and the subgroup configuration;
-- the meaningful-effect thresholds of Step 9b.
+### The project file
 
-You can download it from Step 27 (*Download Session File*) or from the
-*Download Settings JSON* buttons in Steps 7 and 9.
+A **project file** (`.json`) keeps your work across days in one file:
+- the **data** as loaded in Step 2, before the Step 3 filters. Each version of
+  the data is stored once (*v1*, *v2*, …) and identified by a fingerprint, so
+  analyses on different subsets share it, and an analysis keeps pointing to the
+  data it used after you add studies;
+- every **analysis you saved**, with its name, a note, the data version, all
+  the settings that produced it (column mapping, filters and common row set,
+  effect size, bias correction and SD handling, the overall-model settings, and
+  for subgroups and meaningful effects their configuration) and its key results
+  (e.g. the pooled effect with its CI, or each subgroup's estimate). For Steps
+  12–24 the step's own options are kept too (moderators, types and reference
+  levels; spline moderator, df and adjustments; meta-forest moderators;
+  PET-PEESE threshold and precision term; time-lag precision term; cumulative
+  aggregation and order);
+- a **log** of what changed in each revision.
 
-To reproduce an analysis:
+**Saving.** Every analysis step has a **💾 Save analysis** bar: Steps 7, 9, 9b,
+12 (meta-regression), 14 (spline), 17 (Egger and trim-and-fill), 19b (time-lag)
+and 24 (cumulative) in their *💾 Export & Save* tab; Steps 16 (meta-forest),
+19 (PET-PEESE) and 21 (leave-one-out) in a *💾 Save* tab.
+Type a name (and, if you like, a note), then click *Save analysis & download
+project*. The analysis is added to the open project and the whole project is
+downloaded as a new revision, `<project>_project_r012.json`: the newest file is
+your project. With no project open, the first save starts one (type its name
+in the bar). Saving under a name that is already used asks whether to replace
+that analysis. Results that are out of date (an earlier step changed after the
+analysis ran) are not saved: run the step again first.
+
+**Continuing another day.**
 
 1. Run Cells 1 and 1b.
-2. In Step 2, open the *Restore Session* tab and upload the session file.
-3. Run Steps 3–9 in order. They pick up the stored settings automatically,
-   with no clicking needed. Step 9b fills in the stored thresholds; click
-   *Compute Proportions*.
-4. For Step 12 onward (meta-regression, splines, publication bias, sensitivity
-   and complementary analyses), select the options again; these choices are not
-   stored.
+2. In Step 2, tab *Project*, open the newest project file. The list shows every
+   saved analysis with its result and settings.
+3. Click **↺ Restore** on the analysis you want. Its data and settings become the
+   current session.
+4. Run the cells in order from Step 3 up to the analysis' step (the restore
+   message says which). For an analysis of Step 12 onward, run Steps 3–7, then
+   that step, skipping the steps in between. Each step restores its settings
+   and runs with no clicking needed (in Step 9b, click *Compute Proportions*).
+   If a saved setting is not available (for example, a filter column or a
+   moderator that is not in the data), the step stops and says so instead of
+   running a different analysis.
+5. Compare the results with the ones stored in the list.
 
-This is also a convenient way to share an analysis with co-authors or
-reviewers: send them the notebook link and the session file.
+You only run the cells: after a restore, no button needs to be clicked, except
+*Compute Proportions* in Step 9b (its bootstrap can take minutes, so it waits
+for you). The saved options of Steps 12–24 are applied once: if you then choose
+other options and run, re-running the cell keeps your choices. Click
+**↺ Restore** again to replay the saved analysis.
+
+You can then change settings and save new analyses to the same project, or load
+new data in Step 2 and save analyses on it (a new data version is added).
+
+**Managing the project.** In Step 2 (tab *Project*) and Step 27 you can rename
+an analysis, edit its note, delete it (click twice to confirm) and rename the
+project. Click **💾 Save changes** to download the next revision, or
+*Download again* for the last revision. Data that no analysis uses any more is
+dropped from the next revision.
+
+**For a paper.** The last revision is the supplementary file that reproduces the
+reported analyses: one file instead of one per analysis. Reviewers and
+co-authors open it in Step 2 with the notebook link. Session files saved by
+earlier versions open as a project with one analysis.
+
+**Not saved.** Bootstrap runs are not repeated by a restore: the wild cluster
+bootstrap p-values of Step 12 are stored with the analysis (with their seed and
+number of replications), so run the bootstrap panel again with the same seed to
+check them. Plots are saved with plot recipes (below), and the summaries of
+Steps 19c, 23, 25 and 26 are redrawn from the analyses they show.
 
 ### Plot recipes (one file per figure)
 
@@ -812,17 +882,53 @@ Built-in example datasets:
   Every plot can be customized (size, fonts, colours, labels, axis limits) and
   saved as PDF, PNG
   (adjustable DPI) and SVG, with an optional transparent background. Each plot
-  cell has a **figure size preset** and generates a figure caption. The
-  presets set the width, height and font sizes at printed size:
-  - **Generic** 1 column (85 mm), 1.5 columns (120 mm) and full width (175 mm),
-    which fit most journals;
-  - the exact column widths of **Elsevier** (90, 140, 190 mm), **Nature** (89,
-    183 mm) and **PLOS** (190 mm);
-  - a thesis page and a 16:9 presentation slide.
-  Check your target journal's instructions, which take precedence. The map is saved as an interactive HTML file
+  cell has a **size preset** (📏 Size) and generates a figure caption. The
+  presets are shares of a page (the text width of an A4 or Letter page is about
+  16.5 cm); a journal's single column is close to half a page and its full
+  width close to a full page:
+
+  | Preset | Size | Title / axis labels / ticks |
+  |---|---|---|
+  | Full page width (the default) | 16.5 × 11.7 cm | 11 / 10 / 9 pt |
+  | Two-thirds of the page | 11 × 8.6 cm | 9 / 8 / 7 pt |
+  | Half page or one column | 8 × 6.9 cm | 8 / 7 / 6 pt |
+  | Full page, tall | 16.5 × 22 cm | 11 / 10 / 9 pt |
+  | Presentation slide (16:9) | 33.9 × 19 cm | 22 / 18 / 16 pt |
+
+  Font sizes are the printed sizes, balanced for each size: smaller figures
+  get smaller text (6 pt ticks at half a page, the smallest size most journals
+  accept), slides larger text. Every font of the plot follows the preset
+  (legends, annotations, group labels and footnotes take the tick or label
+  size), and so do marker and bubble sizes, in proportion to the width. If you
+  change the width by hand, the fonts move to the balanced sizes for that width
+  and the markers are rescaled; a font you change after that is kept. Settings
+  loaded from a plot recipe are not changed. Check your target journal's
+  instructions, which take precedence.
+- **Options in every plot cell** (except the map):
+  - **Font (all figures)**: DejaVu Sans (matplotlib's default), Arial /
+    Helvetica or Times New Roman. The choice applies to every figure drawn
+    afterwards. When Arial or Times New Roman is not installed (as in Colab),
+    the figure uses Liberation Sans or Liberation Serif, which have the same
+    letter widths, and the cell says so. The orchard plot's own font list
+    follows the same choice.
+  - **Panel label**: a bold letter (A, B, …) at the top-left corner, for
+    multi-panel figures.
+  - **Axis ranges**: untick *Automatic X-axis range* (or Y) to type the
+    limits, e.g. to give several panels the same scale (bubble, spline,
+    leave-one-out, cumulative, funnel, time-lag and Baujat plots; the forest,
+    orchard and trim-and-fill plots have their own range settings). The boxes
+    start from the range of the last figure drawn.
+  - **Percent-change axis** for lnRR: forest, orchard, bubble, spline,
+    leave-one-out, cumulative and time-lag plots. The data stay on the lnRR
+    scale; round percentages are placed at their lnRR positions, with evenly
+    spaced ones when the range is narrow.
+  - PDF and EPS files keep the text as editable TrueType text (font type 42),
+    which journals ask for.
+  These settings are saved in plot recipes; recipes saved before they existed
+  load and redraw as before. The map is saved as an interactive HTML file
   (PNG/PDF/SVG too if the `kaleido` package is installed). In Colab, saved files
   appear in the *Files* panel on the left.
-- **Session file** and **plot recipes** for reproducibility (Section 4).
+- **Project file** and **plot recipes** for reproducibility (Section 4).
 
 **File names.** Every file is named after what it contains, so the files can be
 uploaded as supplementary material as they are:
@@ -838,7 +944,8 @@ uploaded as supplementary material as they are:
 
 Examples: `Overall_102ES-29st.xlsx`, `Subgroups_meth_95ES-27st_F-hab-mar.xlsx`,
 `ForestPlot_meth_95ES-27st_F-hab-mar.pdf` and its recipe
-`ForestPlot_meth_95ES-27st_F-hab-mar_recipe.json`, `Session_102ES-29st.json`.
+`ForestPlot_meth_95ES-27st_F-hab-mar_recipe.json`. The project file is named
+after the project and its revision: `Biomass-MA_project_r012.json`.
 The full settings and filters are inside each file (protocol sheet, recipe,
 Data selection section). A name that was already written in the session gets
 `_v2`, `_v3`. A name typed in a plot cell's *Filename* box replaces the
@@ -854,6 +961,8 @@ automatic one.
 | A dashboard shows an inner scroll bar, or you prefer one | In Colab each step's output grows to its full height. To get Colab's scrolling back, set `COMETA_FULL_HEIGHT_OUTPUT = False` in Cell 1 (just above `es_null_value`) and re-run Cell 1. |
 | Package versions differ from the tested set (log of Step 27) | Usually harmless; the analysis runs with the installed versions. |
 | A step says an earlier step is missing | Run the steps in order. If you change something in an early step, re-run the following steps. |
+| A red *Reproducibility Mode stopped* box after restoring an analysis | A saved setting is not available with the data in this session (e.g. a filter column or a moderator that is not in the data). Check that you restored the right analysis and that the earlier steps ran with its data; nothing was run, so no wrong result was produced. |
+| A yellow *Stale Results Detected* box | An earlier step was run again (e.g. Step 7, or Step 9 for Step 9b) after this one: its results are still the old ones. Run this step again. Out-of-date results cannot be saved to the project. |
 | "'year' column not found" (cumulative analysis) | Add a `year` column to your data. |
 | No map types available | Map latitude/longitude or country in Step 2. |
 | A subgroup is missing from the results | It has fewer papers or observations than the Step 8 thresholds; see the processing log in Step 9. |
@@ -906,7 +1015,7 @@ The summary cell exports the results, with package versions, to
 ## 9. Citation, license and contact
 
 **Version.** This is CoMeta **1.0.0**. The version appears in the notebook
-header and is recorded in every session file, Excel report and validation
+header and is recorded in every project file, Excel report and validation
 export. [CHANGELOG.md](CHANGELOG.md) lists the changes between versions.
 
 **How to cite.** If you use CoMeta in published work, please cite the software
