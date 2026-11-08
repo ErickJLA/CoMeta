@@ -97,7 +97,7 @@ First public release.
 ### Validation
 - 28 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
   the user's own analysis, with optional reference datasets. They also include
-  91 unit tests. R packages are pinned to a dated CRAN snapshot.
+  92 unit tests. R packages are pinned to a dated CRAN snapshot.
 - Validation 27 checks the proportion of meaningful effects on simulated
   three-level data (bias and CI coverage, with Quick / Standard / Publication
   presets).
@@ -158,6 +158,11 @@ First public release.
   equation has no scientific notation; spline points are sized by weight;
   legends no longer cover the data at the default size. Plot recipes saved
   earlier load and draw as before.
+- Google Sheets import: numeric columns whose name contains "id" inside a
+  word (e.g. `lnRR_lipidfree`) were left as text and shown as categorical;
+  identifier columns are now recognised by whole words of the name
+  (`id`, `study_id`, `StudyID`, ...). Cells with only spaces count as empty
+  and the Unicode minus sign (−) is read as a minus.
 - Steps 8 and 12 no longer offer `shared_group_id` (the internal key of the
   shared-control groups) as a moderator; Step 8 skips columns with a single
   level and shows one short summary instead of a console-style log.
