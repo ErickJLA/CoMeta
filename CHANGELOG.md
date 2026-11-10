@@ -97,7 +97,7 @@ First public release.
 ### Validation
 - 28 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
   the user's own analysis, with optional reference datasets. They also include
-  94 unit tests. R packages are pinned to a dated CRAN snapshot.
+  96 unit tests. R packages are pinned to a dated CRAN snapshot.
 - Validation 27 checks the proportion of meaningful effects on simulated
   three-level data (bias and CI coverage, with Quick / Standard / Publication
   presets).
@@ -202,6 +202,14 @@ First public release.
   meta-regression report names every moderator and the fitted model.
 - Excel reports: the *Report Text* sheet no longer loses the words after a
   "<" (as in "p < 0.001").
+- Project file: a file saved again by an editor that adds a byte-order mark
+  (e.g. Notepad) opens; a file that is not a project, or a project whose
+  analyses lost their settings by hand editing, is refused with a plain
+  message instead of a technical one.
+- Project file: the summary of a saved Egger / trim-and-fill analysis reads
+  "Egger slope …, p = …" (it labelled the intercept with the p-value of the
+  slope); the slope is stored with the key results. Analyses saved earlier
+  show "Egger's test p = …".
 
 ### Publication text and Detailed Statistics
 - Every Detailed Statistics tab ends with a *Data selection (Steps 2–6)*
