@@ -10,6 +10,15 @@ and recorded in project files, Excel reports and validation exports.
 First public release.
 
 ### Analyses
+- Derived columns (Step 2b, optional): new columns from rules instead of edits
+  in the spreadsheet. A rule transforms a column (logarithm, square, rescale,
+  centre overall or within a group, standardise, cut into categories), splits
+  a moderator into its between- and within-group parts, combines columns into
+  a label, flags rows by a condition, harmonises labels, or computes a formula
+  from several columns. Rules are applied in order, never change an existing
+  column, are saved with the data in the project file, are listed in every
+  Detailed Statistics table and can be applied again to a new version of the
+  data. Formulas are read by a restricted parser, not run as code.
 - Three-level random-effects meta-analysis (REML) with the full sampling
   variance–covariance matrix, including covariances from shared control groups.
   Inference uses cluster-robust CR2 standard errors with Satterthwaite degrees of
@@ -97,7 +106,7 @@ First public release.
 ### Validation
 - 28 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
   the user's own analysis, with optional reference datasets. They also include
-  97 unit tests. R packages are pinned to a dated CRAN snapshot.
+  101 unit tests. R packages are pinned to a dated CRAN snapshot.
 - Validation 27 checks the proportion of meaningful effects on simulated
   three-level data (bias and CI coverage, with Quick / Standard / Publication
   presets).

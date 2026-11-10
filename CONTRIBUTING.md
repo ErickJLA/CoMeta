@@ -93,7 +93,7 @@ Steps 7–24 "Save analysis" → project file (data versions + named analyses:
 |---|---|
 | **1. Environment Setup & Core Functions** | Imports, the τ² estimators (REML, ML, PM, SJ, DL), CR2 / Satterthwaite inference and the HTZ Wald test (`_compute_robust_var_betas`), the warning router and log, the stale-results banners, figure saving and plot recipes, the project file (`project_*`, save bar, manager). |
 | **1b. Statistical Engine** | `FitSpec`, `build_fit_spec`, `fit_mv`, `fit_blocks`, `fit_cr2`, `compare_fits`, `pseudo_r2`, row accounting, VCV slicing, proportion of meaningful effects. |
-| **2–6. Data** | Ingestion and column mapping, global filters, cleaning and shared-control detection, effect-size choice, effect sizes and sampling VCVs (`build_vcv_matrices`). |
+| **2–6. Data** | Ingestion and column mapping, derived columns (Step 2b; the rule engine `apply_derived_rules` / `derived_formula` is in Cell 1, block "DERIVED COLUMNS"), global filters, cleaning and shared-control detection, effect-size choice, effect sizes and sampling VCVs (`build_vcv_matrices`). |
 | **7. Overall model** | Fixed-effect, two-level and three-level models, heterogeneity, prediction interval, Methods/Results text. |
 | **8–16. Moderators** | Subgroups, proportion of meaningful effects, meta-regression, splines, meta-forest, with their plots. |
 | **17–20. Publication bias** | Egger, trim-and-fill, PET-PEESE, time-lag test, the overview of all of them (19c), funnel plot. |

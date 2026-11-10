@@ -26,6 +26,9 @@ results were checked against the R packages `metafor`, `clubSandwich` and
 - Publication bias for dependent effect sizes: multilevel Egger's test,
   a time-lag (decline effect) test, with PET-PEESE and trim-and-fill as
   sensitivity analyses.
+- **Derived columns** (Step 2b): transformed moderators, the within- and
+  between-study parts of a moderator, combined labels, flags, harmonised
+  labels and formulas, built from rules that are saved with the data.
 - Reproducibility: one **project file** holds the data and every analysis you
   save, each with a name, a note, its settings and its key results, so any of
   them can be restored and run again (see
@@ -165,6 +168,51 @@ of Step 7 and, if Step 9 was run, the subgroups.
 After loading, choose the data type (raw continuous, raw binary or
 pre-calculated), check the column mapping, map the optional geographic columns
 and click **Confirm Mapping & Finalize Data**.
+
+**Step 2b – Derived Columns (optional).** Build new columns from rules instead
+of editing the spreadsheet. Choose what to do, fill in the form and click
+**➕ Add column**; each rule adds a column and never changes an existing one.
+- *Transform a column*: log10, natural logarithm, square root, square, multiply
+  or divide by a number, centre on the overall mean, centre within a group,
+  standardise, or cut into categories at the cut points you give. Values with
+  no logarithm (0 or below) become missing, and the step says how many.
+- *Split into between- and within-group parts*: for a moderator that varies
+  inside studies, the **between** column is its mean in each group (usually
+  the study) and the **within** column is each row's difference from that
+  mean. With both in a meta-regression (Step 12), the within slope compares
+  effect sizes of the same study and the between slope compares studies,
+  which can differ in many other ways. The step reports in how many groups
+  the moderator varies.
+- *Combine columns into one label*: e.g. `Replete_Growth` from nutrient status
+  and hormone group, so one subgroup run gives all the cells.
+- *Flag rows by a condition*: a yes/no column (equal to, one of, contains,
+  larger or smaller than, missing). A sensitivity analysis is then a filter on
+  that column in Step 3.
+- *Harmonise labels*: replace variants by one label (`old label = new label`,
+  one per line); labels not listed stay as they are.
+- *Formula from several columns*: arithmetic with column names, numbers,
+  `+ - * / **`, parentheses and the functions `log`, `ln`, `log10`, `log2`,
+  `sqrt`, `exp`, `abs`, `min`, `max`, e.g. `sqrt(1/ne + 1/nc)` or
+  `content_pct / 100`. A column name with spaces goes between backticks.
+  Formulas are read by a small parser, not run as code.
+
+Rules are applied in order, so a rule can use a column made by an earlier one
+(`log10_dose`, then `log10_dose_c`, then `log10_dose_c_sq`). The list shows
+each rule in words with the number of rows that got a value, and a preview
+shows the new columns next to the ones they come from. Removing a rule also
+removes the rules that need its column. After any change, run Step 3 and the
+following steps again.
+
+The rules are saved with the data in the project file and listed at the end of
+every Detailed Statistics table. When you load a new version of the data in
+Step 2, this step offers to apply the earlier rules to it; the rules of a data
+version in the open project can also be applied to the current data. After a
+restore, the step recomputes the columns from the rules and says whether they
+are identical to the saved ones.
+
+Because a rule cannot change an existing column, effect sizes and their
+variances cannot be altered here. A correction that changes an effect size
+also changes its sampling variance, so it does not belong in a formula column.
 
 **Step 3 – Global Filtering.** Two tabs:
 - *Subset filters*: restrict the analysis to part of the data. Add one or more
@@ -659,7 +707,8 @@ analysis ran) are not saved: run the step again first.
 3. Click **↺ Restore** on the analysis you want. Its data and settings become the
    current session.
 4. Run the cells in order from Step 3 up to the analysis' step (the restore
-   message says which). For an analysis of Step 12 onward, run Steps 3–7, then
+   message says which). Derived columns (Step 2b) come back with the data, so
+   that step can be skipped. For an analysis of Step 12 onward, run Steps 3–7, then
    that step, skipping the steps in between. Each step restores its settings
    and runs with no clicking needed (in Step 9b, click *Compute Proportions*).
    If a saved setting is not available (for example, a filter column or a
