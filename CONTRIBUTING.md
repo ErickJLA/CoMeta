@@ -243,6 +243,11 @@ statistics must not live inside widget callbacks.
   'regression', 'spline', 'pub_bias', 'pet_peese', 'loo', 'cumulative',
   'plots']`) show "re-run this step". A new step registers its banner with
   `register_banner('my_module', banner_widget)`.
+- **Reproducibility Mode.** A restore sets `ANALYSIS_CONFIG['is_reproducing']`;
+  a step then sets its saved settings and runs. Every step cell calls
+  `show_reproducibility_bar()` right after `cometa_full_height()` (the bar
+  with the *Leave Reproducibility Mode* button); a new step cell must do the
+  same. `project_leave_reproducibility()` switches the mode off.
 - **Plot cells** only draw: they read `<analysis>_results` and never refit.
   `results_token(key)` notices when the analysis was re-run after the plot
   (`stale_warning_html`). `plot_recipe_bar` / `build_plot_recipe` save a

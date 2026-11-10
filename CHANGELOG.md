@@ -97,7 +97,7 @@ First public release.
 ### Validation
 - 28 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
   the user's own analysis, with optional reference datasets. They also include
-  96 unit tests. R packages are pinned to a dated CRAN snapshot.
+  97 unit tests. R packages are pinned to a dated CRAN snapshot.
 - Validation 27 checks the proportion of meaningful effects on simulated
   three-level data (bias and CI coverage, with Quick / Standard / Publication
   presets).
@@ -206,6 +206,12 @@ First public release.
   (e.g. Notepad) opens; a file that is not a project, or a project whose
   analyses lost their settings by hand editing, is refused with a plain
   message instead of a technical one.
+- Reproducibility Mode can be left: while it is on, every step cell shows a
+  blue bar with a **Leave Reproducibility Mode** button (also under the
+  restore message). Leaving keeps the restored data and settings and stops
+  the cells from setting saved settings and running by themselves. Loading
+  other data in Step 2 ends the mode as well. Step 2, tab *Project*, now
+  explains how the mode works and what to do next.
 - Project file: the summary of a saved Egger / trim-and-fill analysis reads
   "Egger slope …, p = …" (it labelled the intercept with the p-value of the
   slope); the slope is stored with the key results. Analyses saved earlier

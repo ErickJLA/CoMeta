@@ -673,6 +673,17 @@ for you). The saved options of Steps 12–24 are applied once: if you then choos
 other options and run, re-running the cell keeps your choices. Click
 **↺ Restore** again to replay the saved analysis.
 
+**Reproducibility Mode and how to leave it.** A restore switches
+*Reproducibility Mode* on. While it is on, every step cell shows a blue bar at
+its top ("Reproducibility Mode is on: replaying …"), sets its saved settings
+and runs by itself. When you want to work freely with the restored data (change
+a setting, run other analyses), click **Leave Reproducibility Mode** in the blue
+bar of any cell or under the restore message. The data and settings stay
+loaded; the cells stop setting and running things by themselves, and the bars
+change to "Reproducibility Mode is off". Loading other data in Step 2 also ends
+the mode, and **↺ Restore** switches it on again. The same instructions are
+shown in Step 2, tab *Project*.
+
 You can then change settings and save new analyses to the same project, or load
 new data in Step 2 and save analyses on it (a new data version is added).
 
