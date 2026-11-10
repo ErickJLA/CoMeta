@@ -881,7 +881,13 @@ Built-in example datasets:
   Text* tab of each analysis, with the numbers filled in.
 - **Excel reports**: audit report (Step 7) and reports for subgroups (with
   a *Variance Check* sheet), meta-regression, splines, publication bias, time-lag test and cumulative analysis; a CSV
-  table of the meaningful-effect shares (Step 9b).
+  table of the meaningful-effect shares (Step 9b). The first sheet of every
+  report, *Detailed Statistics*, is the table of the step's 🔢 Detailed
+  Statistics tab as shown on screen (values as text, with the method beside
+  each one); the other sheets hold the data used, the sampling covariances,
+  the exclusions, the publication text and the settings. Download the report
+  after running the step: if an earlier step was run again since, the sheet
+  says that the step must be run again.
 - **Figures**: forest, orchard, meaningful-effects, bubble, spline,
   trim-and-fill, time-lag, funnel, leave-one-out, Baujat, cumulative trend and map plots.
   Every plot can be customized (size, fonts, colours, labels, axis limits) and

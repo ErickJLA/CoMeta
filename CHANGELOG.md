@@ -97,7 +97,7 @@ First public release.
 ### Validation
 - 28 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
   the user's own analysis, with optional reference datasets. They also include
-  92 unit tests. R packages are pinned to a dated CRAN snapshot.
+  94 unit tests. R packages are pinned to a dated CRAN snapshot.
 - Validation 27 checks the proportion of meaningful effects on simulated
   three-level data (bias and CI coverage, with Quick / Standard / Publication
   presets).
@@ -193,6 +193,15 @@ First public release.
 - Meta-regression Results name the omnibus test as the Methods do
   (approximate Hotelling's T², AHZ); the subgroup Results table shows small
   p-values as "< 0.001", like the text.
+- Excel reports: the first sheet of every report is now the step's
+  *Detailed Statistics* table, exactly as shown on screen, so the file and
+  the screen give the same numbers. This replaces two sheets that were
+  wrong: *Overall Results* listed the two-level estimates even when the
+  three-level model was reported, and *Regression Results* listed only the
+  intercept and the first moderator. The settings sheet of the
+  meta-regression report names every moderator and the fitted model.
+- Excel reports: the *Report Text* sheet no longer loses the words after a
+  "<" (as in "p < 0.001").
 
 ### Publication text and Detailed Statistics
 - Every Detailed Statistics tab ends with a *Data selection (Steps 2–6)*

@@ -375,6 +375,11 @@ run) or *skipped* (it uses only reference datasets and they are off). A
 change is ready when nothing that passed before fails now. If a tolerance
 has to be loosened, explain why in the pull request.
 
+**Excel reports.** The numbers of a report come from the step's Detailed
+Statistics rows: pass `key='<step id>'` to `statistics_table_text` when the
+tab is rendered, and `statistics_sheet(writer, '<step id>')` writes them as
+the first sheet. Do not build a second table of results for the file.
+
 **Unit tests.** Validation 11 collects every `test_...` function in its cell
 with pytest. Add a test for each bug you fix (one that fails before your fix
 and passes after) and for each new function. Tests should be small, fast and
