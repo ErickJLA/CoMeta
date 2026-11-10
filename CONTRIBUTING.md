@@ -318,6 +318,10 @@ These keep CoMeta readable and its results trustworthy.
   recommended practice.
 - When the method changes, update the generated Methods/Results text and its
   references in the same change. The text must describe what was computed.
+- References live in one dictionary, `COMETA_REFERENCES` (Cell 1). Add a new
+  reference there (with its DOI, checked against the publisher's record) and
+  use it by key; do not write a reference inside a step. Number citations in
+  order of first appearance.
 
 **Code**
 - Stay inside the notebook. Do not move code into an external package; a

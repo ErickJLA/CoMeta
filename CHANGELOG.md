@@ -170,6 +170,29 @@ First public release.
   in the other steps.
 - The session file of Step 27 and the "Download Settings JSON" buttons of
   Steps 7 and 9 are replaced by the project file.
+- Funnel plot: the Egger's-test box is placed beside the plot by default
+  (inside the plot it could hide the least precise effect sizes). The corner
+  positions are still available, and recipes saved earlier keep theirs.
+- Step 7 stops with a clear message when all effect sizes come from a single
+  study, instead of reporting a result (the cluster-robust standard error is
+  not defined with one study).
+- Step 9b warns about subgroups with fewer than 10 studies, and its Results
+  text says so and states when the calibrated shares have no confidence
+  interval.
+- Publication-bias overview (Step 19c): the PET slope is called "the same
+  regression as Egger's test" only when both use the standard error, and the
+  summary says that Egger's test, trim-and-fill and the PET slope read the
+  same funnel asymmetry and count as one piece of evidence.
+- Non-significant tests are worded as "no evidence of" or "not detected" in
+  the spline dashboard and the publication-bias overview (they said "No" and
+  "no change").
+- One reference list for all generated texts (`COMETA_REFERENCES`, Cell 1):
+  a paper is written the same way in every step, journal articles carry
+  their DOI, Step 9b uses numbered citations like the other steps, and the
+  references of Step 16 are numbered in order of citation.
+- Meta-regression Results name the omnibus test as the Methods do
+  (approximate Hotelling's T², AHZ); the subgroup Results table shows small
+  p-values as "< 0.001", like the text.
 
 ### Publication text and Detailed Statistics
 - Every Detailed Statistics tab ends with a *Data selection (Steps 2–6)*

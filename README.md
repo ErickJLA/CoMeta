@@ -239,7 +239,8 @@ with imputed SDs against complete cases only) and the removed rows.
 
 ### Overall model
 
-**Step 7 – Overall Meta-Analysis.** The main result.
+**Step 7 – Overall Meta-Analysis.** The main result. It needs at least 2
+independent studies; with a single study it stops and says why.
 - *Model*: three-level (recommended) or two-level (as a sensitivity analysis).
   For the two-level model you can choose the τ² estimator: REML, DL, ML, PM or SJ.
   With shared controls, the two-level mean is estimated by generalized least
@@ -358,6 +359,9 @@ decreases** and **negligible** (Mathur & VanderWeele 2019, 2020):
   explore thresholds quickly (bias-corrected percentile intervals, clearly
   marked as exploratory), **1000** or more for the results you report (BCa
   intervals). A progress bar shows the time left.
+- Subgroups with fewer than 10 studies are flagged: their shares are imprecise,
+  and a calibrated share counted over a few effect sizes easily reaches 0% or
+  100% by chance.
 
 The results come as a dashboard, a **🔢 Detailed Statistics** tab, publication
 text, a CSV export and a figure; the *💾 Export & Save* tab also has the
@@ -556,7 +560,8 @@ them.
 **Step 20 – Funnel Plot.** Contour-enhanced funnel plot: shaded significance
 regions (p ≤ 0.10, 0.05, 0.01) around the no-effect value, an optional
 pseudo-confidence region around the pooled effect, optional colouring by a
-moderator and the result of Egger's test from Step 17. With the significance
+moderator and the result of Egger's test from Step 17 (in a box beside the
+plot by default, so that it never hides effect sizes). With the significance
 regions shown, the pseudo-confidence region is drawn as dashed lines only
 (filling it on top of the shaded regions would make extra stripes); without
 them it is filled.
