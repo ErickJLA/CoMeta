@@ -21,7 +21,9 @@ First public release.
   data. Formulas are read by a restricted parser, not run as code. The formula can be
   built with buttons and is checked while it is written (result of the first
   rows, or what is still wrong); combined labels take any two to four
-  columns, in the order chosen.
+  columns, in the order chosen. The rules can be saved as a small rules
+  file and loaded again (from a rules file or a project file) to build the
+  same columns on a new version of the data.
 - Three-level random-effects meta-analysis (REML) with the full sampling
   variance–covariance matrix, including covariances from shared control groups.
   Inference uses cluster-robust CR2 standard errors with Satterthwaite degrees of
@@ -109,7 +111,7 @@ First public release.
 ### Validation
 - 28 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
   the user's own analysis, with optional reference datasets. They also include
-  101 unit tests. R packages are pinned to a dated CRAN snapshot.
+  102 unit tests. R packages are pinned to a dated CRAN snapshot.
 - Validation 27 checks the proportion of meaningful effects on simulated
   three-level data (bias and CI coverage, with Quick / Standard / Publication
   presets).

@@ -213,9 +213,17 @@ removes the rules that need its column. After any change, run Step 3 and the
 following steps again.
 
 The rules are saved with the data in the project file and listed at the end of
-every Detailed Statistics table. When you load a new version of the data in
-Step 2, this step offers to apply the earlier rules to it; the rules of a data
-version in the open project can also be applied to the current data. After a
+every Detailed Statistics table.
+
+**When the data change.** Under the list, **💾 Save rules file** downloads the
+rules of the current data as one small file (`DerivedColumns_rules.json`; it
+also lists each rule in words). Load the new data in Step 2, come back to this
+step and click **📂 Load rules**: choose that rules file, or a project file
+(the rules of its newest data version with derived columns are used). The
+columns are built again on the data loaded now; a rule whose column is not in
+the new data is left out, and the step says which. In the same session this
+step also offers to apply the rules of the data loaded before, and the rules
+of a data version in the open project. After a
 restore, the step recomputes the columns from the rules and says whether they
 are identical to the saved ones.
 
