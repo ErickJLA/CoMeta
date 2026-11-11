@@ -18,7 +18,10 @@ First public release.
   from several columns. Rules are applied in order, never change an existing
   column, are saved with the data in the project file, are listed in every
   Detailed Statistics table and can be applied again to a new version of the
-  data. Formulas are read by a restricted parser, not run as code.
+  data. Formulas are read by a restricted parser, not run as code. The formula can be
+  built with buttons and is checked while it is written (result of the first
+  rows, or what is still wrong); combined labels take any two to four
+  columns, in the order chosen.
 - Three-level random-effects meta-analysis (REML) with the full sampling
   variance–covariance matrix, including covariances from shared control groups.
   Inference uses cluster-robust CR2 standard errors with Satterthwaite degrees of

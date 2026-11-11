@@ -184,7 +184,10 @@ of editing the spreadsheet. Choose what to do, fill in the form and click
   which can differ in many other ways. The step reports in how many groups
   the moderator varies.
 - *Combine columns into one label*: e.g. `Replete_Growth` from nutrient status
-  and hormone group, so one subgroup run gives all the cells.
+  and hormone group, so one subgroup run gives all the cells. Choose two to
+  four columns, each in its own dropdown: they need not be next to each other
+  in the data, and the label follows the order you choose. The form shows how
+  many labels result, with examples.
 - *Flag rows by a condition*: a yes/no column (equal to, one of, contains,
   larger or smaller than, missing). A sensitivity analysis is then a filter on
   that column in Step 3.
@@ -193,8 +196,14 @@ of editing the spreadsheet. Choose what to do, fill in the form and click
 - *Formula from several columns*: arithmetic with column names, numbers,
   `+ - * / **`, parentheses and the functions `log`, `ln`, `log10`, `log2`,
   `sqrt`, `exp`, `abs`, `min`, `max`, e.g. `sqrt(1/ne + 1/nc)` or
-  `content_pct / 100`. A column name with spaces goes between backticks.
-  Formulas are read by a small parser, not run as code.
+  `content_pct / 100`. You can build it with buttons (*Insert column*, the
+  signs, the functions, *Undo*, *Clear*) or type it. While you write, the line
+  under the formula shows the result for the first rows and how many rows get
+  a value, or says what is still wrong (a parenthesis not closed, a column
+  name that does not exist with the closest names, a decimal comma). The signs
+  × ÷ − ^ ² are understood. A column name with spaces goes between backticks
+  (the *Insert column* button adds them). A formula that gives no value in any
+  row is not added. Formulas are read by a small parser, not run as code.
 
 Rules are applied in order, so a rule can use a column made by an earlier one
 (`log10_dose`, then `log10_dose_c`, then `log10_dose_c_sq`). The list shows
