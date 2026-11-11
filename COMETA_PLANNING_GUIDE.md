@@ -1,6 +1,6 @@
 # Planning a meta-analysis with CoMeta: a guide for Claude
 
-Guide version 2 (November 2026), written for **CoMeta 1.0.0**. Every
+Guide version 3 (November 2026), written for **CoMeta 1.0.0**. Every
 statement about CoMeta's behaviour was checked against the 1.0.0 code. The
 practical advice (run lists, figure checks, validation workflow) comes from
 using CoMeta on a real project.
@@ -70,6 +70,7 @@ Step map:
 | Step | What it does |
 |---|---|
 | 2 | Load data (Google Sheets, Excel/CSV upload, a project file, built-in examples) and map columns |
+| 2b | Optional: derived columns from rules (transform, within/between split, combined labels, flags, harmonised labels, formulas) |
 | 3 | Global filters (subset) and an optional common row set |
 | 4 | Cleaning (automatic): applies filters, removes unusable rows, reports them |
 | 5 | Choose the effect size (CoMeta recommends one) |
@@ -223,6 +224,35 @@ for c in df.columns.difference(['id','xe','sde','ne','xc','sdc','nc']):
 - Choose the data type, map columns (and geography, and optionally the
   control-group column), click **Confirm Mapping & Finalize Data**.
 
+### Step 2b – Derived columns (optional)
+- Builds new columns from **rules**, so the spreadsheet need not be edited.
+  A rule adds a column and never changes an existing one (effect sizes and
+  variances cannot be altered here). Rules run in order, so a rule can use a
+  column made by an earlier one.
+- Rule types:
+  - *Transform*: log10, ln, square root, square, multiply/divide by a number,
+    centre (overall mean), centre within a group, standardise, cut into
+    categories. Logs of values ≤ 0 become missing (counted).
+  - *Split into between- and within-group parts*: `<x>_between` (group mean,
+    usually by study `id`) and `<x>_within` (deviation). It reports in how
+    many groups the moderator varies.
+  - *Combine* two to four columns into one label (e.g. `Replete_Growth`).
+  - *Flag* rows by one condition (equal, one of, contains, >, ≥, <, ≤,
+    missing) as yes/no.
+  - *Harmonise labels* (`old = new`).
+  - *Formula* over numeric columns: `+ - * / **`, parentheses, `log`, `ln`,
+    `log10`, `log2`, `sqrt`, `exp`, `abs`, `min`, `max` (e.g.
+    `sqrt(1/ne + 1/nc)`, `content_pct / 100`). Checked while it is written.
+- The rules are saved with the data in the project file, listed in every
+  Detailed Statistics table, and can be saved as a **rules file** and loaded
+  on a new version of the data (also from a project file).
+- Not possible here: reshaping (pairing two outcomes into one row, stacking
+  components into rows; see 8b), compound conditions in one flag (make two
+  flags and combine them), and any correction of an effect size.
+- After a change, Step 3 and the later steps are run again. In a plan, give
+  each derived column its rule in words and write filters and moderators with
+  the derived column names.
+
 ### Step 3 – Global filtering
 - *Subset filters*: one or more variables; tick the levels to keep. Every later
   step uses the filtered data. Use for a pre-specified scope (e.g. one outcome
@@ -283,7 +313,8 @@ for c in df.columns.difference(['id','xe','sde','ne','xc','sdc','nc']):
   effect, Q test, I² and **multilevel I²** (between/within study), τ² and σ²
   with profile-likelihood CIs; model-selection LRT/AIC (for information only;
   the chosen model is reported); Geary and missing-SD sensitivity results.
-- Warning when there are fewer than 10 studies.
+- Warning when there are fewer than 10 studies; with a single study Step 7
+  stops (a meta-analysis needs at least 2 independent studies).
 - These settings (model, CR2, t/z, CI level) are used by every later step.
 
 ### Steps 8–9 – Subgroups
@@ -345,6 +376,9 @@ for c in df.columns.difference(['id','xe','sde','ne','xc','sdc','nc']):
 - CIs: cluster bootstrap; 50–200 resamples to explore (marked exploratory),
   **≥ 1000 for reporting** (BCa). The delta-method CI is poor for shares below
   0.15.
+- Subgroups with fewer than 10 studies are flagged: their shares are
+  imprecise, and a calibrated share over few effect sizes easily reaches 0%
+  or 100%.
 
 ### Steps 10–11 – Forest and orchard plots
 - Of the overall and subgroup results; the orchard plot shows every effect
@@ -421,7 +455,12 @@ for c in df.columns.difference(['id','xe','sde','ne','xc','sdc','nc']):
 ### Saving, figures, validation
 - **💾 Save analysis** (export/save tab of Steps 7–24) adds an analysis to the
   project file; restore it later from Step 2, tab Project. Name each saved
-  analysis with its run ID from the plan.
+  analysis with its run ID from the plan. A restore switches *Reproducibility
+  Mode* on (each cell sets its saved settings and runs); the user leaves it
+  with **Leave Reproducibility Mode** to change settings or run other
+  analyses on the restored data.
+- Excel reports: the first sheet of each is the step's Detailed Statistics
+  table, as on screen.
 - Figures: size presets as page shares (full page width, two-thirds, half page
   or one column, full page tall, slide) with balanced fonts; one font for all
   figures; panel letters; manual axis ranges; editable labels, colours and
@@ -526,10 +565,10 @@ An *Estimate time* button predicts the run time. Results show the bootstrap p
 
 | Where | Rule or warning |
 |---|---|
-| Step 7 | warning when fewer than 10 studies |
+| Step 7 | warning when fewer than 10 studies; stops with 1 study |
 | Step 8 | groups dropped below Min Papers (3) or Min Observations (5) |
 | Step 9 | warnings: group with < 5 studies; test with < 4 df; variance flag when τ² + σ² differs > ×4 (groups ≥ 5 studies); equal-variance LRT only for between-study moderators; separate-variance model needs ≥ 2 studies per group |
-| Step 9b | bootstrap < 1000 resamples = exploratory; delta CI unreliable when share < 0.15 |
+| Step 9b | bootstrap < 1000 resamples = exploratory; delta CI unreliable when share < 0.15; warning for subgroups with < 10 studies |
 | Step 12 | warnings: < 10 studies per coefficient; coefficient df < 4; category with < 5 studies |
 | Step 14 | stops when studies < coefficients + 2; warns below 10 studies per coefficient and for sparse ends |
 | Step 16 | needs ≥ 30 effect sizes |
@@ -586,20 +625,29 @@ An *Estimate time* button predicts the run time. Results show the bootstrap p
 | Effective dose windows (range where the lower CI of the predicted effect exceeds zero) | no (predictions with CIs are given, so it can be read off approximately) | R: predict over a dose grid |
 | Offline use / data that cannot go to Google | no (runs in Google Colab) | a local Jupyter install of the notebook, or R |
 
-### 8b. Workarounds by preparing the data first
+### 8b. Workarounds with derived columns or a second file
 
-Several analyses that look impossible become ordinary CoMeta runs once the
-user adds a column or builds a second file. Offer these before sending the
-user to R.
+Several analyses that look impossible become ordinary CoMeta runs once a
+column is added or a second file is built. Offer these before sending the
+user to R. Columns are built in **Step 2b** (rules, saved with the project);
+only reshaped files are prepared outside CoMeta.
 
 | Need | Prepare | Then in CoMeta |
 |---|---|---|
-| Quadratic dose–response | `log10_dose_c` (centred, within class if classes differ) and its square | Step 12 with both as continuous moderators |
-| Within- vs between-series dose effects | split centred dose into the series mean (between) and the deviation from it (within), and their squares | Step 12 with the within and between terms |
-| A slope between two outcomes of the same unit (e.g. outcome B vs outcome A measured on the same cultures or plots) | a **paired file**: one row per unit with outcome B as the effect size and outcome A's lnRR as a column | load as a separate dataset; Step 12 on that column |
-| Decomposing a product (e.g. yield = biomass × content) | a **long file**: one row per component per unit, with a `component × group` column | load separately; Step 9 on that column (the share itself needs R, section 8) |
-| Interaction of two categorical moderators as cells | a combined column (e.g. `A1_B1`, `A1_B2`, ...) | Step 9 single-factor on the cell column, or two-factor subgroups |
-| Sensitivity without a set of studies or rows (one laboratory, Geary failures, imputed SDs) | a flag column | Step 3 filter on the flag |
+| Quadratic dose–response | Step 2b: `log10_dose`, then centre it (within class if classes differ), then square it | Step 12 with both as continuous moderators |
+| Within- vs between-series dose effects | Step 2b: split the (log) dose by the series or study into its between and within parts; square them if needed | Step 12 with the within and between terms |
+| Interaction of two categorical moderators as cells | Step 2b: combine the two columns (e.g. `A1_B1`, `A1_B2`, ...) | Step 9 single-factor on the cell column, or two-factor subgroups |
+| Sensitivity without a set of studies or rows (one laboratory, a taxon) | Step 2b: a flag column | Step 3 filter on the flag |
+| Units or synonyms that differ between sources | Step 2b: a formula (unit conversion) or harmonised labels | use the new column as moderator or filter |
+| A slope between two outcomes of the same unit (e.g. outcome B vs outcome A measured on the same cultures or plots) | outside CoMeta: a **paired file**, one row per unit with outcome B as the effect size and outcome A's lnRR as a column | load it as a second dataset; Step 12 on that column. Caution: the predictor has sampling error (its slope is biased toward zero) and may share the control group |
+| Decomposing a product (e.g. yield = biomass × content) | outside CoMeta: a **long file**, one row per component per unit, with a `component × group` column | load separately; Step 9 on that column (the share itself needs R, section 8). Caution: the rows of one unit are correlated, and CoMeta's covariances only cover shared controls |
+
+Not a derived column: a correction that changes the effect size (e.g. a
+lipid-free biomass lnRR) also changes its sampling variance; compute effect
+size and variance outside and load them as pre-calculated data.
+
+Rows that fail Geary's test or have imputed SDs are flagged by Step 6 itself
+(its sensitivity refits are in Step 7), not by Step 2b.
 
 When a file is derived, keep its construction rules in the data dictionary
 and expect different k / studies from the main file.
