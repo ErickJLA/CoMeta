@@ -26,6 +26,9 @@ results were checked against the R packages `metafor`, `clubSandwich` and
 - Publication bias for dependent effect sizes: multilevel Egger's test,
   a time-lag (decline effect) test, with PET-PEESE and trim-and-fill as
   sensitivity analyses.
+- **Derived columns** (Step 2b): transformed moderators, the within- and
+  between-study parts of a moderator, combined labels, flags, harmonised
+  labels and formulas, built from rules that are saved with the data.
 - Reproducibility: one **project file** holds the data and every analysis you
   save, each with a name, a note, its settings and its key results, so any of
   them can be restored and run again (see
@@ -166,6 +169,68 @@ After loading, choose the data type (raw continuous, raw binary or
 pre-calculated), check the column mapping, map the optional geographic columns
 and click **Confirm Mapping & Finalize Data**.
 
+**Step 2b – Derived Columns (optional).** Build new columns from rules instead
+of editing the spreadsheet. Choose what to do, fill in the form and click
+**➕ Add column**; each rule adds a column and never changes an existing one.
+- *Transform a column*: log10, natural logarithm, square root, square, multiply
+  or divide by a number, centre on the overall mean, centre within a group,
+  standardise, or cut into categories at the cut points you give. Values with
+  no logarithm (0 or below) become missing, and the step says how many.
+- *Split into between- and within-group parts*: for a moderator that varies
+  inside studies, the **between** column is its mean in each group (usually
+  the study) and the **within** column is each row's difference from that
+  mean. With both in a meta-regression (Step 12), the within slope compares
+  effect sizes of the same study and the between slope compares studies,
+  which can differ in many other ways. The step reports in how many groups
+  the moderator varies.
+- *Combine columns into one label*: e.g. `Replete_Growth` from nutrient status
+  and hormone group, so one subgroup run gives all the cells. Choose two to
+  four columns, each in its own dropdown: they need not be next to each other
+  in the data, and the label follows the order you choose. The form shows how
+  many labels result, with examples.
+- *Flag rows by a condition*: a yes/no column (equal to, one of, contains,
+  larger or smaller than, missing). A sensitivity analysis is then a filter on
+  that column in Step 3.
+- *Harmonise labels*: replace variants by one label (`old label = new label`,
+  one per line); labels not listed stay as they are.
+- *Formula from several columns*: arithmetic with column names, numbers,
+  `+ - * / **`, parentheses and the functions `log`, `ln`, `log10`, `log2`,
+  `sqrt`, `exp`, `abs`, `min`, `max`, e.g. `sqrt(1/ne + 1/nc)` or
+  `content_pct / 100`. You can build it with buttons (*Insert column*, the
+  signs, the functions, *Undo*, *Clear*) or type it. While you write, the line
+  under the formula shows the result for the first rows and how many rows get
+  a value, or says what is still wrong (a parenthesis not closed, a column
+  name that does not exist with the closest names, a decimal comma). The signs
+  × ÷ − ^ ² are understood. A column name with spaces goes between backticks
+  (the *Insert column* button adds them). A formula that gives no value in any
+  row is not added. Formulas are read by a small parser, not run as code.
+
+Rules are applied in order, so a rule can use a column made by an earlier one
+(`log10_dose`, then `log10_dose_c`, then `log10_dose_c_sq`). The list shows
+each rule in words with the number of rows that got a value, and a preview
+shows the new columns next to the ones they come from. Removing a rule also
+removes the rules that need its column. After any change, run Step 3 and the
+following steps again.
+
+The rules are saved with the data in the project file and listed at the end of
+every Detailed Statistics table.
+
+**When the data change.** Under the list, **💾 Save rules file** downloads the
+rules of the current data as one small file (`DerivedColumns_rules.json`; it
+also lists each rule in words). Load the new data in Step 2, come back to this
+step and click **📂 Load rules**: choose that rules file, or a project file
+(the rules of its newest data version with derived columns are used). The
+columns are built again on the data loaded now; a rule whose column is not in
+the new data is left out, and the step says which. In the same session this
+step also offers to apply the rules of the data loaded before, and the rules
+of a data version in the open project. After a
+restore, the step recomputes the columns from the rules and says whether they
+are identical to the saved ones.
+
+Because a rule cannot change an existing column, effect sizes and their
+variances cannot be altered here. A correction that changes an effect size
+also changes its sampling variance, so it does not belong in a formula column.
+
 **Step 3 – Global Filtering.** Two tabs:
 - *Subset filters*: restrict the analysis to part of the data. Add one or more
   filter variables and tick the levels to keep; the counts per level are shown.
@@ -239,7 +304,8 @@ with imputed SDs against complete cases only) and the removed rows.
 
 ### Overall model
 
-**Step 7 – Overall Meta-Analysis.** The main result.
+**Step 7 – Overall Meta-Analysis.** The main result. It needs at least 2
+independent studies; with a single study it stops and says why.
 - *Model*: three-level (recommended) or two-level (as a sensitivity analysis).
   For the two-level model you can choose the τ² estimator: REML, DL, ML, PM or SJ.
   With shared controls, the two-level mean is estimated by generalized least
@@ -358,6 +424,9 @@ decreases** and **negligible** (Mathur & VanderWeele 2019, 2020):
   explore thresholds quickly (bias-corrected percentile intervals, clearly
   marked as exploratory), **1000** or more for the results you report (BCa
   intervals). A progress bar shows the time left.
+- Subgroups with fewer than 10 studies are flagged: their shares are imprecise,
+  and a calibrated share counted over a few effect sizes easily reaches 0% or
+  100% by chance.
 
 The results come as a dashboard, a **🔢 Detailed Statistics** tab, publication
 text, a CSV export and a figure; the *💾 Export & Save* tab also has the
@@ -372,7 +441,10 @@ lists every number at full precision: the thresholds on the analysis scale, the
 model, τ², σ², T² and SE(T²), and each share with its bootstrap and
 delta-method CIs. It also has a plain-text copy to paste into a report or an AI
 assistant. The figure shows stacked bars for all groups with their CIs, or the
-distribution of true effects for one group, and has its own plot recipe. Choose the thresholds before
+distribution of true effects for one group, and has its own plot recipe. Every
+text of the figure can be edited (title, axis labels, group names and the three
+legend entries), for example to write it in another language; an empty box
+keeps the automatic text. Choose the thresholds before
 looking at the results, from what is biologically or practically relevant for
 your outcome.
 
@@ -556,7 +628,8 @@ them.
 **Step 20 – Funnel Plot.** Contour-enhanced funnel plot: shaded significance
 regions (p ≤ 0.10, 0.05, 0.01) around the no-effect value, an optional
 pseudo-confidence region around the pooled effect, optional colouring by a
-moderator and the result of Egger's test from Step 17. With the significance
+moderator and the result of Egger's test from Step 17 (in a box beside the
+plot by default, so that it never hides effect sizes). With the significance
 regions shown, the pseudo-confidence region is drawn as dashed lines only
 (filling it on top of the shaded regions would make extra stripes); without
 them it is filled.
@@ -654,7 +727,8 @@ analysis ran) are not saved: run the step again first.
 3. Click **↺ Restore** on the analysis you want. Its data and settings become the
    current session.
 4. Run the cells in order from Step 3 up to the analysis' step (the restore
-   message says which). For an analysis of Step 12 onward, run Steps 3–7, then
+   message says which). Derived columns (Step 2b) come back with the data, so
+   that step can be skipped. For an analysis of Step 12 onward, run Steps 3–7, then
    that step, skipping the steps in between. Each step restores its settings
    and runs with no clicking needed (in Step 9b, click *Compute Proportions*).
    If a saved setting is not available (for example, a filter column or a
@@ -667,6 +741,17 @@ You only run the cells: after a restore, no button needs to be clicked, except
 for you). The saved options of Steps 12–24 are applied once: if you then choose
 other options and run, re-running the cell keeps your choices. Click
 **↺ Restore** again to replay the saved analysis.
+
+**Reproducibility Mode and how to leave it.** A restore switches
+*Reproducibility Mode* on. While it is on, every step cell shows a blue bar at
+its top ("Reproducibility Mode is on: replaying …"), sets its saved settings
+and runs by itself. When you want to work freely with the restored data (change
+a setting, run other analyses), click **Leave Reproducibility Mode** in the blue
+bar of any cell or under the restore message. The data and settings stay
+loaded; the cells stop setting and running things by themselves, and the bars
+change to "Reproducibility Mode is off". Loading other data in Step 2 also ends
+the mode, and **↺ Restore** switches it on again. The same instructions are
+shown in Step 2, tab *Project*.
 
 You can then change settings and save new analyses to the same project, or load
 new data in Step 2 and save analyses on it (a new data version is added).
@@ -876,7 +961,13 @@ Built-in example datasets:
   Text* tab of each analysis, with the numbers filled in.
 - **Excel reports**: audit report (Step 7) and reports for subgroups (with
   a *Variance Check* sheet), meta-regression, splines, publication bias, time-lag test and cumulative analysis; a CSV
-  table of the meaningful-effect shares (Step 9b).
+  table of the meaningful-effect shares (Step 9b). The first sheet of every
+  report, *Detailed Statistics*, is the table of the step's 🔢 Detailed
+  Statistics tab as shown on screen (values as text, with the method beside
+  each one); the other sheets hold the data used, the sampling covariances,
+  the exclusions, the publication text and the settings. Download the report
+  after running the step: if an earlier step was run again since, the sheet
+  says that the step must be run again.
 - **Figures**: forest, orchard, meaningful-effects, bubble, spline,
   trim-and-fill, time-lag, funnel, leave-one-out, Baujat, cumulative trend and map plots.
   Every plot can be customized (size, fonts, colours, labels, axis limits) and

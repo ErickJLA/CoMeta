@@ -93,7 +93,7 @@ Steps 7–24 "Save analysis" → project file (data versions + named analyses:
 |---|---|
 | **1. Environment Setup & Core Functions** | Imports, the τ² estimators (REML, ML, PM, SJ, DL), CR2 / Satterthwaite inference and the HTZ Wald test (`_compute_robust_var_betas`), the warning router and log, the stale-results banners, figure saving and plot recipes, the project file (`project_*`, save bar, manager). |
 | **1b. Statistical Engine** | `FitSpec`, `build_fit_spec`, `fit_mv`, `fit_blocks`, `fit_cr2`, `compare_fits`, `pseudo_r2`, row accounting, VCV slicing, proportion of meaningful effects. |
-| **2–6. Data** | Ingestion and column mapping, global filters, cleaning and shared-control detection, effect-size choice, effect sizes and sampling VCVs (`build_vcv_matrices`). |
+| **2–6. Data** | Ingestion and column mapping, derived columns (Step 2b; the rule engine `apply_derived_rules` / `derived_formula` is in Cell 1, block "DERIVED COLUMNS"), global filters, cleaning and shared-control detection, effect-size choice, effect sizes and sampling VCVs (`build_vcv_matrices`). |
 | **7. Overall model** | Fixed-effect, two-level and three-level models, heterogeneity, prediction interval, Methods/Results text. |
 | **8–16. Moderators** | Subgroups, proportion of meaningful effects, meta-regression, splines, meta-forest, with their plots. |
 | **17–20. Publication bias** | Egger, trim-and-fill, PET-PEESE, time-lag test, the overview of all of them (19c), funnel plot. |
@@ -243,6 +243,11 @@ statistics must not live inside widget callbacks.
   'regression', 'spline', 'pub_bias', 'pet_peese', 'loo', 'cumulative',
   'plots']`) show "re-run this step". A new step registers its banner with
   `register_banner('my_module', banner_widget)`.
+- **Reproducibility Mode.** A restore sets `ANALYSIS_CONFIG['is_reproducing']`;
+  a step then sets its saved settings and runs. Every step cell calls
+  `show_reproducibility_bar()` right after `cometa_full_height()` (the bar
+  with the *Leave Reproducibility Mode* button); a new step cell must do the
+  same. `project_leave_reproducibility()` switches the mode off.
 - **Plot cells** only draw: they read `<analysis>_results` and never refit.
   `results_token(key)` notices when the analysis was re-run after the plot
   (`stale_warning_html`). `plot_recipe_bar` / `build_plot_recipe` save a
@@ -318,6 +323,10 @@ These keep CoMeta readable and its results trustworthy.
   recommended practice.
 - When the method changes, update the generated Methods/Results text and its
   references in the same change. The text must describe what was computed.
+- References live in one dictionary, `COMETA_REFERENCES` (Cell 1). Add a new
+  reference there (with its DOI, checked against the publisher's record) and
+  use it by key; do not write a reference inside a step. Number citations in
+  order of first appearance.
 
 **Code**
 - Stay inside the notebook. Do not move code into an external package; a
@@ -370,6 +379,17 @@ Each validation reports *PASS*, *FAIL*, *not run* (the step it checks was not
 run) or *skipped* (it uses only reference datasets and they are off). A
 change is ready when nothing that passed before fails now. If a tolerance
 has to be loosened, explain why in the pull request.
+
+**Excel reports.** The numbers of a report come from the step's Detailed
+Statistics rows: pass `key='<step id>'` to `statistics_table_text` when the
+tab is rendered, and `statistics_sheet(writer, '<step id>')` writes them as
+the first sheet. Do not build a second table of results for the file.
+
+**Downloads.** Start every browser download with
+`cometa_download(filename, content, mime)` (Cell 1), as the last thing shown
+in its output area. Do not write a download script by hand: the front end can
+run a script again when the output is redrawn, and `cometa_download` guards
+against that.
 
 **Unit tests.** Validation 11 collects every `test_...` function in its cell
 with pytest. Add a test for each bug you fix (one that fails before your fix

@@ -10,6 +10,20 @@ and recorded in project files, Excel reports and validation exports.
 First public release.
 
 ### Analyses
+- Derived columns (Step 2b, optional): new columns from rules instead of edits
+  in the spreadsheet. A rule transforms a column (logarithm, square, rescale,
+  centre overall or within a group, standardise, cut into categories), splits
+  a moderator into its between- and within-group parts, combines columns into
+  a label, flags rows by a condition, harmonises labels, or computes a formula
+  from several columns. Rules are applied in order, never change an existing
+  column, are saved with the data in the project file, are listed in every
+  Detailed Statistics table and can be applied again to a new version of the
+  data. Formulas are read by a restricted parser, not run as code. The formula can be
+  built with buttons and is checked while it is written (result of the first
+  rows, or what is still wrong); combined labels take any two to four
+  columns, in the order chosen. The rules can be saved as a small rules
+  file and loaded again (from a rules file or a project file) to build the
+  same columns on a new version of the data.
 - Three-level random-effects meta-analysis (REML) with the full sampling
   variance–covariance matrix, including covariances from shared control groups.
   Inference uses cluster-robust CR2 standard errors with Satterthwaite degrees of
@@ -97,7 +111,7 @@ First public release.
 ### Validation
 - 28 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
   the user's own analysis, with optional reference datasets. They also include
-  92 unit tests. R packages are pinned to a dated CRAN snapshot.
+  103 unit tests. R packages are pinned to a dated CRAN snapshot.
 - Validation 27 checks the proportion of meaningful effects on simulated
   three-level data (bias and CI coverage, with Quick / Standard / Publication
   presets).
@@ -170,6 +184,61 @@ First public release.
   in the other steps.
 - The session file of Step 27 and the "Download Settings JSON" buttons of
   Steps 7 and 9 are replaced by the project file.
+- Funnel plot: the Egger's-test box is placed beside the plot by default
+  (inside the plot it could hide the least precise effect sizes). The corner
+  positions are still available, and recipes saved earlier keep theirs.
+- Step 7 stops with a clear message when all effect sizes come from a single
+  study, instead of reporting a result (the cluster-robust standard error is
+  not defined with one study).
+- Step 9b warns about subgroups with fewer than 10 studies, and its Results
+  text says so and states when the calibrated shares have no confidence
+  interval.
+- Publication-bias overview (Step 19c): the PET slope is called "the same
+  regression as Egger's test" only when both use the standard error, and the
+  summary says that Egger's test, trim-and-fill and the PET slope read the
+  same funnel asymmetry and count as one piece of evidence.
+- Non-significant tests are worded as "no evidence of" or "not detected" in
+  the spline dashboard and the publication-bias overview (they said "No" and
+  "no change").
+- One reference list for all generated texts (`COMETA_REFERENCES`, Cell 1):
+  a paper is written the same way in every step, journal articles carry
+  their DOI, Step 9b uses numbered citations like the other steps, and the
+  references of Step 16 are numbered in order of citation.
+- Meta-regression Results name the omnibus test as the Methods do
+  (approximate Hotelling's T², AHZ); the subgroup Results table shows small
+  p-values as "< 0.001", like the text.
+- Excel reports: the first sheet of every report is now the step's
+  *Detailed Statistics* table, exactly as shown on screen, so the file and
+  the screen give the same numbers. This replaces two sheets that were
+  wrong: *Overall Results* listed the two-level estimates even when the
+  three-level model was reported, and *Regression Results* listed only the
+  intercept and the first moderator. The settings sheet of the
+  meta-regression report names every moderator and the fitted model.
+- Excel reports: the *Report Text* sheet no longer loses the words after a
+  "<" (as in "p < 0.001").
+- Project file: a file saved again by an editor that adds a byte-order mark
+  (e.g. Notepad) opens; a file that is not a project, or a project whose
+  analyses lost their settings by hand editing, is refused with a plain
+  message instead of a technical one.
+- Reproducibility Mode can be left: while it is on, every step cell shows a
+  blue bar with a **Leave Reproducibility Mode** button (also under the
+  restore message). Leaving keeps the restored data and settings and stops
+  the cells from setting saved settings and running by themselves. Loading
+  other data in Step 2 ends the mode as well. Step 2, tab *Project*, now
+  explains how the mode works and what to do next.
+- Step 9b plot: the three legend entries and the axis labels of the
+  distribution plot can be edited (an empty box keeps the automatic text),
+  so the whole figure can be written in another language. They are saved in
+  the plot recipe; recipes saved earlier load with the automatic texts.
+- Downloads: one click gives one file. Colab can run the download script of
+  an output again when the output is redrawn, which produced several
+  identical files (up to 8 for "Save analysis & download project"). Every
+  download (project file, Excel reports, plot recipes, rules file, CSV) now
+  goes through one script that runs once, and is the last thing shown.
+- Project file: the summary of a saved Egger / trim-and-fill analysis reads
+  "Egger slope …, p = …" (it labelled the intercept with the p-value of the
+  slope); the slope is stored with the key results. Analyses saved earlier
+  show "Egger's test p = …".
 
 ### Publication text and Detailed Statistics
 - Every Detailed Statistics tab ends with a *Data selection (Steps 2–6)*
