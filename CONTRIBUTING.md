@@ -385,6 +385,12 @@ Statistics rows: pass `key='<step id>'` to `statistics_table_text` when the
 tab is rendered, and `statistics_sheet(writer, '<step id>')` writes them as
 the first sheet. Do not build a second table of results for the file.
 
+**Downloads.** Start every browser download with
+`cometa_download(filename, content, mime)` (Cell 1), as the last thing shown
+in its output area. Do not write a download script by hand: the front end can
+run a script again when the output is redrawn, and `cometa_download` guards
+against that.
+
 **Unit tests.** Validation 11 collects every `test_...` function in its cell
 with pytest. Add a test for each bug you fix (one that fails before your fix
 and passes after) and for each new function. Tests should be small, fast and

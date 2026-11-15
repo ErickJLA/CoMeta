@@ -111,7 +111,7 @@ First public release.
 ### Validation
 - 28 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
   the user's own analysis, with optional reference datasets. They also include
-  102 unit tests. R packages are pinned to a dated CRAN snapshot.
+  103 unit tests. R packages are pinned to a dated CRAN snapshot.
 - Validation 27 checks the proportion of meaningful effects on simulated
   three-level data (bias and CI coverage, with Quick / Standard / Publication
   presets).
@@ -226,6 +226,11 @@ First public release.
   the cells from setting saved settings and running by themselves. Loading
   other data in Step 2 ends the mode as well. Step 2, tab *Project*, now
   explains how the mode works and what to do next.
+- Downloads: one click gives one file. Colab can run the download script of
+  an output again when the output is redrawn, which produced several
+  identical files (up to 8 for "Save analysis & download project"). Every
+  download (project file, Excel reports, plot recipes, rules file, CSV) now
+  goes through one script that runs once, and is the last thing shown.
 - Project file: the summary of a saved Egger / trim-and-fill analysis reads
   "Egger slope …, p = …" (it labelled the intercept with the p-value of the
   slope); the slope is stored with the key results. Analyses saved earlier
