@@ -226,6 +226,10 @@ First public release.
   the cells from setting saved settings and running by themselves. Loading
   other data in Step 2 ends the mode as well. Step 2, tab *Project*, now
   explains how the mode works and what to do next.
+- Step 9b plot: the three legend entries and the axis labels of the
+  distribution plot can be edited (an empty box keeps the automatic text),
+  so the whole figure can be written in another language. They are saved in
+  the plot recipe; recipes saved earlier load with the automatic texts.
 - Downloads: one click gives one file. Colab can run the download script of
   an output again when the output is redrawn, which produced several
   identical files (up to 8 for "Save analysis & download project"). Every

@@ -441,7 +441,10 @@ lists every number at full precision: the thresholds on the analysis scale, the
 model, τ², σ², T² and SE(T²), and each share with its bootstrap and
 delta-method CIs. It also has a plain-text copy to paste into a report or an AI
 assistant. The figure shows stacked bars for all groups with their CIs, or the
-distribution of true effects for one group, and has its own plot recipe. Choose the thresholds before
+distribution of true effects for one group, and has its own plot recipe. Every
+text of the figure can be edited (title, axis labels, group names and the three
+legend entries), for example to write it in another language; an empty box
+keeps the automatic text. Choose the thresholds before
 looking at the results, from what is biologically or practically relevant for
 your outcome.
 
