@@ -30,8 +30,14 @@ First public release.
   freedom. The two-level model is available as a sensitivity analysis, with
   REML, ML, DL, PM and SJ τ² estimators.
 - Effect sizes: lnRR, Hedges' g, Cohen's d, mean difference, lnCVR, log odds
-  ratio, log risk ratio, risk difference and logit proportion, or
-  pre-calculated effect sizes. Missing SDs can be imputed, with a complete-case
+  ratio, log risk ratio, risk difference, logit proportion and Fisher's z from
+  correlations, or pre-calculated effect sizes. Correlations are loaded as r
+  and n (Step 2, data type "Correlations (r and n)"): Step 4 removes and lists
+  the rows that cannot be used (r outside −1 to 1, r of exactly −1 or 1, n of 3
+  or less), Step 5 explains the choice of Fisher's z and Step 6 computes
+  z = atanh(r) with variance 1/(n − 3). The dashboards show the average
+  correlation back-transformed from z; this line was also missing for
+  pre-calculated Fisher's z and now appears there too. Missing SDs can be imputed, with a complete-case
   sensitivity check. For lnRR, Geary's test (Lajeunesse 2015) flags effect sizes
   whose normal approximation is doubtful, and the overall model is refitted
   without them as a sensitivity analysis.

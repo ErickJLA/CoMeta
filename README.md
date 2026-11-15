@@ -126,6 +126,18 @@ you can change any of them.
 | Treatment events / non-events | `events_e`, `nonevents_e` (also `a`, `b`) |
 | Control events / non-events | `events_c`, `nonevents_c` (also `c`, `d`) |
 
+**Correlations (r and n)**
+
+| Field | Recognised names |
+|---|---|
+| Study ID | as above |
+| Correlation coefficient (r) | `ri`, `r`, `cor`, `corr`, `correlation`, `pearson_r`, `rho` |
+| Sample size of the correlation (n) | `ni`, `n`, `n_total`, `sample_size` |
+
+One row per correlation. CoMeta converts each r to Fisher's z in Step 6
+(z = ½ ln((1 + r)/(1 − r)), sampling variance 1/(n − 3)); you do not compute z
+yourself. r must be between −1 and 1 (not a percentage, not r²) and n above 3.
+
 **Pre-calculated effect sizes**
 
 | Field | Recognised names |
@@ -165,8 +177,8 @@ of Step 7 and, if Step 9 was run, the subgroups.
   Section 4).
 - *Built-in Examples*: load one of the example datasets.
 
-After loading, choose the data type (raw continuous, raw binary or
-pre-calculated), check the column mapping, map the optional geographic columns
+After loading, choose the data type (raw continuous, raw binary, correlations
+or pre-calculated), check the column mapping, map the optional geographic columns
 and click **Confirm Mapping & Finalize Data**.
 
 **Step 2b – Derived Columns (optional).** Build new columns from rules instead
@@ -257,6 +269,7 @@ accept it or pick another:
 |---|---|
 | Raw continuous | log Response Ratio (lnRR), Hedges' g, Cohen's d, Mean Difference (MD), log Coefficient of Variation Ratio (lnCVR) |
 | Raw binary | log Odds Ratio, log Risk Ratio, Risk Difference, logit Proportion |
+| Correlations (r and n) | Fisher's z |
 | Pre-calculated | used as supplied |
 
 The **small-sample bias correction** checkbox (lnRR and lnCVR only) is on by
@@ -287,6 +300,19 @@ sampling variances.
   them, so the shared control counts stay identical). For log OR and log RR, studies with zero events in both
   groups are dropped and listed (they are kept for the risk difference). For
   a logit proportion, 0.5 is added to both counts when either is zero.
+- Correlations: each r becomes Fisher's z = ½ ln((1 + r)/(1 − r)) with sampling
+  variance 1/(n − 3), which depends only on the sample size. The processed
+  data also keep r and its 95% CI (`Pearson_r`, `r_CI_lower`, `r_CI_upper`).
+  All models run on z; the dashboards and the Detailed Statistics also show
+  the average, its CI and prediction interval back as correlations (figures
+  stay on the z scale). Rows with a missing r or n, r outside −1 to 1, r of
+  exactly −1 or 1, or n of 3 or less are removed in Step 4 and listed with the
+  reason. Limits: the formulas are those of Pearson's r (for Spearman's rho or
+  Kendall's tau, 1/(n − 3) is only an approximation; partial correlations
+  need another variance and should not be entered); several correlations from
+  the same sample are treated as independent within their study (the study
+  level of the model and the cluster-robust inference account for the
+  clustering, but no covariance between them is used).
 - **Shared controls**: rows that share the same control group are detected,
   and the covariance between their effect sizes is built into the sampling
   variance matrix used by all models. Detection is automatic: rows of one
@@ -874,7 +900,8 @@ Lajeunesse, 2011) in the sampling variance–covariance matrix.
 
 **Effect sizes** use the standard formulas (Borenstein et al., 2009; Hedges
 et al., 1999 for lnRR; Nakagawa et al., 2015 for lnCVR; Barendregt et al., 2013
-for the logit proportion), with the small-sample corrections for lnRR and lnCVR
+for the logit proportion; Fisher's z = atanh(r) with variance 1/(n − 3) for
+correlations), with the small-sample corrections for lnRR and lnCVR
 (Lajeunesse, 2015) and the bias-corrected Hedges' g (Hedges, 1981). They are
 checked against R in Validation 20. For lnRR, Geary's test (Lajeunesse, 2015)
 flags effect sizes whose normal approximation is doubtful; the overall model is

@@ -115,6 +115,11 @@ a filter. The user maps columns in Step 2; CoMeta guesses from the names below.
 (`events_c`, `nonevents_c`, or `c`, `d`). A **single-group proportion** (logit)
 uses only the treatment events / non-events.
 
+**Correlations (r and n)**: study ID; the correlation coefficient (`ri`, `r`,
+`cor`, `corr`, `correlation`, `pearson_r`, `rho`); its sample size (`ni`, `n`,
+`n_total`, `sample_size`). One row per correlation, r between −1 and 1
+(exclusive), n above 3. CoMeta computes Fisher's z itself (Step 6).
+
 **Pre-calculated**: study ID; effect size (`yi`, `effect_size`, `es`,
 `hedges_g`, `lnrr`, `smd`, `g`, `d`); its variance (`vi`, `variance`, `var`)
 **or** standard error (`se`, `standard_error`); optional total n (`n_total`,
@@ -152,7 +157,8 @@ column list, a few rows and the counts below.
 Check and report:
 1. **Size**: number of effect sizes (k) and of studies (m); effect sizes per
    study (min, median, max). Few studies (< 10) limit everything that follows.
-2. **Data type**: raw continuous, raw binary or pre-calculated? Which columns
+2. **Data type**: raw continuous, raw binary, correlations (r and n) or
+   pre-calculated? Which columns
    map to the required fields? Are any required values missing?
 3. **Effect-size suitability**:
    - continuous: zero or negative means (rule out lnRR/lnCVR for those rows)?
@@ -274,6 +280,7 @@ for c in df.columns.difference(['id','xe','sde','ne','xc','sdc','nc']):
 |---|---|
 | Raw continuous | **lnRR** (log response ratio), **Hedges' g**, Cohen's d, mean difference (MD), **lnCVR** (variability) |
 | Raw binary | log odds ratio, log risk ratio, risk difference, logit proportion |
+| Correlations (r and n) | **Fisher's z** (the only option): z = atanh(r), variance 1/(n − 3); dashboards also show r |
 | Pre-calculated | as supplied (declare its type) |
 - CoMeta recommends one from the data (signs, zeros, scale) and explains why.
 - *Small-sample bias correction* (lnRR, lnCVR; Lajeunesse 2015): on by default.
@@ -483,8 +490,14 @@ for c in df.columns.difference(['id','xe','sde','ne','xc','sdc','nc']):
 - Interest in variability (not the mean): **lnCVR**.
 - Binary: log OR (rare events), log RR (common events), RD (absolute risk;
   keeps double-zero studies), logit proportion (single group).
-- Correlations: only as **pre-calculated Fisher's z** (z = atanh(r),
-  v = 1/(n − 3), computed before loading).
+- Correlations: load r and n (data type "Correlations (r and n)"); CoMeta
+  computes **Fisher's z** = atanh(r) with v = 1/(n − 3) and reports the
+  average back as r. Pearson's r is assumed: rank correlations are an
+  approximation, partial correlations do not belong here. Rows with |r| ≥ 1 or
+  n ≤ 3 are removed in Step 4. Several correlations from one sample are
+  treated as independent within their study. Because the variance of z does
+  not depend on the effect, the standard error is the right precision term
+  for Egger's test and PET-PEESE here.
 
 **Model**
 - Several effect sizes per study (the usual case): keep the **three-level
@@ -613,7 +626,7 @@ An *Estimate time* button predicts the run time. Results show the bootstrap p
 | Phylogenetic non-independence | no | R metafor with a phylogenetic correlation matrix; MetaWin 3 |
 | Interactions in meta-regression (continuous × anything) | no (only categorical × categorical via two-factor subgroups) | fit the continuous model within each category (Step 3 filter) and compare; or R metafor |
 | Several spline moderators, spline × factor | no | R |
-| Correlations from raw r and n | pre-calculated Fisher's z only | compute z and v = 1/(n − 3) first |
+| Partial correlations; covariance between correlations from the same sample | no (plain r and n only, treated as independent within a study) | compute z and its variance outside and load as pre-calculated; R metafor `vcalc` / `rcalc` for the covariances |
 | Pre/post or repeated-measures effect sizes (SMCR, ROMC) | pre-calculated only | compute in R `escalc`, load as pre-calculated |
 | Bayesian meta-analysis, selection models, RoBMA | no | JASP, R RoBMA / metafor `selmodel` |
 | Location-scale models | no (separate-variance subgroups cover categorical cases) | R metafor |
