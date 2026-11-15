@@ -117,7 +117,7 @@ First public release.
 ### Validation
 - 28 validations compare CoMeta with R (metafor, clubSandwich, MetaUtility) on
   the user's own analysis, with optional reference datasets. They also include
-  103 unit tests. R packages are pinned to a dated CRAN snapshot.
+  106 unit tests. R packages are pinned to a dated CRAN snapshot.
 - Validation 27 checks the proportion of meaningful effects on simulated
   three-level data (bias and CI coverage, with Quick / Standard / Publication
   presets).
