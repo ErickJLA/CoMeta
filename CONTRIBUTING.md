@@ -416,6 +416,26 @@ R call in the docstring).
 6. Add unit tests and, when R can compute the same thing, a validation.
 7. Document the step in the README manual.
 
+**A new kind of input data or effect size**
+
+The correlation type (r and n, Fisher's z) is the smallest complete example;
+search the notebook for `fisher_z` and `raw_correlation`.
+1. Step 2: column names (`..._COLUMN_SPECS`), the numeric columns in
+   `_NUMERIC_REQUIRED`, an option in the data-type list and a mapping form
+   that sets `DATA_TYPE_SELECTED = 'raw'`.
+2. Steps 3 and 4: add the new columns to the statistic-column lists (so they
+   are not offered as filters or moderators) and the row checks to
+   `run_processing`, each removed row with a `Reason`.
+3. Step 5: an entry in `ES_CONFIGS`, a detection branch with its
+   recommendation, Data Patterns text and the compatibility check.
+4. Step 6: the required columns and the formula in `run_calculation`; if the
+   effect size has no control group, add it to `no_control_types` in
+   `build_vcv_matrices`.
+5. Cell 1: a back-transform in `_DASH_ORIGINAL_SCALE` when results should
+   also be shown on the original scale.
+6. Step 7: the sentence of the Methods text; Validation 20: the R call and
+   reference data; Validation 11: unit tests.
+
 **A new validation**
 1. Copy the closest existing validation cell (e.g. Validation 26) and keep
    its structure: header comment saying what is compared with which R
